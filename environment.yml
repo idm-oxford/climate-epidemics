@@ -1,0 +1,17 @@
+# To create, run "conda env create -f environment.yml"
+# Run "conda activate climepi", then add the main package in development mode with "pip install -e ."
+
+name: climepi
+channels:
+  - defaults
+dependencies:
+  - python
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - xarray
+  - netcdf4
+  - cartopy
+  - jupyter
+  - pip
