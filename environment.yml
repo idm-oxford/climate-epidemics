@@ -9,8 +9,10 @@ dependencies:
   - numpy
   - scipy
   - matplotlib
+  - hvplot
   - pandas
   - xarray
+  - dask
   - netcdf4
   - cartopy
   - jupyter
