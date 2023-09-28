@@ -1,19 +1,26 @@
 # To create, run "conda env create -f environment.yml"
-# Run "conda activate climepi", then add the main package in development mode with "pip install -e ."
+# Run "conda activate climepi", then install the climepi package in development mode with "pip install -e ."
 
 name: climepi
 channels:
-  - defaults
+  - conda-forge
 dependencies:
   - python
+  - jupyter
+  - pip
   - numpy
   - scipy
-  - matplotlib
-  - hvplot
   - pandas
   - xarray
   - dask
+  - pint
   - netcdf4
+  - pint-xarray
+  - cf_xarray
+  - xclim>=0.45
+  - clisops
+  - flox
+  - matplotlib
   - cartopy
-  - jupyter
-  - pip
+  - hvplot
+  - geoviews

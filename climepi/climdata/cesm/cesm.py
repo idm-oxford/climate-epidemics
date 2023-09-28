@@ -1,8 +1,15 @@
-import xarray as xr
-import dask
-import netCDF4
-import os
+import pathlib
+import xclim.ensembles
+import xclim.core.calendar
 
 def import_data(**kwargs):
-    path_str = os.path.dirname(__file__)+'/data/sim*.nc'
-    return xr.open_mfdataset(path_str, parallel=True, **kwargs)
+    file_dir_path = str(pathlib.Path(__file__).parent)
+    paths = [file_dir_path+"/data/sim"+str(i)+".nc" for i in range(1,101)]
+    ds = xclim.ensembles.create_ensemble(paths, multifile=True, **kwargs)
+    ds = ds.rename_vars({'TS':'temperature', 'PRECT':'precipitation'})
+    ds = xclim.core.calendar.convert_calendar(ds, 'proleptic_gregorian')
+    return ds
+
+if __name__ == "__main__":
+    ds = import_data()
+    ds
