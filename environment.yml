@@ -12,9 +12,12 @@ dependencies:
   - scipy
   - pandas
   - xarray
+  - bottleneck
+  - cftime
+  - nc-time-axis
   - dask
-  - pint
   - netcdf4
+  - pint
   - pint-xarray
   - cf_xarray
   - xclim>=0.45

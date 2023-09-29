@@ -60,27 +60,29 @@ class ClimEpiDatasetAccessor(_SharedClimEpiAccessor):
 class ClimEpiDataArrayAccessor(_SharedClimEpiAccessor):
 
     def plot_time_series(self, **kwargs):
-        if 'time' not in self._obj.sizes.keys():
+        if 'time' not in self._obj.sizes:
             raise ValueError('Time series plot only defined for time series.')
-        elif any(x != 'time' for x in self._obj.sizes.keys()):
+        elif any(x != 'time' for x in self._obj.sizes):
             raise ValueError('Time series plot only defined for single time series.')
-        kwargs_hvplot = {}
+        kwargs_hvplot = {'x':'time', 'frame_width':600}
         kwargs_hvplot.update(kwargs)
         return self._obj.hvplot.line(**kwargs_hvplot)
     
     def plot_map(self, **kwargs):
-        if any(x not in self._obj.sizes.keys() for x in ('lat','lon')):
+        if any(x not in self._obj.sizes for x in ('lat','lon')):
             raise ValueError('Map plot only defined for spatial data.')
-        elif any(x not in ['time','lat','lon'] for x in self._obj.sizes.keys()):
+        elif any(x not in ['time','lat','lon'] for x in self._obj.sizes):
             raise ValueError('Input variable has unsupported dimensions.')
-        kwargs_hvplot = {'crs':self.crs,'cmap':'viridis', 'project':True, 'geo':True, 'rasterize':True, 'coastline':True, 'frame_width':600, 'dynamic':False}
+        kwargs_hvplot = {'x':'lon','y':'lat','groupby':'time','cmap':'viridis', 'project':True, 'geo':True, 'rasterize':True, 'coastline':True, 'frame_width':600, 'dynamic':False}
         kwargs_hvplot.update(kwargs)
+        if 'crs' not in kwargs_hvplot:
+            kwargs_hvplot['crs'] = self.crs
         return self._obj.hvplot.quadmesh(**kwargs_hvplot)
     
 if __name__ == "__main__":
-    # import climdata.cesm as cesm
-    # ds = cesm.import_data().sel(realization=0)
-    ds = xr.tutorial.open_dataset('air_temperature').rename_vars({'air':'temperature'})
-    #plot = ds['temperature'].sel(lon=0, lat=0, realization=0, method='nearest').climepi.plot_time_series()
-    plot = ds['temperature'].isel(time=range(10)).climepi.plot_map()
+    import climdata.cesm as cesm
+    ds = cesm.import_data()
+    # ds = xr.tutorial.open_dataset('air_temperature').rename_vars({'air':'temperature'}).isel(time=range(10)).expand_dims(dim={'realization':[0]},axis=3)
+    plot = ds['temperature'].sel(lon=0, lat=0, realization=0, method='nearest').climepi.plot_time_series()
+    # plot = ds['temperature'].isel(realization=0).climepi.plot_map()
     hvplot.show(plot)
