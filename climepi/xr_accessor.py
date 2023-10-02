@@ -3,13 +3,15 @@ import cf_xarray.units
 import pint_xarray
 import hvplot.xarray
 import cartopy.crs
+import xclim
+import xcdat
 import warnings
 
 class _SharedClimEpiAccessor:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
-        self._ensemble_type = None
-        self._geo_scope = None
+        # self._ensemble_type = None
+        # self._geo_scope = None
         self._crs = None
     
     # @property
@@ -50,6 +52,11 @@ class _SharedClimEpiAccessor:
                 warnings.warn('PlateCarree CRS assumed.') #TODO: Add setter method to set crs and mention it here.
         return self._crs
 
+    def annual_mean(self, data_var, **kwargs):
+        if 'time' not in self._obj.sizes:
+            raise ValueError('Annual mean only defined for time series.')
+        ds_m = self._obj.temporal.group_average(data_var, freq='year', **kwargs)
+        return ds_m
 
 @xr.register_dataset_accessor("climepi")
 class ClimEpiDatasetAccessor(_SharedClimEpiAccessor):
@@ -83,6 +90,5 @@ if __name__ == "__main__":
     import climdata.cesm as cesm
     ds = cesm.import_data()
     # ds = xr.tutorial.open_dataset('air_temperature').rename_vars({'air':'temperature'}).isel(time=range(10)).expand_dims(dim={'realization':[0]},axis=3)
-    plot = ds['temperature'].sel(lon=0, lat=0, realization=0, method='nearest').climepi.plot_time_series()
-    # plot = ds['temperature'].isel(realization=0).climepi.plot_map()
-    hvplot.show(plot)
+    ds1 = ds.climepi.annual_mean('temperature')
+    ds1

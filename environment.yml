@@ -20,6 +20,7 @@ dependencies:
   - pint
   - pint-xarray
   - cf_xarray
+  - xcdat
   - xclim>=0.45
   - clisops
   - flox
