@@ -28,3 +28,4 @@ dependencies:
   - cartopy
   - hvplot
   - geoviews
+  - jupyter_bokeh
