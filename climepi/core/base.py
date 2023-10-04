@@ -1,3 +1,4 @@
+import numpy as np
 import xarray as xr
 import cf_xarray.units
 import pint_xarray
@@ -7,7 +8,8 @@ import xclim
 import xcdat
 import warnings
 
-class _SharedClimEpiAccessor:
+@xr.register_dataset_accessor("climepi")
+class ClimEpiDatasetAccessor:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
         # self._ensemble_type = None
@@ -51,13 +53,15 @@ class _SharedClimEpiAccessor:
                 self._crs = cartopy.crs.PlateCarree()
                 warnings.warn('PlateCarree CRS assumed.') #TODO: Add setter method to set crs and mention it here.
         return self._crs
-
-@xr.register_dataset_accessor("climepi")
-class ClimEpiDatasetAccessor(_SharedClimEpiAccessor):
     
     def annual_mean(self, data_var):
         if 'time' not in self._obj.sizes:
             raise ValueError('Annual mean only defined for time series.')
+        if  np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(self._obj[data_var].dtype, 'bool'):
+            # Workaround for bug in xcdat group-average using integer or boolean data types
+            ds = self._obj.copy()
+            ds[data_var] = ds[data_var].astype('float64')
+            return ds.climepi.annual_mean(data_var)
         ds_m = self._obj.temporal.group_average(data_var, freq='year')
         return ds_m
     
@@ -68,7 +72,7 @@ class ClimEpiDatasetAccessor(_SharedClimEpiAccessor):
         ds_m[data_var] = self._obj[data_var].mean(dim='realization')
         ds_m[data_var].attrs = self._obj[data_var].attrs
         ds_m[data_var].attrs['ensemble_mode'] = 'mean'
-        self._copy_bnds(ds_m)
+        ds_m.climepi._copy_bnds(self._obj)
         return ds_m
     
     def ensemble_percentiles(self, data_var, values, **kwargs):
@@ -78,7 +82,7 @@ class ClimEpiDatasetAccessor(_SharedClimEpiAccessor):
         ds_p[data_var] = xclim.ensembles.ensemble_percentiles(self._obj[data_var], values, split=False, **kwargs)
         ds_p[data_var].attrs = self._obj[data_var].attrs
         ds_p[data_var].attrs['ensemble_mode'] = 'percentiles'
-        self._copy_bnds(ds_p)
+        ds_p.climepi._copy_bnds(self._obj)
         return ds_p
     
     def ensemble_mean_conf(self, data_var, conf_level = 90, **kwargs):
@@ -92,7 +96,7 @@ class ClimEpiDatasetAccessor(_SharedClimEpiAccessor):
         ds_mp[data_var] = xr.concat([da_m,da_p], dim='statistic')
         ds_mp.assign_coords(statistic=['mean','lower','upper'])
         ds_mp[data_var].attrs['ensemble_mode'] = 'mean and CI'
-        self._copy_bnds(ds_mp)
+        ds_mp.climepi._copy_bnds(self._obj)
         return ds_mp
 
     def plot_time_series(self, data_var, **kwargs):
@@ -109,7 +113,9 @@ class ClimEpiDatasetAccessor(_SharedClimEpiAccessor):
             raise ValueError('Map plot only defined for spatial data.')
         elif any(x not in ['time','lat','lon'] for x in da_plot.sizes):
             raise ValueError('Input variable has unsupported dimensions.')
-        kwargs_hvplot = {'x':'lon','y':'lat','groupby':'time','cmap':'viridis', 'project':True, 'geo':True, 'rasterize':True, 'coastline':True, 'frame_width':600, 'dynamic':False}
+        kwargs_hvplot = {'x':'lon','y':'lat','cmap':'viridis', 'project':True, 'geo':True, 'rasterize':True, 'coastline':True, 'frame_width':600, 'dynamic':False}
+        if 'time' in da_plot.sizes:
+            kwargs_hvplot['groupby'] = 'time'
         kwargs_hvplot.update(kwargs)
         if 'crs' not in kwargs_hvplot:
             kwargs_hvplot['crs'] = self.crs
@@ -129,16 +135,11 @@ class ClimEpiDatasetAccessor(_SharedClimEpiAccessor):
             kwargs_hvplot.update(kwargs)
             return ds_ci.hvplot.area(y='lower',y2='upper', alpha=0.2, **kwargs_hvplot) * da_mean.hvplot(**kwargs_hvplot)
     
-    def _copy_bnds(self, ds_to):
+    def _copy_bnds(self, ds_from):
         for var in ['lat_bnds','lon_bnds','time_bnds']:
-            if var in self._obj.data_vars:
-                ds_to[var] = self._obj[var]
-                ds_to[var].attrs = self._obj[var].attrs
-
-@xr.register_dataarray_accessor("climepi")
-class ClimEpiDataArrayAccessor(_SharedClimEpiAccessor):
-
-    pass
+            if var in ds_from.data_vars:
+                self._obj[var] = ds_from[var]
+                self._obj[var].attrs = ds_from[var].attrs
     
 if __name__ == "__main__":
     import climdata.cesm as cesm

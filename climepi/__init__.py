@@ -1,1 +1,1 @@
-from .xr_accessor import ClimEpiDatasetAccessor, ClimEpiDataArrayAccessor
+from .core.base import ClimEpiDatasetAccessor
