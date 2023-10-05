@@ -14,13 +14,25 @@ class EcolNicheModel(EpiModel):
     @suitability_table.setter
     def suitability_table(self, ds):
         self._suitability_table = ds
-    def _run_main(self, clim_ds):
-        suitability_ds = self.suitability_table.sel(temperature=clim_ds['temperature'], precipitation=clim_ds['precipitation'], method='nearest')
-        suitability_da = suitability_ds['suitability'].reset_coords(names=['temperature','precipitation'],drop=True)
-        return suitability_da
+    def _run_main(self, ds_clim):
+        da_suitability = xr.map_blocks(self._get_suitability, ds_clim)
+        return da_suitability
+    def _get_suitability(self, ds_clim):
+        ds_suitability = self.suitability_table.sel(temperature=ds_clim['temperature'], precipitation=ds_clim['precipitation'], method='nearest')
+        da_suitability = ds_suitability['suitability'].reset_coords(names=['temperature','precipitation'],drop=True)
+        return da_suitability
     
 def import_kaye_model():
     data_path = str(pathlib.Path(__file__).parent)+'/data/kaye_ecol_niche.nc'
     suitability_table = xr.open_dataset(data_path)
     epi_model = EcolNicheModel(suitability_table)
     return epi_model
+
+if __name__=='__main__':
+    import climepi.climdata.cesm as cesm
+    from climepi.epimod import EpiModDatasetAccessor
+    ds_clim = cesm.import_data()
+    epi_model = import_kaye_model()
+    ds_clim.epimod.model = epi_model
+    ds_epi = ds_clim.epimod.run()
+    ds_epi

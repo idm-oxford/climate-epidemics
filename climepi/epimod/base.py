@@ -4,13 +4,13 @@ import climepi
 class EpiModel(object):
     def __init__(self):
         pass
-    def run(self, clim_ds):
-        epi_da = self._run_main(clim_ds)
-        epi_ds = xr.Dataset(attrs=clim_ds.attrs)
-        epi_ds[epi_da.name] = epi_da
-        epi_ds.climepi._copy_bnds(clim_ds)
-        return epi_ds
-    def _run_main(self, clim_ds):
+    def run(self, ds_clim):
+        da_epi = self._run_main(ds_clim)
+        ds_epi = xr.Dataset(attrs=ds_clim.attrs)
+        ds_epi[da_epi.name] = da_epi
+        ds_epi.climepi._copy_bnds(ds_clim)
+        return ds_epi
+    def _run_main(self, ds_clim):
         raise NotImplementedError
 
 @xr.register_dataset_accessor("epimod")
