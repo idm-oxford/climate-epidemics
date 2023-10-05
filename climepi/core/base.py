@@ -71,7 +71,7 @@ class ClimEpiDatasetAccessor:
         ds_m = xr.Dataset(attrs=self._obj.attrs)
         ds_m[data_var] = self._obj[data_var].mean(dim='realization')
         ds_m[data_var].attrs = self._obj[data_var].attrs
-        ds_m[data_var].attrs['ensemble_mode'] = 'mean'
+        ds_m[data_var].attrs['ensemble_mode'] = 'statistics'
         ds_m.climepi._copy_bnds(self._obj)
         return ds_m
     
@@ -81,9 +81,31 @@ class ClimEpiDatasetAccessor:
         ds_p = xr.Dataset(attrs=self._obj.attrs)
         ds_p[data_var] = xclim.ensembles.ensemble_percentiles(self._obj[data_var], values, split=False, **kwargs)
         ds_p[data_var].attrs = self._obj[data_var].attrs
-        ds_p[data_var].attrs['ensemble_mode'] = 'percentiles'
+        ds_p[data_var].attrs['ensemble_mode'] = 'statistics'
         ds_p.climepi._copy_bnds(self._obj)
         return ds_p
+    
+    def ensemble_mean_std_max_min(self, data_var, **kwargs):
+        if 'realization' not in self._obj.sizes:
+            raise ValueError('Ensemble statistics only defined for ensemble data.')
+        ds_stat_xclim = xclim.ensembles.ensemble_mean_std_max_min(self._obj[data_var].to_dataset(), **kwargs)
+        stat_list = ['mean','std','max','min']
+        stat_list_xclim = [data_var+'_'+stat_list[i] for i in range(len(stat_list))]
+        stat_list_xclim[1]+='ev'
+        ds_stat = xr.Dataset(attrs=self._obj.attrs)
+        ds_stat[data_var] = xr.concat([ds_stat_xclim[stat_list_xclim] for stat in stat_list],dim='statistic')
+        ds_stat[data_var].attrs = self._obj[data_var].attrs
+        ds_stat[data_var].attrs['ensemble_mode'] = 'statistics'
+        ds_stat.climepi._copy_bnds(self._obj)
+
+    def ensemble_stats(self, data_var , conf_level = 90, **kwargs):
+        if 'realization' not in self._obj.sizes:
+            raise ValueError('Ensemble statistics only defined for ensemble data.')
+        ds_msmm = self._obj.climepi.ensemble_mean_std_max_min(data_var, **kwargs)
+        ds_mci = self._obj.climepi.ensemble_percentiles(data_var, [50-conf_level/2, 50, 50+conf_level/2], **kwargs)
+        ds_mci = ds_mci.rename({'percentiles':'statistic'}).assign_coords(statistic=['lower','median','upper'])
+        ds_stat = xr.concat([ds_msmm,ds_mci],dim='statistic')
+        return ds_stat
     
     def ensemble_mean_conf(self, data_var, conf_level = 90, **kwargs):
         if 'realization' not in self._obj.sizes:
@@ -142,11 +164,12 @@ class ClimEpiDatasetAccessor:
                 self._obj[var].attrs = ds_from[var].attrs
     
 if __name__ == "__main__":
-    import climdata.cesm as cesm
+    import climepi.climdata.cesm as cesm
     ds = cesm.import_data()
     # ds = xr.tutorial.open_dataset('air_temperature').rename_vars({'air':'temperature'}).isel(time=range(10)).expand_dims(dim={'realization':[0]},axis=3)
     ds_tmm = ds.climepi.annual_mean('temperature')
-    ds_tmm_ensmean = ds_tmm.climepi.ensemble_mean('temperature')
+    ds_tmm_em = ds_tmm.climepi.ensemble_mean('temperature')
+    ds_tmm_es = ds_tmm.climepi.ensemble_mean_std_max_min('temperature')
     ds_tmm_perc_ex = ds_tmm.sel(lon=0, lat=0, method='nearest').climepi.ensemble_percentiles('temperature', [5,50,95])
     ds_tmm_stats_ex = ds_tmm.sel(lon=0, lat=0, method='nearest').climepi.ensemble_mean_conf('temperature', conf_level = 90)
     ds_tmm_stats_ex.climepi.plot_ensemble_mean_conf('temperature')
