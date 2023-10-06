@@ -3,6 +3,7 @@ import xarray as xr
 import cf_xarray.units
 import pint_xarray
 import hvplot.xarray
+import geoviews.feature as gf
 import cartopy.crs
 import xclim
 import xcdat
@@ -137,7 +138,7 @@ class ClimEpiDatasetAccessor:
         kwargs_hvplot.update(kwargs)
         return da_plot.hvplot.line(**kwargs_hvplot)
     
-    def plot_map(self, data_var=None, **kwargs):
+    def plot_map(self, data_var=None, include_ocean=False, **kwargs):
         data_var = self._auto_select_data_var(data_var)
         da_plot = self._obj[data_var]
         if any(x not in da_plot.sizes for x in ('lat','lon')):
@@ -150,7 +151,12 @@ class ClimEpiDatasetAccessor:
         kwargs_hvplot.update(kwargs)
         if 'crs' not in kwargs_hvplot:
             kwargs_hvplot['crs'] = self.crs
-        return da_plot.hvplot.quadmesh(**kwargs_hvplot)
+        p_main = da_plot.hvplot.quadmesh(**kwargs_hvplot)
+        if include_ocean:
+            return p_main
+        else:
+            p_ocean = gf.ocean.options(fill_color='white')
+            return p_main*p_ocean
     
     def plot_ensemble_ci(self, data_var=None, central='mean', conf_level=None, **kwargs):
         data_var = self._auto_select_data_var(data_var)
@@ -191,8 +197,8 @@ class ClimEpiDatasetAccessor:
                 self._obj[var].attrs = ds_from[var].attrs
     
 if __name__ == "__main__":
-    from climepi.climdata import cesm
-    ds = cesm.import_data()
+    from climepi.climdata.cesm import import_data
+    ds = import_data()
     # ds = xr.tutorial.open_dataset('air_temperature').rename_vars({'air':'temperature'}).isel(time=range(10)).expand_dims(dim={'realization':[0]},axis=3)
     ds_tmm = ds.climepi.annual_mean('temperature')
     ds_tmm_em = ds_tmm.climepi.ensemble_mean()
