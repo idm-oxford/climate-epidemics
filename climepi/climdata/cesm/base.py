@@ -30,4 +30,5 @@ def import_data(**kwargs):
 
 if __name__ == "__main__":
     ds = import_data()
-    ds
+    print(ds)
+    

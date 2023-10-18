@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "climepi"
+version = "0.0.1"
+authors = [
+  { name="William Hart", email="william.hart@maths.ox.ac.uk" },
+]
+description = "Combining climate and epidemiological models"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/will-s-hart/climate-epidemics"
+"Bug Tracker" = "https://github.com/will-s-hart/climate-epidemics/issues"
