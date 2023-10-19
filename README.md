@@ -1,2 +1,2 @@
-# epiclim
-Incorporating climate data into epidemiological models
+# climepi
+Python package for incorporating climate data into epidemiological models

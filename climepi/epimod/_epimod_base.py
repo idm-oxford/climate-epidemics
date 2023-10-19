@@ -1,14 +1,18 @@
-import xarray as xr
-import climepi
+"""Base module of the epimod subpackage providing a base epidemiological model class and an xarray
+accessor.
+"""
 
-class EpiModel(object):
+import xarray as xr
+# import climepi
+
+class EpiModel:
     def __init__(self):
         pass
     def run(self, ds_clim):
         da_epi = self._run_main(ds_clim)
         ds_epi = xr.Dataset(attrs=ds_clim.attrs)
         ds_epi[da_epi.name] = da_epi
-        ds_epi.climepi._copy_bnds(ds_clim)
+        ds_epi.climepi.copy_bnds_from(ds_clim)
         return ds_epi
     def _run_main(self, ds_clim):
         raise NotImplementedError

@@ -1,4 +1,4 @@
 """
-Base of the climepi package.
+Python package for incorporating climate data into epidemiological models.
 """
-from .core import ClimEpiDatasetAccessor
+from ._core import ClimEpiDatasetAccessor

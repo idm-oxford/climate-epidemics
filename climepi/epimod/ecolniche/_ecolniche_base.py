@@ -1,3 +1,6 @@
+"""Base module defining an ecological niche model class and functionality for importing the model of
+Kaye et al."""
+
 import pathlib
 import xarray as xr
 from climepi.epimod import EpiModel
@@ -27,12 +30,3 @@ def import_kaye_model():
     suitability_table = xr.open_dataset(data_path)
     epi_model = EcolNicheModel(suitability_table)
     return epi_model
-
-if __name__=='__main__':
-    import climepi.climdata.cesm as cesm
-    from climepi.epimod import EpiModDatasetAccessor
-    ds_clim = cesm.import_data()
-    epi_model = import_kaye_model()
-    ds_clim.epimod.model = epi_model
-    ds_epi = ds_clim.epimod.run()
-    ds_epi

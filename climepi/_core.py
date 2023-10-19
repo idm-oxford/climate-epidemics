@@ -4,10 +4,10 @@ provides a set of methods that can be applied to xarray datasets.
 
 import numpy as np
 import xarray as xr
-import hvplot.xarray #noqa
+import hvplot.xarray  # noqa
 import geoviews.feature as gf
 import xclim
-import xcdat #noqa
+import xcdat  # noqa
 
 
 @xr.register_dataset_accessor("climepi")
@@ -64,7 +64,7 @@ class ClimEpiDatasetAccessor:
         data_var = self._auto_select_data_var(data_var)
         if 'time' not in self._obj.sizes:
             raise ValueError('Annual mean only defined for time series.')
-        if any([np.issubdtype(self._obj[data_var].dtype, x) for x in [np.integer,'bool']]):
+        if any([np.issubdtype(self._obj[data_var].dtype, x) for x in [np.integer, 'bool']]):
             # Workaround for bug in xcdat group-average using integer or boolean data types
             ds_copy = self._obj.copy()
             ds_copy[data_var] = ds[data_var].astype('float64')
@@ -232,7 +232,8 @@ class ClimEpiDatasetAccessor:
         data_var = self._auto_select_data_var(data_var)
         da_plot = self._obj[data_var]
         kwargs_hvplot = {'x': 'lon', 'y': 'lat', 'crs': 'PlateCaree', 'cmap': 'viridis',
-                         'project': True, 'geo': True, 'rasterize': True, 'coastline': True, 'frame_width': 600, 'dynamic': False}
+                         'project': True, 'geo': True, 'rasterize': True, 'coastline': True,
+                         'frame_width': 600, 'dynamic': False}
         if 'time' in da_plot.sizes:
             kwargs_hvplot['groupby'] = 'time'
         else:
@@ -244,7 +245,8 @@ class ClimEpiDatasetAccessor:
         p_ocean = gf.ocean.options(fill_color='white')
         return p_main*p_ocean
 
-    def plot_ensemble_ci_time_series(self, data_var=None, central='mean', conf_level=None, **kwargs):
+    def plot_ensemble_ci_time_series(self, data_var=None, central='mean', conf_level=None,
+                                     **kwargs):
         """
         Generates a time series plot of the ensemble confidence interval and (optionally) central
         estimate for a data variable. Can be called either on an ensemble statistics dataset created
@@ -299,10 +301,6 @@ class ClimEpiDatasetAccessor:
         ----------
         ds_from : xarray.Dataset
             The dataset to copy the bounds from.
-
-        Returns
-        -------
-        None
         """
         for var in ['lat_bnds', 'lon_bnds', 'time_bnds']:
             if var in ds_from.data_vars:
