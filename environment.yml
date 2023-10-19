@@ -5,9 +5,10 @@ name: climepi
 channels:
   - conda-forge
 dependencies:
-  - python
-  - jupyter
+  # Core packages
+  - python=3.11
   - pip
+  # climepi dependencies (should match dependencies in pyproject.toml)
   - numpy
   - scipy
   - pandas
@@ -28,4 +29,6 @@ dependencies:
   - cartopy
   - hvplot
   - geoviews
+  # Packages for example notebooks
+  - jupyter
   - jupyter_bokeh

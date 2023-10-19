@@ -1,1 +1,4 @@
-from .core.base import ClimEpiDatasetAccessor
+"""
+Base of the climepi package.
+"""
+from .core import ClimEpiDatasetAccessor

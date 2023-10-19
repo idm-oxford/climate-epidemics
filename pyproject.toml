@@ -1,6 +1,7 @@
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
 [project]
 name = "climepi"
 version = "0.0.1"
@@ -14,6 +15,27 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
+]
+dependencies = [
+  "numpy",
+  "scipy",
+  "pandas",
+  "xarray",
+  "bottleneck",
+  "cftime",
+  "nc-time-axis",
+  "dask",
+  "netcdf4",
+  "pint",
+  "pint-xarray",
+  "cf_xarray",
+  "xcdat",
+  "xclim>=0.45",
+  "clisops",
+  "flox",
+  "cartopy",
+  "hvplot",
+  "geoviews",
 ]
 
 [project.urls]
