@@ -231,9 +231,8 @@ class ClimEpiDatasetAccessor:
         """
         data_var = self._auto_select_data_var(data_var)
         da_plot = self._obj[data_var]
-        kwargs_hvplot = {'x': 'lon', 'y': 'lat', 'crs': 'PlateCaree', 'cmap': 'viridis',
-                         'project': True, 'geo': True, 'rasterize': True, 'coastline': True,
-                         'frame_width': 600, 'dynamic': False}
+        kwargs_hvplot = {'x': 'lon', 'y': 'lat', 'cmap': 'viridis', 'project': True, 'geo': True,
+                         'rasterize': True, 'coastline': True, 'frame_width': 600, 'dynamic': False}
         if 'time' in da_plot.sizes:
             kwargs_hvplot['groupby'] = 'time'
         else:
@@ -277,7 +276,7 @@ class ClimEpiDatasetAccessor:
         data_var = self._auto_select_data_var(data_var)
         if 'realization' in self._obj.sizes:
             ds_stat = self._obj.climepi.ensemble_stats(data_var, conf_level)
-            return ds_stat.climepi.plot_ensemble_ci(data_var, **kwargs)
+            return ds_stat.climepi.plot_ensemble_ci_time_series(data_var, **kwargs)
         ds_ci = xr.Dataset(attrs=self._obj.attrs)
         ds_ci['lower'] = self._obj[data_var].sel(ensemble_statistic='lower')
         ds_ci['upper'] = self._obj[data_var].sel(ensemble_statistic='upper')
