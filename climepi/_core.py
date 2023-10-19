@@ -13,34 +13,9 @@ import xcdat  # noqa
 @xr.register_dataset_accessor("climepi")
 class ClimEpiDatasetAccessor:
     """
-    This accessor class provides a set of methods that can be applied to xarray datasets. Methods
+    Accessor class providing a core set of methods that can be applied to xarray datasets. Methods
     for computing temporal and ensemble statistics are included, in addition to methods for
-    plotting.
-
-    Attributes:
-        _obj (xarray.Dataset): The xarray dataset to be accessed.
-
-    Methods:
-        annual_mean(data_var=None)
-            Computes the annual mean of a data variable.
-        ensemble_mean(data_var=None)
-            Computes the ensemble mean of a data variable.
-        ensemble_percentiles(data_var=None, values=[5,50,95], **kwargs)
-            Computes ensemble percentiles of a data variable.
-        ensemble_mean_std_max_min(data_var=None, **kwargs)
-            Computes the ensemble mean, standard deviation, maximum, and minimum of a data variable.
-        ensemble_stats(data_var=None, conf_level=90, **kwargs)
-            Computes a range of ensemble statistics (mean, standard deviation, maximum, minimum, and
-            confidence intervals) of a data variable.
-        plot_time_series(data_var=None, **kwargs)
-            Generates a time series plot of a data variable.
-        plot_map(data_var=None, include_ocean=False, **kwargs)
-            Generates a map plot of a data variable.
-        plot_ensemble_ci_time_series(data_var=None, central='mean', conf_level=None, **kwargs)
-            Generates a time series plot of the ensemble confidence interval and (optionally)
-            central estimate for a data variable.
-        copy_bnds_from(ds_from)
-            Copies the latitude, longitude, and time bounds from another xarray dataset to this one.        
+    plotting.        
     """
 
     def __init__(self, xarray_obj):
@@ -64,10 +39,10 @@ class ClimEpiDatasetAccessor:
         data_var = self._auto_select_data_var(data_var)
         if 'time' not in self._obj.sizes:
             raise ValueError('Annual mean only defined for time series.')
-        if any([np.issubdtype(self._obj[data_var].dtype, x) for x in [np.integer, 'bool']]):
+        if any((np.issubdtype(self._obj[data_var].dtype, x) for x in [np.integer, 'bool'])):
             # Workaround for bug in xcdat group-average using integer or boolean data types
             ds_copy = self._obj.copy()
-            ds_copy[data_var] = ds[data_var].astype('float64')
+            ds_copy[data_var] = ds_copy[data_var].astype('float64')
             return ds_copy.climepi.annual_mean(data_var)
         ds_m = self._obj.temporal.group_average(data_var, freq='year')
         return ds_m
