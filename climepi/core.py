@@ -64,7 +64,7 @@ class ClimEpiDatasetAccessor:
         data_var = self._auto_select_data_var(data_var)
         if 'time' not in self._obj.sizes:
             raise ValueError('Annual mean only defined for time series.')
-        if np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(self._obj[data_var].dtype, 'bool'):
+        if any([np.issubdtype(self._obj[data_var].dtype, x) for x in [np.integer,'bool']]):
             # Workaround for bug in xcdat group-average using integer or boolean data types
             ds_copy = self._obj.copy()
             ds_copy[data_var] = ds[data_var].astype('float64')
@@ -231,8 +231,8 @@ class ClimEpiDatasetAccessor:
         """
         data_var = self._auto_select_data_var(data_var)
         da_plot = self._obj[data_var]
-        kwargs_hvplot = {'x': 'lon', 'y': 'lat', 'crs': 'PlateCaree', 'cmap': 'viridis', 'project': True,
-                         'geo': True, 'rasterize': True, 'coastline': True, 'frame_width': 600, 'dynamic': False}
+        kwargs_hvplot = {'x': 'lon', 'y': 'lat', 'crs': 'PlateCaree', 'cmap': 'viridis',
+                         'project': True, 'geo': True, 'rasterize': True, 'coastline': True, 'frame_width': 600, 'dynamic': False}
         if 'time' in da_plot.sizes:
             kwargs_hvplot['groupby'] = 'time'
         else:
