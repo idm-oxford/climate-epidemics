@@ -1,12 +1,12 @@
-"""Core module for the climepi package. This module contains the ClimEpiDatasetAccessor class, which
-provides a set of methods that can be applied to xarray datasets.
+"""Core module for the climepi package. This module contains the ClimEpiDatasetAccessor class for
+xarray datasets.
 """
 
 import numpy as np
 import xarray as xr
 import hvplot.xarray  # noqa
 import geoviews.feature as gf
-import xclim
+import xclim.ensembles
 import xcdat  # noqa
 
 
@@ -93,7 +93,8 @@ class ClimEpiDatasetAccessor:
         data_var = self._auto_select_data_var(data_var)
         ds_p = xr.Dataset(attrs=self._obj.attrs)
         ds_p[data_var] = xclim.ensembles.ensemble_percentiles(
-            self._obj[data_var], values, split=False, **kwargs)
+            self._obj[data_var], values, split=False, **kwargs).rename(
+                {'percentiles': 'percentile'})
         ds_p[data_var].attrs = self._obj[data_var].attrs
         ds_p.climepi.copy_bnds_from(self._obj)
         return ds_p
@@ -125,7 +126,7 @@ class ClimEpiDatasetAccessor:
         stat_list_xclim[1] += 'ev'
         ds_stat = xr.Dataset(attrs=self._obj.attrs)
         da_stat_xclim_list = [ds_stat_xclim[stat_list_xclim[i]].rename(data_var).expand_dims(
-            dim={'ensemble_statistic': [stat_list[i]]}) for i in range(len(stat_list))]
+            dim={'ensemble_statistic': [stat_list[i]]},axis=-1) for i in range(len(stat_list))]
         ds_stat[data_var] = xr.concat(
             da_stat_xclim_list, dim='ensemble_statistic')
         ds_stat[data_var].attrs = self._obj[data_var].attrs
@@ -157,7 +158,7 @@ class ClimEpiDatasetAccessor:
             data_var, **kwargs)
         ds_mci = self._obj.climepi.ensemble_percentiles(
             data_var, [50-conf_level/2, 50, 50+conf_level/2], **kwargs)
-        ds_mci = ds_mci.rename({'percentiles': 'ensemble_statistic'}).assign_coords(
+        ds_mci = ds_mci.rename({'percentile': 'ensemble_statistic'}).assign_coords(
             ensemble_statistic=['lower', 'median', 'upper'])
         ds_stat = xr.concat([ds_msmm, ds_mci], dim='ensemble_statistic')
         return ds_stat

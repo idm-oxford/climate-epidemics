@@ -27,8 +27,3 @@ def import_data(**kwargs):
     ds = ds.rename_vars({'TS':'temperature', 'PRECT':'precipitation'})
 
     return ds
-
-if __name__ == "__main__":
-    ds = import_data()
-    print(ds)
-    
