@@ -27,6 +27,7 @@ dependencies:
   - hvplot
   - geoviews
   # Packages for testing
+  - flake8
   - pytest
   # Packages for example notebooks
   - jupyter
