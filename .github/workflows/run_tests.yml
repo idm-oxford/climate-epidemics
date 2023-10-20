@@ -19,7 +19,7 @@ jobs:
         environment-file: environment.yml
     - name: Lint with flake8
       run: |
-        flake8
+        python -m flake8
     - name: Test with pytest
       run: |
-        pytest
+        python -m pytest
