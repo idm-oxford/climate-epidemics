@@ -15,12 +15,7 @@ jobs:
     steps:
     - uses: mamba-org/setup-micromamba@v1
       with:
-        # the create command looks like this:
-        # `micromamba create -n test-env python=3.10 numpy`
-        environment-name: test-env
-        create-args: >-
-          python=3.10
-          numpy
+        environment-file: ../../environment.yml
     - name: Lint with flake8
       run: |
         flake8
