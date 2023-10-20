@@ -22,6 +22,7 @@ def test_annual_mean():
             'bnds': [1,2]
             }
         )
+    ds.time.encoding.update({'calendar': 'standard'})
     ds.time.attrs.update(bounds = 'time_bnds')
     ds_am = ds.climepi.annual_mean('temp')
     temp_am_exp = np.array([
