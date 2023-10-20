@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: mamba-org/setup-micromamba@v1
       with:
-        environment-file: environment.yml
+        environment-file: ../environment.yml
         cache-environment: true
         post-cleanup: 'all'
     - name: Lint with flake8
