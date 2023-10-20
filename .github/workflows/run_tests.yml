@@ -13,9 +13,10 @@ jobs:
     strategy:
       max-parallel: 5
     steps:
+    - uses: actions/checkout@v4
     - uses: mamba-org/setup-micromamba@v1
       with:
-        environment-file: ../../environment.yml
+        environment-file: environment.yml
     - name: Lint with flake8
       run: |
         flake8
