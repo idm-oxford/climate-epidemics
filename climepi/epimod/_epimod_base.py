@@ -1,8 +1,9 @@
-"""Base module of the epimod subpackage providing a base epidemiological model class and an xarray
-accessor class.
+"""Base module of the epimod subpackage providing a base epidemiological model
+class and an xarray accessor class.
 """
 
 import xarray as xr
+
 # import climepi
 
 
@@ -34,8 +35,8 @@ class EpiModel:
 
     def run_main(self, ds_clim):
         """
-        Abstract method that must be implemented by subclasses. Runs the main logic of the
-        epidemiological model.
+        Abstract method that must be implemented by subclasses. Runs the main
+        logic of the epidemiological model.
 
         Parameters:
         -----------
@@ -47,7 +48,10 @@ class EpiModel:
 
 @xr.register_dataset_accessor("epimod")
 class EpiModDatasetAccessor:
-    """Accessor class for running epidemiological models on xarray climate datasets."""
+    """
+    Accessor class for running epidemiological models on xarray climate
+    datasets.
+    """
 
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
@@ -57,13 +61,13 @@ class EpiModDatasetAccessor:
     def model(self):
         """The epidemiological model (EpiModel object)."""
         if self._model is None:
-            raise ValueError('Model not set.')
+            raise ValueError("Model not set.")
         return self._model
 
     @model.setter
     def model(self, model_in):
         if not isinstance(model_in, EpiModel):
-            raise ValueError('Model must be an instance of EpiModel.')
+            raise ValueError("Model must be an instance of EpiModel.")
         self._model = model_in
 
     def run_model(self):
