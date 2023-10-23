@@ -26,11 +26,15 @@ dependencies:
   - cartopy
   - hvplot
   - geoviews
-  # Packages for testing
+  # Testing
   - flake8
   - pytest
   - pytest-cov
-  # Packages for example notebooks
+  # Documentation
+  - sphinx
+  - sphinx-book-theme
+  - sphinx-autosummary-accessors
+  # Example notebooks
   - jupyter
   - jupyter_bokeh
 

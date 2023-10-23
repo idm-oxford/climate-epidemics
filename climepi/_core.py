@@ -24,15 +24,15 @@ class ClimEpiDatasetAccessor:
         """
         Computes the annual mean of a data variable.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         data_var : str, optional
             Name of the data variable to compute the annual mean for. If not
             provided, the function will attempt to automatically select a
             suitable variable.
 
-        Returns:
-        --------
+        Returns
+        -------
         xarray.Dataset
             A new dataset containing the annual mean of the selected data
             variable.
@@ -54,15 +54,15 @@ class ClimEpiDatasetAccessor:
         """
         Computes the ensemble mean of a data variable.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         data_var : str, optional
             Name of the data variable to compute the ensemble mean for. If not
             provided, the function will attempt to automatically select a
             suitable variable.
 
-        Returns:
-        --------
+        Returns
+        -------
         xarray.Dataset
             A new dataset containing the ensemble mean of the selected data
             variable.
@@ -112,8 +112,8 @@ class ClimEpiDatasetAccessor:
         Computes the ensemble mean, standard deviation, maximum, and minimum of
         a data variable.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         data_var : str, optional
             Name of the data variable to compute the ensemble statistics for.
             If not provided, the function will attempt to automatically select
@@ -122,8 +122,8 @@ class ClimEpiDatasetAccessor:
             Additional keyword arguments to pass to
             xclim.ensembles.ensemble_mean_std_max_min.
 
-        Returns:
-        --------
+        Returns
+        -------
         xarray.Dataset
             A new dataset containing the computed ensemble statistics for the
             selected data variable.
@@ -209,8 +209,8 @@ class ClimEpiDatasetAccessor:
         """
         Generates a map plot of a data variable.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         data_var : str, optional
             Name of the data variable to plot. If not provided, the function
             will attempt to automatically select a suitable variable.
@@ -219,8 +219,8 @@ class ClimEpiDatasetAccessor:
         **kwargs : dict, optional
             Additional keyword arguments to pass to hvplot.quadmesh.
 
-        Returns:
-        --------
+        Returns
+        -------
         hvplot object
             The resulting map plot.
         """
@@ -258,8 +258,8 @@ class ClimEpiDatasetAccessor:
         or on an ensemble dataset (in which case climepi.ensemble_stats is used
         to compute the statistics).
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         data_var : str, optional
             The name of the data variable to plot. If not provided, the
             function will attempt to automatically select a suitable variable.
@@ -275,8 +275,8 @@ class ClimEpiDatasetAccessor:
         **kwargs : optional
             Additional keyword arguments to pass to the plotting functions.
 
-        Returns:
-        --------
+        Returns
+        -------
         hvplot object
             The resulting plot object.
         """
