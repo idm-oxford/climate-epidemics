@@ -31,7 +31,7 @@ dependencies:
   - pytest
   - pytest-cov
   # Documentation
-  - sphinx
+  - sphinx<7.0.0 #bug with v7 using sphinx-book-theme https://github.com/executablebooks/sphinx-book-theme/issues/749
   - sphinx-book-theme
   - sphinx-autosummary-accessors
   # Example notebooks
