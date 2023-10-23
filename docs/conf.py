@@ -12,10 +12,9 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
 
+sys.path.insert(0, os.path.abspath('..'))
 import climepi
-import importlib
 
 import sphinx_autosummary_accessors
 
@@ -26,7 +25,7 @@ copyright = '2023, William S Hart'
 author = 'William S Hart'
 
 # The full version, including alpha/beta/rc tags
-release = importlib.metadata.version('climepi')
+release = climepi.__version__
 
 
 # -- General configuration ---------------------------------------------------
