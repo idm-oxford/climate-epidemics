@@ -29,7 +29,7 @@ dependencies:
   # Packages for testing
   - flake8
   - pytest
-  - pyest-cov
+  - pytest-cov
   # Packages for example notebooks
   - jupyter
   - jupyter_bokeh
