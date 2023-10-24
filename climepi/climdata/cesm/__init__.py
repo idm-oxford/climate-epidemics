@@ -1,3 +1,3 @@
 """Subpackage for importing CESM data."""
 
-from ._cesm_base import import_data # noqa
+from ._cesm_example import load_example_data # noqa

@@ -3,7 +3,7 @@ import xclim.ensembles
 import xcdat
 
 
-def import_data(**kwargs):
+def load_example_data(**kwargs):
     # Import ensemble data via xclim
 
     file_dir_path = str(pathlib.Path(__file__).parent)
