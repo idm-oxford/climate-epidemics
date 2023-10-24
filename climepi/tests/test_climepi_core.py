@@ -11,8 +11,7 @@ def test_annual_mean():
     time_bnds = np.array([time_lb, time_rb]).T
     temp = np.array([np.arange(1, 25), np.arange(25, 49), np.arange(49, 73)])
     ds = xr.Dataset(
-        {"temp": (("hello", "time"), temp),
-         "time_bnds": (("time", "bnds"), time_bnds)},
+        {"temp": (("hello", "time"), temp), "time_bnds": (("time", "bnds"), time_bnds)},
         coords={
             "hello": np.array(["there", "general", "kenobi"]),
             "time": xr.cftime_range(start="2000-01-01", periods=24, freq="MS"),

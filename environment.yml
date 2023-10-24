@@ -26,8 +26,11 @@ dependencies:
   - cartopy
   - hvplot
   - geoviews
-  # Testing
+  # Linting
   - flake8
+  - flake8-black
+  - flake8-bugbear
+  # Testing
   - pytest
   - pytest-cov
   # Documentation

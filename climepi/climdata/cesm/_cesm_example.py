@@ -7,8 +7,7 @@ def load_example_data(**kwargs):
     # Import ensemble data via xclim
 
     file_dir_path = str(pathlib.Path(__file__).parent)
-    paths = [
-        file_dir_path + "/data/sim" + str(i) + ".nc" for i in range(1, 101)]
+    paths = [file_dir_path + "/data/sim" + str(i) + ".nc" for i in range(1, 101)]
 
     ds = xclim.ensembles.create_ensemble(paths, multifile=True, **kwargs)
 
