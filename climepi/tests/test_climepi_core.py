@@ -164,3 +164,39 @@ def test_ensemble_stats():
         },
     )
     xrt.assert_allclose(ds_stat, ds_stat_exp)
+
+
+def test_copy_bnds_from():
+    """Test the copy_bnds_from method of the ClimEpiDatasetAccessor class."""
+    # Create a dataset to copy bounds from
+    time_lb = xr.cftime_range(start="2000-01-01", periods=24, freq="MS")
+    time_rb = xr.cftime_range(start="2000-02-01", periods=24, freq="MS")
+    time_bnds = np.array([time_lb, time_rb]).T
+    temp = np.array([np.arange(1, 25), np.arange(25, 49), np.arange(49, 73)])
+    ds_from = xr.Dataset(
+        {"temp": (("hello", "time"), temp), "time_bnds": (("time", "bnds"), time_bnds)},
+        coords={
+            "hello": np.array(["there", "general", "kenobi"]),
+            "time": xr.cftime_range(start="2000-01-01", periods=24, freq="MS"),
+            "bnds": [1, 2],
+        },
+    )
+    ds_from.time.attrs.update(bounds="time_bnds")
+
+    # Create a dataset to copy bounds to
+    ds_to = xr.Dataset(
+        {"temp": (("hello", "time"), temp)},
+        coords={
+            "hello": np.array(["there", "general", "kenobi"]),
+            "time": xr.cftime_range(start="2000-01-01", periods=24, freq="MS"),
+        },
+    )
+
+    # Copy the bounds
+    ds_to.climepi.copy_bnds_from(ds_from)
+
+    # Check that the bounds were copied correctly
+    assert "time_bnds" in ds_to.data_vars
+    assert ds_to.time.attrs["bounds"] == "time_bnds"
+    assert "lon_bnds" not in ds_to.data_vars
+    xrt.assert_allclose(ds_to.time_bnds, ds_from.time_bnds)

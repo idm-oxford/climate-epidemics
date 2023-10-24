@@ -306,7 +306,9 @@ class ClimEpiDatasetAccessor:
     def copy_bnds_from(self, ds_from):
         """
         Copies the latitude, longitude, and time bounds from another xarray
-        dataset to this one.
+        dataset (ds_from) to this one, whenever the bounds exist in ds_from but not this
+        dataset and the corresponding co-ordinate dimension is the same for both
+        datasets.
 
         Parameters
         ----------
@@ -315,17 +317,15 @@ class ClimEpiDatasetAccessor:
         """
         for var in ["lat", "lon", "time"]:
             bnd_var = var + "_bnds"
-            if bnd_var in self._obj.data_vars:
+            if (
+                bnd_var in self._obj.data_vars
+                or bnd_var not in ds_from.data_vars
+                or not self._obj[var].equals(ds_from[var])
+            ):
                 continue
-            if bnd_var not in ds_from.data_vars:
-                raise ValueError("Bounds variable {bnd_var} not present in ds_from")
-            if not self._obj[var].equals(ds_from[var]):
-                raise ValueError(
-                    """Variable {var} in ds_from does not match variable {var}
-                    in current dataset"""
-                )
-            self._obj[var] = ds_from[var]
-            self._obj[var].attrs = ds_from[var].attrs
+            self._obj[bnd_var] = ds_from[bnd_var]
+            self._obj[bnd_var].attrs = ds_from[bnd_var].attrs
+            self._obj[var].attrs.update(bounds=bnd_var)
 
     def _auto_select_data_var(self, data_var):
         # Method for obtaining the name of the data variable in the xarray
