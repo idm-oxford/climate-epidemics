@@ -40,8 +40,9 @@ class ClimEpiDatasetAccessor:
         data_var = self._auto_select_data_var(data_var)
         if "time" not in self._obj.sizes:
             raise ValueError("Annual mean only defined for time series.")
-        if (np.issubdtype(self._obj[data_var].dtype, np.integer)
-                or np.issubdtype(self._obj[data_var].dtype, np.integer)):
+        if np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(
+            self._obj[data_var].dtype, np.integer
+        ):
             # Workaround for bug in xcdat group-average using integer or
             # boolean data types
             ds_copy = self._obj.copy()
@@ -133,8 +134,7 @@ class ClimEpiDatasetAccessor:
             self._obj[data_var].to_dataset(), **kwargs
         )
         stat_list = ["mean", "std", "max", "min"]
-        stat_list_xclim = [
-            data_var + "_" + stat_list[i] for i in range(len(stat_list))]
+        stat_list_xclim = [data_var + "_" + stat_list[i] for i in range(len(stat_list))]
         stat_list_xclim[1] += "ev"
         ds_stat = xr.Dataset(attrs=self._obj.attrs)
         da_stat_xclim_list = [
@@ -143,8 +143,7 @@ class ClimEpiDatasetAccessor:
             .expand_dims(dim={"ensemble_statistic": [stat_list[i]]}, axis=-1)
             for i in range(len(stat_list))
         ]
-        ds_stat[data_var] = xr.concat(da_stat_xclim_list,
-                                      dim="ensemble_statistic")
+        ds_stat[data_var] = xr.concat(da_stat_xclim_list, dim="ensemble_statistic")
         ds_stat[data_var].attrs = self._obj[data_var].attrs
         ds_stat.climepi.copy_bnds_from(self._obj)
         return ds_stat
@@ -172,13 +171,13 @@ class ClimEpiDatasetAccessor:
             selected data variable.
         """
         data_var = self._auto_select_data_var(data_var)
-        ds_msmm = self._obj.climepi.ensemble_mean_std_max_min(data_var,
-                                                              **kwargs)
+        ds_msmm = self._obj.climepi.ensemble_mean_std_max_min(data_var, **kwargs)
         ds_mci = self._obj.climepi.ensemble_percentiles(
-            data_var, [50 - conf_level / 2, 50, 50 + conf_level / 2], **kwargs)
-        ds_mci = ds_mci.rename(
-            {"percentile": "ensemble_statistic"}).assign_coords(
-                ensemble_statistic=["lower", "median", "upper"])
+            data_var, [50 - conf_level / 2, 50, 50 + conf_level / 2], **kwargs
+        )
+        ds_mci = ds_mci.rename({"percentile": "ensemble_statistic"}).assign_coords(
+            ensemble_statistic=["lower", "median", "upper"]
+        )
         ds_stat = xr.concat([ds_msmm, ds_mci], dim="ensemble_statistic")
         return ds_stat
 
@@ -264,7 +263,7 @@ class ClimEpiDatasetAccessor:
             The name of the data variable to plot. If not provided, the
             function will attempt to automatically select a suitable variable.
         central : str, optional
-            The central estimate to plot. Can be 'mean', 'median', or None. If
+            The central estimate to plot. Can be "mean", "median", or None. If
             None, only the confidence interval will be plotted.
         conf_level : float, optional
             The confidence level for the confidence interval. Has no effect if
@@ -283,8 +282,7 @@ class ClimEpiDatasetAccessor:
         data_var = self._auto_select_data_var(data_var)
         if "realization" in self._obj.sizes:
             ds_stat = self._obj.climepi.ensemble_stats(data_var, conf_level)
-            return ds_stat.climepi.plot_ensemble_ci_time_series(
-                data_var, **kwargs)
+            return ds_stat.climepi.plot_ensemble_ci_time_series(data_var, **kwargs)
         ds_ci = xr.Dataset(attrs=self._obj.attrs)
         ds_ci["lower"] = self._obj[data_var].sel(ensemble_statistic="lower")
         ds_ci["upper"] = self._obj[data_var].sel(ensemble_statistic="upper")
@@ -315,10 +313,19 @@ class ClimEpiDatasetAccessor:
         ds_from : xarray.Dataset
             The dataset to copy the bounds from.
         """
-        for var in ["lat_bnds", "lon_bnds", "time_bnds"]:
-            if var in ds_from.data_vars:
-                self._obj[var] = ds_from[var]
-                self._obj[var].attrs = ds_from[var].attrs
+        for var in ["lat", "lon", "time"]:
+            bnd_var = var + "_bnds"
+            if bnd_var in self._obj.data_vars:
+                continue
+            if bnd_var not in ds_from.data_vars:
+                raise ValueError("Bounds variable {bnd_var} not present in ds_from")
+            if not self._obj[var].equals(ds_from[var]):
+                raise ValueError(
+                    """Variable {var} in ds_from does not match variable {var}
+                    in current dataset"""
+                )
+            self._obj[var] = ds_from[var]
+            self._obj[var].attrs = ds_from[var].attrs
 
     def _auto_select_data_var(self, data_var):
         # Method for obtaining the name of the data variable in the xarray
@@ -336,7 +343,7 @@ class ClimEpiDatasetAccessor:
                 data_var = data_vars_not_bnds[0]
             else:
                 raise ValueError(
-                    '''Multiple data variables present. The data variable to
-                    use must be specified.'''
+                    """Multiple data variables present. The data variable to
+                    use must be specified."""
                 )
         return data_var
