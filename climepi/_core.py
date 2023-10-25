@@ -1,12 +1,12 @@
 """Core module for the climepi package. This module contains the
 ClimEpiDatasetAccessor class for xarray datasets.
 """
+import geoviews.feature as gf
+import hvplot.xarray  # noqa
 import numpy as np
 import xarray as xr
-import hvplot.xarray  # noqa
-import geoviews.feature as gf
-import xclim.ensembles
 import xcdat  # noqa
+import xclim.ensembles
 
 
 @xr.register_dataset_accessor("climepi")

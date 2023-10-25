@@ -1,6 +1,7 @@
 import pathlib
-import xclim.ensembles
+
 import xcdat
+import xclim.ensembles
 
 
 def load_example_data(**kwargs):

@@ -4,7 +4,9 @@ importing the model of Kaye et al.
 """
 
 import pathlib
+
 import xarray as xr
+
 from climepi.epimod import EpiModel
 
 
