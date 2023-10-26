@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   # Core
-  - python=3.11
+  - python>=3.7
   - pip
   # climepi dependencies (should match dependencies in pyproject.toml)
   - numpy

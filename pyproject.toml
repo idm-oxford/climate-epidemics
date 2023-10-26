@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "climepi"
-dynamic = ["version"]
+version = "0.0.0"
 authors = [
   { name="William Hart", email="william.hart@maths.ox.ac.uk" },
 ]
@@ -37,9 +37,6 @@ dependencies = [
   "hvplot",
   "geoviews",
 ]
-
-[tool.setuptools.dynamic]
-version = {attr = "climepi.__version__"}
 
 [project.urls]
 "Homepage" = "https://github.com/will-s-hart/climate-epidemics"

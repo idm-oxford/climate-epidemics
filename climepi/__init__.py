@@ -1,6 +1,10 @@
 """
 Python package for incorporating climate data into epidemiological models.
 """
+
+from importlib.metadata import version
+
 from ._core import ClimEpiDatasetAccessor  # noqa
 
-__version__ = "0.0.1"
+# read version from installed package
+__version__ = version("climepi")
