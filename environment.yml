@@ -26,6 +26,9 @@ dependencies:
   - cartopy
   - hvplot
   - geoviews
+  # This package
+  - pip:
+    - -e .
   # Linting
   - flake8
   - flake8-black
@@ -40,6 +43,3 @@ dependencies:
   # Example notebooks
   - jupyter
   - jupyter_bokeh
-
-# To create, run "conda env create -f environment.yml"
-# Run "conda activate climepi", then install the climepi package in development mode with "pip install -e ."
