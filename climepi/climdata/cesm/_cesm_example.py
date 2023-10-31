@@ -29,7 +29,6 @@ def load_example_data(**kwargs):
     ds = ds.rename_vars({"TS": "temperature", "PRECT": "precipitation"})
 
     ds.climepi.modes = {
-        "type": "climate",
         "spatial": "global",
         "temporal": "monthly",
         "ensemble": "ensemble",
