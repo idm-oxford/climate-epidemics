@@ -4,7 +4,7 @@ class and an xarray accessor class.
 
 import xarray as xr
 
-# import climepi
+import climepi  # noqa
 
 
 class EpiModel:
@@ -31,6 +31,8 @@ class EpiModel:
         ds_epi = xr.Dataset(attrs=ds_clim.attrs)
         ds_epi[da_epi.name] = da_epi
         ds_epi.climepi.copy_bnds_from(ds_clim)
+        ds_epi.climepi.modes = ds_clim.climepi.modes.update({"type": "epidemic"})
+
         return ds_epi
 
     def run_main(self, ds_clim):

@@ -3,6 +3,8 @@ import pathlib
 import xcdat
 import xclim.ensembles
 
+import climepi
+
 
 def load_example_data(**kwargs):
     # Import ensemble data via xclim
@@ -25,5 +27,12 @@ def load_example_data(**kwargs):
 
     ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
     ds = ds.rename_vars({"TS": "temperature", "PRECT": "precipitation"})
+
+    ds.climepi.modes = {
+        "type": "climate",
+        "spatial": "global",
+        "temporal": "monthly",
+        "ensemble": "ensemble",
+    }
 
     return ds

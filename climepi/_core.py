@@ -19,6 +19,36 @@ class ClimEpiDatasetAccessor:
 
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
+        self._modes = None
+
+    @property
+    def modes(self):
+        """
+        Gets and sets a dictionary containing the modes of the dataset.The dictionary
+        should contain the following keys and currently supported values:
+        modes = {
+            "type": "climate" or "epidemic",
+            "spatial": "global",
+            "temporal": "monthly" or "annual",
+            "ensemble": "ensemble",
+        }
+        """
+        return self._modes
+
+    @modes.setter
+    def modes(self, modes_in):
+        assert isinstance(modes_in, dict)
+        assert all(
+            key in ["type", "spatial", "temporal", "ensemble"] for key in modes_in
+        )
+        assert all(
+            key in modes_in for key in ["type", "spatial", "temporal", "ensemble"]
+        )
+        assert modes_in["type"] in ["climate", "epidemic"]
+        assert modes_in["spatial"] in ["global"]
+        assert modes_in["temporal"] in ["monthly", "annual"]
+        assert modes_in["ensemble"] in ["ensemble"]
+        self._modes = modes_in
 
     def annual_mean(self, data_var=None):
         """
