@@ -27,10 +27,9 @@ class ClimEpiDatasetAccessor:
         Gets and sets a dictionary containing the modes of the dataset.The dictionary
         should contain the following keys and currently supported values:
         modes = {
-            "type": "climate" or "epidemic",
             "spatial": "global",
             "temporal": "monthly" or "annual",
-            "ensemble": "ensemble" or "stats",
+            "ensemble": "ensemble", "single_run" or "stats",
         }
         """
         return self._modes
@@ -38,16 +37,11 @@ class ClimEpiDatasetAccessor:
     @modes.setter
     def modes(self, modes_in):
         assert isinstance(modes_in, dict)
-        assert all(
-            key in ["type", "spatial", "temporal", "ensemble"] for key in modes_in
-        )
-        assert all(
-            key in modes_in for key in ["type", "spatial", "temporal", "ensemble"]
-        )
-        assert modes_in["type"] in ["climate", "epidemic"]
+        assert all(key in ["spatial", "temporal", "ensemble"] for key in modes_in)
+        assert all(key in modes_in for key in ["spatial", "temporal", "ensemble"])
         assert modes_in["spatial"] in ["global"]
         assert modes_in["temporal"] in ["monthly", "annual"]
-        assert modes_in["ensemble"] in ["ensemble"]
+        assert modes_in["ensemble"] in ["ensemble", "single_run", "stats"]
         self._modes = modes_in
 
     def annual_mean(self, data_var=None):
@@ -79,7 +73,7 @@ class ClimEpiDatasetAccessor:
             ds_copy[data_var] = ds_copy[data_var].astype("float64")
             return ds_copy.climepi.annual_mean(data_var)
         ds_m = self._obj.temporal.group_average(data_var, freq="year")
-        ds_m.climepi.modes = self.modes.copy().update({"temporal": "annual"})
+        ds_m.climepi.modes = dict(self.modes, temporal="annual")
         return ds_m
 
     def ensemble_mean(self, data_var=None):
@@ -104,7 +98,7 @@ class ClimEpiDatasetAccessor:
         ds_m[data_var] = self._obj[data_var].mean(dim="realization")
         ds_m[data_var].attrs = self._obj[data_var].attrs
         ds_m.climepi.copy_bnds_from(self._obj)
-        ds_m.climepi.modes = self.modes.copy().update({"ensemble": "stats"})
+        ds_m.climepi.modes = dict(self.modes, ensemble="stats")
         return ds_m
 
     def ensemble_percentiles(self, data_var=None, values=None, **kwargs):
@@ -138,7 +132,7 @@ class ClimEpiDatasetAccessor:
         ).rename({"percentiles": "percentile"})
         ds_p[data_var].attrs = self._obj[data_var].attrs
         ds_p.climepi.copy_bnds_from(self._obj)
-        ds_p.climepi.modes = self.modes.copy().update({"ensemble": "stats"})
+        ds_p.climepi.modes = dict(self.modes, ensemble="stats")
         return ds_p
 
     def ensemble_mean_std_max_min(self, data_var=None, **kwargs):
@@ -179,7 +173,7 @@ class ClimEpiDatasetAccessor:
         ds_stat[data_var] = xr.concat(da_stat_xclim_list, dim="ensemble_statistic")
         ds_stat[data_var].attrs = self._obj[data_var].attrs
         ds_stat.climepi.copy_bnds_from(self._obj)
-        ds_stat.climepi.modes = self.modes.copy().update({"ensemble": "stats"})
+        ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
         return ds_stat
 
     def ensemble_stats(self, data_var=None, conf_level=90, **kwargs):
@@ -213,7 +207,7 @@ class ClimEpiDatasetAccessor:
             ensemble_statistic=["lower", "median", "upper"]
         )
         ds_stat = xr.concat([ds_msmm, ds_mci], dim="ensemble_statistic")
-        ds_stat.climepi.modes = self.modes.copy().update({"ensemble": "stats"})
+        ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
         return ds_stat
 
     def plot_time_series(self, data_var=None, **kwargs):
@@ -362,20 +356,25 @@ class ClimEpiDatasetAccessor:
             self._obj[bnd_var].attrs = ds_from[bnd_var].attrs
             self._obj[var].attrs.update(bounds=bnd_var)
 
+    def get_non_bnd_data_vars(self):
+        """
+        Returns a list of the names of the non-bound variables in the dataset.
+        """
+        data_vars = list(self._obj.data_vars)
+        bnd_vars = ["lat_bnds", "lon_bnds", "time_bnds"]
+        non_bnd_data_vars = [
+            data_vars[i] for i in range(len(data_vars)) if data_vars[i] not in bnd_vars
+        ]
+        return non_bnd_data_vars
+
     def _auto_select_data_var(self, data_var):
         # Method for obtaining the name of the data variable in the xarray
         # dataset, if only one is present (alongside latitude, longitude, and
         # time bounds).
         if data_var is None:
-            data_vars = list(self._obj.data_vars)
-            bnd_vars = ["lat_bnds", "lon_bnds", "time_bnds"]
-            data_vars_not_bnds = [
-                data_vars[i]
-                for i in range(len(data_vars))
-                if data_vars[i] not in bnd_vars
-            ]
-            if len(data_vars_not_bnds) == 1:
-                data_var = data_vars_not_bnds[0]
+            non_bnd_data_vars = self.get_non_bnd_data_vars()
+            if len(non_bnd_data_vars) == 1:
+                data_var = non_bnd_data_vars[0]
             else:
                 raise ValueError(
                     """Multiple data variables present. The data variable to

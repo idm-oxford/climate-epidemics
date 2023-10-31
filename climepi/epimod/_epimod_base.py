@@ -31,7 +31,7 @@ class EpiModel:
         ds_epi = xr.Dataset(attrs=ds_clim.attrs)
         ds_epi[da_epi.name] = da_epi
         ds_epi.climepi.copy_bnds_from(ds_clim)
-        ds_epi.climepi.modes = ds_clim.climepi.modes.copy().update({"type": "epidemic"})
+        ds_epi.climepi.modes = ds_clim.climepi.modes.copy()
 
         return ds_epi
 
