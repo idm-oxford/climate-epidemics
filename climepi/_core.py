@@ -30,7 +30,7 @@ class ClimEpiDatasetAccessor:
             "type": "climate" or "epidemic",
             "spatial": "global",
             "temporal": "monthly" or "annual",
-            "ensemble": "ensemble",
+            "ensemble": "ensemble" or "stats",
         }
         """
         return self._modes
@@ -79,6 +79,7 @@ class ClimEpiDatasetAccessor:
             ds_copy[data_var] = ds_copy[data_var].astype("float64")
             return ds_copy.climepi.annual_mean(data_var)
         ds_m = self._obj.temporal.group_average(data_var, freq="year")
+        ds_m.climepi.modes = self.modes.copy().update({"temporal": "annual"})
         return ds_m
 
     def ensemble_mean(self, data_var=None):
@@ -103,6 +104,7 @@ class ClimEpiDatasetAccessor:
         ds_m[data_var] = self._obj[data_var].mean(dim="realization")
         ds_m[data_var].attrs = self._obj[data_var].attrs
         ds_m.climepi.copy_bnds_from(self._obj)
+        ds_m.climepi.modes = self.modes.copy().update({"ensemble": "stats"})
         return ds_m
 
     def ensemble_percentiles(self, data_var=None, values=None, **kwargs):
@@ -136,6 +138,7 @@ class ClimEpiDatasetAccessor:
         ).rename({"percentiles": "percentile"})
         ds_p[data_var].attrs = self._obj[data_var].attrs
         ds_p.climepi.copy_bnds_from(self._obj)
+        ds_p.climepi.modes = self.modes.copy().update({"ensemble": "stats"})
         return ds_p
 
     def ensemble_mean_std_max_min(self, data_var=None, **kwargs):
@@ -176,6 +179,7 @@ class ClimEpiDatasetAccessor:
         ds_stat[data_var] = xr.concat(da_stat_xclim_list, dim="ensemble_statistic")
         ds_stat[data_var].attrs = self._obj[data_var].attrs
         ds_stat.climepi.copy_bnds_from(self._obj)
+        ds_stat.climepi.modes = self.modes.copy().update({"ensemble": "stats"})
         return ds_stat
 
     def ensemble_stats(self, data_var=None, conf_level=90, **kwargs):
@@ -209,6 +213,7 @@ class ClimEpiDatasetAccessor:
             ensemble_statistic=["lower", "median", "upper"]
         )
         ds_stat = xr.concat([ds_msmm, ds_mci], dim="ensemble_statistic")
+        ds_stat.climepi.modes = self.modes.copy().update({"ensemble": "stats"})
         return ds_stat
 
     def plot_time_series(self, data_var=None, **kwargs):
