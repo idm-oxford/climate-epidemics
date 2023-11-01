@@ -43,11 +43,11 @@ class EmptyVisualizer:
 
     def __init__(self, ds_type):
         if ds_type == "climate":
-            self.controls = pn.Column("Climate data not loaded")
-            self.view = pn.Column()
+            self.controls = pn.panel("Climate data not loaded")
+            self.view = pn.Row()
         if ds_type == "epidemic":
-            self.controls = pn.Column("Epidemiogical model not run")
-            self.view = pn.Column()
+            self.controls = pn.panel("Epidemiogical model not run")
+            self.view = pn.Row()
 
 
 class DataVisualizer(param.Parameterized):
@@ -60,6 +60,9 @@ class DataVisualizer(param.Parameterized):
     year_range = param.Range(precedence=1)
     ensemble_mode = param.ObjectSelector(precedence=1)
     realization = param.Integer(precedence=-1)
+    plot_initiator = param.Event(precedence=1)
+    plot_generated = param.Boolean(default=False, precedence=-1)
+    plot_status = param.String(default="Plot not yet generated", precedence=1)
 
     def __init__(self, ds_in, **params):
         super().__init__(**params)
@@ -78,50 +81,18 @@ class DataVisualizer(param.Parameterized):
             "year_range": {"name": "Year range"},
             "ensemble_mode": {"name": "Ensemble mode"},
             "realization": {"name": "Realization"},
+            "plot_initiator": pn.widgets.Button(name="Generate plot"),
+            "plot_status": {
+                "widget_type": pn.widgets.StaticText,
+                "name": "",
+            },
         }
         self.controls = pn.Param(self, widgets=plot_widgets, show_name=False)
+        self._plot = pn.Row()
 
     def view(self):
         """Return the plot."""
-        ds_dict = self._ds_dict
-        data_var = self.data_var
-        plot_type = self.plot_type
-        location = self.location
-        temporal_mode = self.temporal_mode
-        ensemble_mode = self.ensemble_mode
-        year_range = self.year_range
-        realization = self.realization
-        if temporal_mode in ["annual", "difference between years"]:
-            ds_dict_temporal = ds_dict["annual"]["ensemble"]
-        elif temporal_mode == "monthly":
-            ds_dict_temporal = ds_dict["monthly"]["ensemble"]
-        if ensemble_mode == "single_run":
-            da_plot = ds_dict_temporal["ensemble"][data_var].sel(
-                realization=realization
-            )
-        elif ensemble_mode == "mean_ci":
-            da_plot = ds_dict_temporal["ensemble_stats"][data_var].sel(stat="mean")
-        elif ensemble_mode in ["mean", "min", "max"]:
-            da_plot = ds_dict_temporal["ensemble_stats"][data_var].sel(
-                stat=ensemble_mode
-            )
-        if plot_type == "time_series":
-            if location == "Miami":
-                da_plot = da_plot.sel(lat=25, lon=360 - 80, method="nearest")
-            elif location == "Cape Town":
-                da_plot = da_plot.sel(lat=-34, lon=18, method="nearest")
-            else:
-                raise ValueError(f"Unknown location: {location}")
-        if temporal_mode in ["annual", "monthly"]:
-            da_plot = da_plot.sel(time=slice(year_range[0], year_range[1]))
-        elif temporal_mode == "difference between years":
-            da_plot = da_plot.sel(time=year_range[1]) - da_plot.sel(time=year_range[0])
-        if plot_type == "map":
-            return da_plot.climepi.plot_map()
-        elif plot_type == "time_series" and ensemble_mode == "mean_ci":
-            return da_plot.climepi.plot_ensemble_ci_time_series()
-        else:
-            return da_plot.climepi.plot_time_series()
+        return self._plot
 
     def _fill_ds_dict(self):
         ds_base = self._ds_base
@@ -180,19 +151,118 @@ class DataVisualizer(param.Parameterized):
             raise NotImplementedError("Only global spatial mode is currently supported")
         self.param.location.objects = location_choices
         self.param.location.default = location_choices[0]
+        self.location = location_choices[0]
         # Year range choices
         self.param.year_range.bounds = [
             ds_base.time.values[0].year,
             ds_base.time.values[-1].year,
         ]
-        self.param.year_range.default = [
+        self.param.year_range.default = (
             ds_base.time.values[0].year,
             ds_base.time.values[-1].year,
-        ]
+        )
+        self.year_range = self.param.year_range.default
         # Ensemble member choices
         if base_modes["ensemble"] == "ensemble":
-            self.param.realization.bounds = ds_base.realization.values[[0, -1]].tolist()
-            self.param.realization.default = ds_base.realization.values[0]
+            self.param.realization.bounds = [
+                ds_base.realization.values[0].item(),
+                ds_base.realization.values[-1].item(),
+            ]
+            self.param.realization.default = ds_base.realization.values[0].item()
+            self.realization = ds_base.realization.values[0].item()
+
+    @param.depends("plot_initiator", watch=True)
+    def _update_plot(self):
+        """Update the plot."""
+        if self.plot_generated:
+            return
+        self._plot = (
+            pn.Row()
+        )  # clears view on updating plot_status parameter below to avoid bug when
+        # updating time series (may not be needed on refactoring)
+        self.plot_status = "Generating plot..."
+        self._generate_plot()
+        self.plot_status = "Plot generated"
+        self.plot_generated = True
+
+    def _generate_plot(self):
+        """Generate the plot."""
+        ds_dict = self._ds_dict
+        data_var = self.data_var
+        plot_type = self.plot_type
+        location = self.location
+        temporal_mode = self.temporal_mode
+        ensemble_mode = self.ensemble_mode
+        year_range = self.year_range
+        realization = self.realization
+        if temporal_mode in ["annual", "difference between years"]:
+            ds_dict_temporal = ds_dict["annual"]
+        elif temporal_mode == "monthly":
+            ds_dict_temporal = ds_dict["monthly"]
+        else:
+            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+        if ensemble_mode == "single_run":
+            ds_plot = (
+                ds_dict_temporal["ensemble"]
+                .climepi.sel_data_var(data_var)
+                .sel(realization=realization)
+            )
+        elif ensemble_mode == "mean_ci":
+            ds_plot = ds_dict_temporal["ensemble_stats"].climepi.sel_data_var(data_var)
+        elif ensemble_mode in ["mean", "std", "min", "max"]:
+            ds_plot = (
+                ds_dict_temporal["ensemble_stats"]
+                .climepi.sel_data_var(data_var)
+                .sel(ensemble_statistic=ensemble_mode)
+            )
+        else:
+            raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
+        if plot_type == "time_series":
+            if location == "Miami":
+                ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
+            elif location == "Cape Town":
+                ds_plot = ds_plot.sel(lat=-34, lon=18, method="nearest")
+            else:
+                raise ValueError(f"Unknown location: {location}")
+        elif plot_type == "map":
+            pass
+        else:
+            raise ValueError(f"Unknown plot type: {plot_type}")
+        if temporal_mode in ["annual", "monthly"]:
+            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
+        elif temporal_mode == "difference between years":
+            da_start = ds_plot[data_var].sel(time=str(year_range[0])).squeeze()
+            da_end = ds_plot[data_var].sel(time=str(year_range[1])).squeeze()
+            ds_plot[data_var] = da_end - da_start
+        else:
+            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+        if plot_type == "map":
+            self._plot = pn.panel(
+                ds_plot.climepi.plot_map(), center=True, widget_location="bottom"
+            )
+        elif plot_type == "time_series" and ensemble_mode == "mean_ci":
+            self._plot = pn.panel(
+                ds_plot.climepi.plot_ensemble_ci_time_series(), center=True
+            )
+        elif plot_type == "time_series":
+            self._plot = pn.panel(ds_plot.climepi.plot_time_series(), center=True)
+        else:
+            raise ValueError("Unsupported plot options")
+
+    @param.depends(
+        "data_var",
+        "plot_type",
+        "location",
+        "temporal_mode",
+        "year_range",
+        "ensemble_mode",
+        "realization",
+        watch=True,
+    )
+    def _revert_plot_status(self):
+        """Revert the plot status (but retain plot view)."""
+        self.plot_status = "Plot not yet generated"
+        self.plot_generated = False
 
     @param.depends("plot_type", watch=True)
     def _update_variable_param_choices(self):
@@ -221,11 +291,13 @@ class DataVisualizer(param.Parameterized):
             )
         self.param.temporal_mode.objects = temporal_mode_choices
         self.param.temporal_mode.default = temporal_mode_choices[0]
+        self.temporal_mode = temporal_mode_choices[0]
         # Ensemble mode choices
         if self.plot_type == "time_series" and base_modes["ensemble"] == "ensemble":
             ensemble_mode_choices = [
                 "mean",
                 "mean_ci",
+                "std",
                 "min",
                 "max",
                 "single_run",
@@ -233,14 +305,18 @@ class DataVisualizer(param.Parameterized):
         elif self.plot_type == "map" and base_modes["ensemble"] == "ensemble":
             ensemble_mode_choices = [
                 "mean",
+                "std",
                 "min",
                 "max",
                 "single_run",
             ]
         else:
-            raise NotImplementedError("Only ensemble mode is currently supported")
+            raise NotImplementedError(
+                "Only 'ensemble' base mode is currently supported"
+            )
         self.param.ensemble_mode.objects = ensemble_mode_choices
         self.param.ensemble_mode.default = ensemble_mode_choices[0]
+        self.ensemble_mode = ensemble_mode_choices[0]
 
     @param.depends("plot_type", "ensemble_mode", watch=True)
     def _update_precedence(self):
@@ -319,12 +395,15 @@ class DataController(param.Parameterized):
             return
         self.clim_data_status = "Loading data..."
         ds_clim = get_clim_data(self.clim_ds_name)
-        self._clim_visualizer = DataVisualizer(ds_clim)
-        self.clim_data_loaded = True
+        self._clim_visualizer = DataVisualizer(
+            ds_clim
+        )  # update before setting self.clim_data_loaded = True so that plot options are
+        # correctly updated
         self.clim_data_status = "Data loaded"
+        self.clim_data_loaded = True
         self._epi_visualizer = EmptyVisualizer("epidemic")
-        self.epi_model_ran = False
         self.epi_model_status = "Model has not been run"
+        self.epi_model_ran = False
 
     @param.depends("epi_model_run_initiator", watch=True)
     def _run_epi_model(self):
@@ -337,17 +416,17 @@ class DataController(param.Parameterized):
         self.epi_model_status = "Running model..."
         ds_epi = get_epi_data(self.clim_ds_name, self.epi_model_name)
         self._epi_visualizer = DataVisualizer(ds_epi)
-        self.epi_model_ran = True
         self.epi_model_status = "Model run complete"
+        self.epi_model_ran = True
 
     @param.depends("clim_ds_name", watch=True)
-    def _revert_clim_data_load(self):
+    def _revert_clim_data_load_status(self):
         """Revert the climate data load status (but retain data for plotting)."""
-        self.clim_data_loaded = False
         self.clim_data_status = "Data not loaded"
+        self.clim_data_loaded = False
 
     @param.depends("clim_ds_name", "epi_model_name", watch=True)
-    def _revert_epi_model_run_(self):
+    def _revert_epi_model_run_status(self):
         """Revert the epi model run status (but retain data for plotting)."""
-        self.epi_model_ran = False
         self.epi_model_status = "Model has not been run"
+        self.epi_model_ran = False
