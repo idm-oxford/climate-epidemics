@@ -235,7 +235,7 @@ class ClimEpiDatasetAccessor:
         """
         data_var = self._auto_select_data_var(data_var)
         da_plot = self._obj[data_var]
-        kwargs_hvplot = {"x": "time", "frame_width": 600}
+        kwargs_hvplot = {"x": "time"}
         kwargs_hvplot.update(kwargs)
         return da_plot.hvplot.line(**kwargs_hvplot)
 
@@ -268,7 +268,6 @@ class ClimEpiDatasetAccessor:
             "geo": True,
             "rasterize": True,
             "coastline": True,
-            "frame_width": 600,
             "dynamic": False,
         }
         if "time" in da_plot.sizes:
@@ -325,7 +324,6 @@ class ClimEpiDatasetAccessor:
             "x": "time",
             "y": "lower",
             "y2": "upper",
-            "frame_width": 600,
             "alpha": 0.2,
         }
         kwargs_hv_ci.update(kwargs)
@@ -333,10 +331,31 @@ class ClimEpiDatasetAccessor:
         if central is None:
             return p_ci
         da_central = self._obj[data_var].sel(ensemble_statistic=central)
-        kwargs_hv_central = {"x": "time", "frame_width": 600}
+        kwargs_hv_central = {"x": "time"}
         kwargs_hv_central.update(kwargs)
         p_central = da_central.hvplot.line(**kwargs_hv_central)
         return p_central * p_ci
+
+    def sel_data_var(self, data_var):
+        """
+        Returns a new dataset containing only the selected data variable(s) and any
+        bounds variables.
+
+        Parameters
+        ----------
+        data_var : str or list, optional
+            Name(s) of the data variable(s) to select.
+
+        Returns
+        -------
+        xarray.Dataset
+            A new dataset containing the selected data variable(s) and any bounds
+            variables.
+        """
+        ds = xr.Dataset(attrs=self._obj.attrs)
+        ds[data_var] = self._obj[data_var]
+        ds.climepi.copy_bnds_from(self._obj)
+        return ds
 
     def copy_var_attrs_from(self, ds_from, var):
         """
@@ -347,13 +366,15 @@ class ClimEpiDatasetAccessor:
         ----------
         ds_from : xarray.Dataset
             The dataset to copy the variable attributes from.
-        vars : str or list
-            The name of the variable to copy the attributes for.
+        var : str or list
+            The name(s) of the variable(s) to copy the attributes for (both datasets
+            must contain variable(s) with these names).
         """
         if isinstance(var, list):
             for var_curr in var:
                 self.copy_var_attrs_from(ds_from, var_curr)
-        self._obj[var].attrs = ds_from[var].attrs
+        else:
+            self._obj[var].attrs = ds_from[var].attrs
 
     def copy_bnds_from(self, ds_from):
         """
