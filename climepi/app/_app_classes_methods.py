@@ -38,6 +38,104 @@ def get_epi_data(clim_ds_name, epi_model_name):
 # Classes
 
 
+class DataController(param.Parameterized):
+    """Controller parameters for the dashboard side panel."""
+
+    clim_ds_name = param.ObjectSelector(
+        default="CESM2", objects=["CESM2", "Also CESM2"], precedence=1
+    )
+    clim_data_load_initiator = param.Event(default=False, precedence=1)
+    clim_data_loaded = param.Boolean(default=False, precedence=-1)
+    clim_data_status = param.String(default="Data not loaded", precedence=1)
+    epi_model_name = param.ObjectSelector(
+        default="Kaye ecological niche",
+        objects=["Kaye ecological niche", "Also Kaye ecological niche"],
+        precedence=1,
+    )
+    epi_model_run_initiator = param.Event(default=False, precedence=1)
+    epi_model_ran = param.Boolean(default=False, precedence=-1)
+    epi_model_status = param.String(default="Model has not been run", precedence=1)
+
+    def __init__(self, **params):
+        super().__init__(**params)
+        self._clim_visualizer = DataVisualizer()
+        self._epi_visualizer = DataVisualizer()
+        sidebar_widgets = {
+            "clim_ds_name": {"name": "Climate dataset"},
+            "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
+            "clim_data_status": {
+                "widget_type": pn.widgets.StaticText,
+                "name": "",
+            },
+            "epi_model_name": {"name": "Epidemiological model"},
+            "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
+            "epi_model_status": {
+                "widget_type": pn.widgets.StaticText,
+                "name": "",
+            },
+        }
+        self.sidebar_controls = pn.Param(self, widgets=sidebar_widgets, show_name=False)
+
+    def clim_plot_controls(self):
+        """The climate data plot controls."""
+        return self._clim_visualizer.controls
+
+    def clim_plot_view(self):
+        """The climate data plot."""
+        return self._clim_visualizer.view
+
+    def epi_plot_controls(self):
+        """The epidemiological model plot controls."""
+        return self._epi_visualizer.controls
+
+    def epi_plot_view(self):
+        """The epidemiological model plot."""
+        return self._epi_visualizer.view
+
+    @param.depends("clim_data_load_initiator", watch=True)
+    def _load_clim_data(self):
+        """Load data from the data source."""
+        if self.clim_data_loaded:
+            return
+        self.clim_data_status = "Loading data..."
+        ds_clim = get_clim_data(self.clim_ds_name)
+        self._clim_visualizer.initialize(
+            ds_clim
+        )  # update before setting self.clim_data_loaded = True so that plot options are
+        # correctly updated
+        self.clim_data_status = "Data loaded"
+        self.clim_data_loaded = True
+        self._epi_visualizer.initialize()
+        self.epi_model_status = "Model has not been run"
+        self.epi_model_ran = False
+
+    @param.depends("epi_model_run_initiator", watch=True)
+    def _run_epi_model(self):
+        """Setup and run the epidemiological model."""
+        if self.epi_model_ran:
+            return
+        if not self.clim_data_loaded:
+            self.epi_model_status = "Need to load climate data"
+            return
+        self.epi_model_status = "Running model..."
+        ds_epi = get_epi_data(self.clim_ds_name, self.epi_model_name)
+        self._epi_visualizer.initialize(ds_epi)
+        self.epi_model_status = "Model run complete"
+        self.epi_model_ran = True
+
+    @param.depends("clim_ds_name", watch=True)
+    def _revert_clim_data_load_status(self):
+        """Revert the climate data load status (but retain data for plotting)."""
+        self.clim_data_status = "Data not loaded"
+        self.clim_data_loaded = False
+
+    @param.depends("clim_ds_name", "epi_model_name", watch=True)
+    def _revert_epi_model_run_status(self):
+        """Revert the epi model run status (but retain data for plotting)."""
+        self.epi_model_status = "Model has not been run"
+        self.epi_model_ran = False
+
+
 class EmptyVisualizer:
     """Empty visualizer for the dashboard."""
 
@@ -64,16 +162,38 @@ class DataVisualizer(param.Parameterized):
     plot_generated = param.Boolean(default=False, precedence=-1)
     plot_status = param.String(default="Plot not yet generated", precedence=1)
 
-    def __init__(self, ds_in, **params):
+    def __init__(self, ds_in=None, **params):
         super().__init__(**params)
+        self._view = pn.Row()
+        self._controls = pn.Row()
+        self._ds_base = None
+        self._base_modes = None
+        self._ds_dict = None
+        if ds_in is not None:
+            self.initialize(ds_in)
+
+    def view(self):
+        """Return the plot."""
+        return self._view
+
+    def controls(self):
+        """Return the controls."""
+        return self._controls
+
+    def initialize(self, ds_in=None):
+        """Initialize the visualizer."""
+        self._view.clear()
+        if ds_in is None:
+            self._controls.clear()
+            return
         self._ds_base = ds_in
         self._base_modes = ds_in.climepi.modes
         self._ds_dict = None
         self._fill_ds_dict()
-        self._initialise_fixed_param_choices()
+        self._initialize_fixed_param_choices()
         self._update_variable_param_choices()
         self._update_precedence()
-        plot_widgets = {
+        widgets = {
             "data_var": {"name": "Data variable"},
             "plot_type": {"name": "Plot type"},
             "location": {"name": "Location"},
@@ -87,12 +207,7 @@ class DataVisualizer(param.Parameterized):
                 "name": "",
             },
         }
-        self.controls = pn.Param(self, widgets=plot_widgets, show_name=False)
-        self._plot = pn.Row()
-
-    def view(self):
-        """Return the plot."""
-        return self._plot
+        self._controls.append(pn.Param(self, widgets=widgets, show_name=False))
 
     def _fill_ds_dict(self):
         ds_base = self._ds_base
@@ -128,7 +243,7 @@ class DataVisualizer(param.Parameterized):
             )
         self._ds_dict = ds_dict
 
-    def _initialise_fixed_param_choices(self):
+    def _initialize_fixed_param_choices(self):
         ds_base = self._ds_base
         base_modes = self._base_modes
         # Data variable choices
@@ -176,10 +291,8 @@ class DataVisualizer(param.Parameterized):
         """Update the plot."""
         if self.plot_generated:
             return
-        self._plot = (
-            pn.Row()
-        )  # clears view on updating plot_status parameter below to avoid bug when
-        # updating time series (may not be needed on refactoring)
+        self._view.clear()  # clears view on updating plot_status parameter below to
+        # avoid bug when updating time series (may not be needed on refactoring)
         self.plot_status = "Generating plot..."
         self._generate_plot()
         self.plot_status = "Plot generated"
@@ -236,16 +349,19 @@ class DataVisualizer(param.Parameterized):
             ds_plot[data_var] = da_end - da_start
         else:
             raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+        self._view.clear()
         if plot_type == "map":
-            self._plot = pn.panel(
-                ds_plot.climepi.plot_map(), center=True, widget_location="bottom"
+            self._view.append(
+                pn.panel(
+                    ds_plot.climepi.plot_map(), center=True, widget_location="bottom"
+                )
             )
         elif plot_type == "time_series" and ensemble_mode == "mean_ci":
-            self._plot = pn.panel(
-                ds_plot.climepi.plot_ensemble_ci_time_series(), center=True
+            self._view.append(
+                pn.panel(ds_plot.climepi.plot_ensemble_ci_time_series(), center=True)
             )
         elif plot_type == "time_series":
-            self._plot = pn.panel(ds_plot.climepi.plot_time_series(), center=True)
+            self._view.append(pn.panel(ds_plot.climepi.plot_time_series(), center=True))
         else:
             raise ValueError("Unsupported plot options")
 
@@ -328,105 +444,3 @@ class DataVisualizer(param.Parameterized):
             self.param.realization.precedence = 1
         else:
             self.param.realization.precedence = -1
-
-
-class DataController(param.Parameterized):
-    """Controller parameters for the dashboard side panel."""
-
-    clim_ds_name = param.ObjectSelector(
-        default="CESM2", objects=["CESM2", "Also CESM2"], precedence=1
-    )
-    clim_data_load_initiator = param.Event(default=False, precedence=1)
-    clim_data_loaded = param.Boolean(default=False, precedence=-1)
-    clim_data_status = param.String(default="Data not loaded", precedence=1)
-    epi_model_name = param.ObjectSelector(
-        default="Kaye ecological niche",
-        objects=["Kaye ecological niche", "Also Kaye ecological niche"],
-        precedence=1,
-    )
-    epi_model_run_initiator = param.Event(default=False, precedence=1)
-    epi_model_ran = param.Boolean(default=False, precedence=-1)
-    epi_model_status = param.String(default="Model has not been run", precedence=1)
-
-    def __init__(self, **params):
-        super().__init__(**params)
-        self._clim_visualizer = EmptyVisualizer("climate")
-        self._epi_visualizer = EmptyVisualizer("epidemic")
-        sidebar_widgets = {
-            "clim_ds_name": {"name": "Climate dataset"},
-            "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
-            "clim_data_status": {
-                "widget_type": pn.widgets.StaticText,
-                "name": "",
-            },
-            "epi_model_name": {"name": "Epidemiological model"},
-            "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
-            "epi_model_status": {
-                "widget_type": pn.widgets.StaticText,
-                "name": "",
-            },
-        }
-        self.sidebar_controls = pn.Param(self, widgets=sidebar_widgets, show_name=False)
-
-    @param.depends("clim_data_loaded")
-    def clim_plot_controls(self):
-        """The climate data plot controls."""
-        return self._clim_visualizer.controls
-
-    @param.depends("clim_data_loaded")
-    def clim_plot_view(self):
-        """The climate data plot."""
-        return self._clim_visualizer.view
-
-    @param.depends("epi_model_ran")
-    def epi_plot_controls(self):
-        """The epidemiological model plot controls."""
-        return self._epi_visualizer.controls
-
-    @param.depends("epi_model_ran")
-    def epi_plot_view(self):
-        """The epidemiological model plot."""
-        return self._epi_visualizer.view
-
-    @param.depends("clim_data_load_initiator", watch=True)
-    def _load_clim_data(self):
-        """Load data from the data source."""
-        if self.clim_data_loaded:
-            return
-        self.clim_data_status = "Loading data..."
-        ds_clim = get_clim_data(self.clim_ds_name)
-        self._clim_visualizer = DataVisualizer(
-            ds_clim
-        )  # update before setting self.clim_data_loaded = True so that plot options are
-        # correctly updated
-        self.clim_data_status = "Data loaded"
-        self.clim_data_loaded = True
-        self._epi_visualizer = EmptyVisualizer("epidemic")
-        self.epi_model_status = "Model has not been run"
-        self.epi_model_ran = False
-
-    @param.depends("epi_model_run_initiator", watch=True)
-    def _run_epi_model(self):
-        """Setup and run the epidemiological model."""
-        if self.epi_model_ran:
-            return
-        if not self.clim_data_loaded:
-            self.epi_model_status = "Need to load climate data"
-            return
-        self.epi_model_status = "Running model..."
-        ds_epi = get_epi_data(self.clim_ds_name, self.epi_model_name)
-        self._epi_visualizer = DataVisualizer(ds_epi)
-        self.epi_model_status = "Model run complete"
-        self.epi_model_ran = True
-
-    @param.depends("clim_ds_name", watch=True)
-    def _revert_clim_data_load_status(self):
-        """Revert the climate data load status (but retain data for plotting)."""
-        self.clim_data_status = "Data not loaded"
-        self.clim_data_loaded = False
-
-    @param.depends("clim_ds_name", "epi_model_name", watch=True)
-    def _revert_epi_model_run_status(self):
-        """Revert the epi model run status (but retain data for plotting)."""
-        self.epi_model_status = "Model has not been run"
-        self.epi_model_ran = False
