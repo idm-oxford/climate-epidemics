@@ -44,7 +44,7 @@ class ClimEpiDatasetAccessor:
         # assert modes_in["ensemble"] in ["ensemble", "single_run", "stats"]
         self._modes = modes_in
 
-    def annual_mean(self, data_var=None):
+    def annual_mean(self, data_var=None, **kwargs):
         """
         Computes the annual mean of a data variable.
 
@@ -53,6 +53,8 @@ class ClimEpiDatasetAccessor:
         data_var : str or list, optional
             Name(s) of the data variable(s) to compute the annual mean for. If not
             provided, all non-bound data variables will be used.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to xcdat temporal.group_average.
 
         Returns
         -------
@@ -73,7 +75,7 @@ class ClimEpiDatasetAccessor:
             ds_copy[data_var] = ds_copy[data_var].astype("float64")
             ds_m = ds_copy.climepi.annual_mean(data_var)
         else:
-            ds_m = self._obj.temporal.group_average(data_var, freq="year")
+            ds_m = self._obj.temporal.group_average(data_var, freq="year", **kwargs)
         ds_m.climepi.modes = dict(self.modes, temporal="annual")
         return ds_m
 
@@ -355,6 +357,7 @@ class ClimEpiDatasetAccessor:
         ds = xr.Dataset(attrs=self._obj.attrs)
         ds[data_var] = self._obj[data_var]
         ds.climepi.copy_bnds_from(self._obj)
+        ds.climepi.modes = self.modes
         return ds
 
     def copy_var_attrs_from(self, ds_from, var):

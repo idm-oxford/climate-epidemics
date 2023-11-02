@@ -83,3 +83,30 @@ class EpiModDatasetAccessor:
         """
         ds_epi = self.model.run(self._obj)
         return ds_epi
+
+    def months_suitable(self):
+        """
+        Calculates the number of months suitable each year from monthly suitability
+        data.
+
+        Returns:
+        --------
+        xarray.Dataset:
+            Dataset with a single non-bounds variable "months_suitable".
+        """
+        if "suitability" not in self._obj:
+            raise ValueError(
+                """No suitability data found. To calculate the number of months suitable
+                from on a climate dataset, first run the model and then apply this
+                method to the output dataset."""
+            )
+        if self._obj.climepi.modes["temporal"] != "monthly":
+            raise ValueError("Suitability data must be monthly.")
+        ds_suitability_mean = self._obj.climepi.annual_mean(
+            "suitability", weighted=False
+        )
+        ds_months_suitable = 12 * ds_suitability_mean.rename(
+            {"suitability": "months_suitable"}
+        )
+        ds_months_suitable.climepi.modes = ds_suitability_mean.climepi.modes
+        return ds_months_suitable
