@@ -183,8 +183,8 @@ class DataVisualizer(param.Parameterized):
     def initialize(self, ds_in=None):
         """Initialize the visualizer."""
         self._view.clear()
+        self._controls.clear()
         if ds_in is None:
-            self._controls.clear()
             return
         self._ds_base = ds_in
         self._base_modes = ds_in.climepi.modes
