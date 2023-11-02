@@ -1,1 +1,1 @@
-from ._app_classes_methods import DataController, DataVisualizer
+from ._app_classes_methods import DataController

@@ -58,8 +58,8 @@ class DataController(param.Parameterized):
 
     def __init__(self, **params):
         super().__init__(**params)
-        self._clim_visualizer = DataVisualizer()
-        self._epi_visualizer = DataVisualizer()
+        self._clim_plot_controller = PlotController()
+        self._epi_plot_controller = PlotController()
         sidebar_widgets = {
             "clim_ds_name": {"name": "Climate dataset"},
             "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
@@ -78,19 +78,19 @@ class DataController(param.Parameterized):
 
     def clim_plot_controls(self):
         """The climate data plot controls."""
-        return self._clim_visualizer.controls
+        return self._clim_plot_controller.controls
 
     def clim_plot_view(self):
         """The climate data plot."""
-        return self._clim_visualizer.view
+        return self._clim_plot_controller.view
 
     def epi_plot_controls(self):
         """The epidemiological model plot controls."""
-        return self._epi_visualizer.controls
+        return self._epi_plot_controller.controls
 
     def epi_plot_view(self):
         """The epidemiological model plot."""
-        return self._epi_visualizer.view
+        return self._epi_plot_controller.view
 
     @param.depends("clim_data_load_initiator", watch=True)
     def _load_clim_data(self):
@@ -99,13 +99,13 @@ class DataController(param.Parameterized):
             return
         self.clim_data_status = "Loading data..."
         ds_clim = get_clim_data(self.clim_ds_name)
-        self._clim_visualizer.initialize(
+        self._clim_plot_controller.initialize(
             ds_clim
         )  # update before setting self.clim_data_loaded = True so that plot options are
         # correctly updated
         self.clim_data_status = "Data loaded"
         self.clim_data_loaded = True
-        self._epi_visualizer.initialize()
+        self._epi_plot_controller.initialize()
         self.epi_model_status = "Model has not been run"
         self.epi_model_ran = False
 
@@ -119,7 +119,7 @@ class DataController(param.Parameterized):
             return
         self.epi_model_status = "Running model..."
         ds_epi = get_epi_data(self.clim_ds_name, self.epi_model_name)
-        self._epi_visualizer.initialize(ds_epi)
+        self._epi_plot_controller.initialize(ds_epi)
         self.epi_model_status = "Model run complete"
         self.epi_model_ran = True
 
@@ -148,8 +148,8 @@ class EmptyVisualizer:
             self.view = pn.Row()
 
 
-class DataVisualizer(param.Parameterized):
-    """Data visualizer for the dashboard."""
+class PlotController(param.Parameterized):
+    """Plot controller class."""
 
     data_var = param.ObjectSelector(precedence=1)
     plot_type = param.ObjectSelector(precedence=1)
@@ -166,11 +166,10 @@ class DataVisualizer(param.Parameterized):
         super().__init__(**params)
         self._view = pn.Row()
         self._controls = pn.Row()
+        self._plotter = None
         self._ds_base = None
         self._base_modes = None
-        self._ds_dict = None
-        if ds_in is not None:
-            self.initialize(ds_in)
+        self.initialize(ds_in)
 
     def view(self):
         """Return the plot."""
@@ -181,15 +180,14 @@ class DataVisualizer(param.Parameterized):
         return self._controls
 
     def initialize(self, ds_in=None):
-        """Initialize the visualizer."""
+        """Initialize the plot controller."""
         self._view.clear()
         self._controls.clear()
+        self._plotter = Plotter(ds_in)
         if ds_in is None:
             return
         self._ds_base = ds_in
         self._base_modes = ds_in.climepi.modes
-        self._ds_dict = None
-        self._fill_ds_dict()
         self._initialize_fixed_param_choices()
         self._update_variable_param_choices()
         self._update_precedence()
@@ -208,40 +206,6 @@ class DataVisualizer(param.Parameterized):
             },
         }
         self._controls.append(pn.Param(self, widgets=widgets, show_name=False))
-
-    def _fill_ds_dict(self):
-        ds_base = self._ds_base
-        base_modes = self._base_modes
-        ds_dict = {"base": ds_base}
-        if (base_modes["temporal"] == "monthly") and (
-            base_modes["ensemble"] == "ensemble"
-        ):
-            ds_monthly_ensemble = ds_base
-            ds_monthly_ensemble_stats = ds_base.climepi.ensemble_stats()
-            ds_annual_ensemble = ds_base.climepi.annual_mean()
-            ds_annual_ensemble_stats = ds_annual_ensemble.climepi.ensemble_stats()
-            ds_dict["monthly"] = {
-                "ensemble": ds_monthly_ensemble,
-                "ensemble_stats": ds_monthly_ensemble_stats,
-            }
-            ds_dict["annual"] = {
-                "ensemble": ds_annual_ensemble,
-                "ensemble_stats": ds_annual_ensemble_stats,
-            }
-        elif (base_modes["temporal"] == "annual") and (
-            base_modes["ensemble"] == "ensemble"
-        ):
-            ds_annual_ensemble = ds_base
-            ds_annual_ensemble_stats = ds_annual_ensemble.climepi.ensemble_stats()
-            ds_dict["annual"] = {
-                "ensemble": ds_annual_ensemble,
-                "ensemble_stats": ds_annual_ensemble_stats,
-            }
-        else:
-            raise NotImplementedError(
-                "Only monthly and annual ensembles are currently supported"
-            )
-        self._ds_dict = ds_dict
 
     def _initialize_fixed_param_choices(self):
         ds_base = self._ds_base
@@ -287,83 +251,18 @@ class DataVisualizer(param.Parameterized):
             self.realization = ds_base.realization.values[0].item()
 
     @param.depends("plot_initiator", watch=True)
-    def _update_plot(self):
-        """Update the plot."""
+    def _update_view(self):
+        """Update the plot view."""
         if self.plot_generated:
             return
         self._view.clear()  # clears view on updating plot_status parameter below to
-        # avoid bug when updating time series (may not be needed on refactoring)
+        # # avoid bug when updating time series (may not be needed on refactoring)
         self.plot_status = "Generating plot..."
-        self._generate_plot()
+        self._plotter.generate_plot(self.param.values())
+        # self._view.clear()
+        self._view.append(self._plotter.plot)
         self.plot_status = "Plot generated"
         self.plot_generated = True
-
-    def _generate_plot(self):
-        """Generate the plot."""
-        ds_dict = self._ds_dict
-        data_var = self.data_var
-        plot_type = self.plot_type
-        location = self.location
-        temporal_mode = self.temporal_mode
-        ensemble_mode = self.ensemble_mode
-        year_range = self.year_range
-        realization = self.realization
-        if temporal_mode in ["annual", "difference between years"]:
-            ds_dict_temporal = ds_dict["annual"]
-        elif temporal_mode == "monthly":
-            ds_dict_temporal = ds_dict["monthly"]
-        else:
-            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
-        if ensemble_mode == "single_run":
-            ds_plot = (
-                ds_dict_temporal["ensemble"]
-                .climepi.sel_data_var(data_var)
-                .sel(realization=realization)
-            )
-        elif ensemble_mode == "mean_ci":
-            ds_plot = ds_dict_temporal["ensemble_stats"].climepi.sel_data_var(data_var)
-        elif ensemble_mode in ["mean", "std", "min", "max"]:
-            ds_plot = (
-                ds_dict_temporal["ensemble_stats"]
-                .climepi.sel_data_var(data_var)
-                .sel(ensemble_statistic=ensemble_mode)
-            )
-        else:
-            raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
-        if plot_type == "time_series":
-            if location == "Miami":
-                ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
-            elif location == "Cape Town":
-                ds_plot = ds_plot.sel(lat=-34, lon=18, method="nearest")
-            else:
-                raise ValueError(f"Unknown location: {location}")
-        elif plot_type == "map":
-            pass
-        else:
-            raise ValueError(f"Unknown plot type: {plot_type}")
-        if temporal_mode in ["annual", "monthly"]:
-            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
-        elif temporal_mode == "difference between years":
-            da_start = ds_plot[data_var].sel(time=str(year_range[0])).squeeze()
-            da_end = ds_plot[data_var].sel(time=str(year_range[1])).squeeze()
-            ds_plot[data_var] = da_end - da_start
-        else:
-            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
-        self._view.clear()
-        if plot_type == "map":
-            self._view.append(
-                pn.panel(
-                    ds_plot.climepi.plot_map(), center=True, widget_location="bottom"
-                )
-            )
-        elif plot_type == "time_series" and ensemble_mode == "mean_ci":
-            self._view.append(
-                pn.panel(ds_plot.climepi.plot_ensemble_ci_time_series(), center=True)
-            )
-        elif plot_type == "time_series":
-            self._view.append(pn.panel(ds_plot.climepi.plot_time_series(), center=True))
-        else:
-            raise ValueError("Unsupported plot options")
 
     @param.depends(
         "data_var",
@@ -444,3 +343,116 @@ class DataVisualizer(param.Parameterized):
             self.param.realization.precedence = 1
         else:
             self.param.realization.precedence = -1
+
+
+class Plotter:
+    """Class for generating plots"""
+
+    def __init__(self, ds_in=None):
+        self.plot = None
+        self._ds_base = None
+        self._base_modes = None
+        self._ds_dict = None
+        self._initialize(ds_in)
+
+    def generate_plot(self, param_values):
+        """Generate the plot."""
+        ds_dict = self._ds_dict
+        data_var = param_values["data_var"]
+        plot_type = param_values["plot_type"]
+        location = param_values["location"]
+        temporal_mode = param_values["temporal_mode"]
+        ensemble_mode = param_values["ensemble_mode"]
+        year_range = param_values["year_range"]
+        realization = param_values["realization"]
+        if temporal_mode in ["annual", "difference between years"]:
+            ds_dict_temporal = ds_dict["annual"]
+        elif temporal_mode == "monthly":
+            ds_dict_temporal = ds_dict["monthly"]
+        else:
+            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+        if ensemble_mode == "single_run":
+            ds_plot = (
+                ds_dict_temporal["ensemble"]
+                .climepi.sel_data_var(data_var)
+                .sel(realization=realization)
+            )
+        elif ensemble_mode == "mean_ci":
+            ds_plot = ds_dict_temporal["ensemble_stats"].climepi.sel_data_var(data_var)
+        elif ensemble_mode in ["mean", "std", "min", "max"]:
+            ds_plot = (
+                ds_dict_temporal["ensemble_stats"]
+                .climepi.sel_data_var(data_var)
+                .sel(ensemble_statistic=ensemble_mode)
+            )
+        else:
+            raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
+        if plot_type == "time_series":
+            if location == "Miami":
+                ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
+            elif location == "Cape Town":
+                ds_plot = ds_plot.sel(lat=-34, lon=18, method="nearest")
+            else:
+                raise ValueError(f"Unknown location: {location}")
+        elif plot_type == "map":
+            pass
+        else:
+            raise ValueError(f"Unknown plot type: {plot_type}")
+        if temporal_mode in ["annual", "monthly"]:
+            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
+        elif temporal_mode == "difference between years":
+            da_start = ds_plot[data_var].sel(time=str(year_range[0])).squeeze()
+            da_end = ds_plot[data_var].sel(time=str(year_range[1])).squeeze()
+            ds_plot[data_var] = da_end - da_start
+        else:
+            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+        if plot_type == "map":
+            self.plot = pn.panel(
+                ds_plot.climepi.plot_map(), center=True, widget_location="bottom"
+            )
+        elif plot_type == "time_series" and ensemble_mode == "mean_ci":
+            self.plot = pn.panel(
+                ds_plot.climepi.plot_ensemble_ci_time_series(), center=True
+            )
+        elif plot_type == "time_series":
+            self.plot = pn.panel(ds_plot.climepi.plot_time_series(), center=True)
+        else:
+            raise ValueError("Unsupported plot options")
+
+    def _initialize(self, ds_in):
+        if ds_in is None:
+            return
+        ds_base = ds_in
+        base_modes = ds_in.climepi.modes
+        self._ds_base = ds_base
+        self._base_modes = base_modes
+        ds_dict = {"base": ds_base}
+        if (base_modes["temporal"] == "monthly") and (
+            base_modes["ensemble"] == "ensemble"
+        ):
+            ds_monthly_ensemble = ds_base
+            ds_monthly_ensemble_stats = ds_base.climepi.ensemble_stats()
+            ds_annual_ensemble = ds_base.climepi.annual_mean()
+            ds_annual_ensemble_stats = ds_annual_ensemble.climepi.ensemble_stats()
+            ds_dict["monthly"] = {
+                "ensemble": ds_monthly_ensemble,
+                "ensemble_stats": ds_monthly_ensemble_stats,
+            }
+            ds_dict["annual"] = {
+                "ensemble": ds_annual_ensemble,
+                "ensemble_stats": ds_annual_ensemble_stats,
+            }
+        elif (base_modes["temporal"] == "annual") and (
+            base_modes["ensemble"] == "ensemble"
+        ):
+            ds_annual_ensemble = ds_base
+            ds_annual_ensemble_stats = ds_annual_ensemble.climepi.ensemble_stats()
+            ds_dict["annual"] = {
+                "ensemble": ds_annual_ensemble,
+                "ensemble_stats": ds_annual_ensemble_stats,
+            }
+        else:
+            raise NotImplementedError(
+                "Only monthly and annual ensembles are currently supported"
+            )
+        self._ds_dict = ds_dict
