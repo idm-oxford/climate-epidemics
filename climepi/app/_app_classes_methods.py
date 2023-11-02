@@ -192,7 +192,7 @@ class PlotController(param.Parameterized):
             return
         self._ds_base = ds_in
         self._base_modes = ds_in.climepi.modes
-        self._initialize_fixed_param_choices()
+        self._initialize_params()
         self._update_variable_param_choices()
         self._update_precedence()
         widgets = {
@@ -211,14 +211,13 @@ class PlotController(param.Parameterized):
         }
         self._controls.append(pn.Param(self, widgets=widgets, show_name=False))
 
-    def _initialize_fixed_param_choices(self):
+    def _initialize_params(self):
         ds_base = self._ds_base
         base_modes = self._base_modes
         # Data variable choices
         data_var_choices = ds_base.climepi.get_non_bnd_data_vars()
         self.param.data_var.objects = data_var_choices
         self.param.data_var.default = data_var_choices[0]
-        self.data_var = data_var_choices[0]
         # Plot type choices
         if base_modes["spatial"] == "global":
             plot_type_choices = ["time_series", "map"]
@@ -226,7 +225,6 @@ class PlotController(param.Parameterized):
             raise NotImplementedError("Only global spatial mode is currently supported")
         self.param.plot_type.objects = plot_type_choices
         self.param.plot_type.default = plot_type_choices[0]
-        self.plot_type = plot_type_choices[0]
         # Location choices
         if base_modes["spatial"] == "global":
             location_choices = ["Miami", "Cape Town"]
@@ -234,7 +232,7 @@ class PlotController(param.Parameterized):
             raise NotImplementedError("Only global spatial mode is currently supported")
         self.param.location.objects = location_choices
         self.param.location.default = location_choices[0]
-        self.location = location_choices[0]
+        self.location = self.param.location.default
         # Year range choices
         self.param.year_range.bounds = [
             ds_base.time.values[0].year,
@@ -244,7 +242,6 @@ class PlotController(param.Parameterized):
             ds_base.time.values[0].year,
             ds_base.time.values[-1].year,
         )
-        self.year_range = self.param.year_range.default
         # Ensemble member choices
         if base_modes["ensemble"] == "ensemble":
             self.param.realization.bounds = [
@@ -252,7 +249,13 @@ class PlotController(param.Parameterized):
                 ds_base.realization.values[-1].item(),
             ]
             self.param.realization.default = ds_base.realization.values[0].item()
-            self.realization = ds_base.realization.values[0].item()
+            self.realization = self.param.realization.default
+        # Set parameters to defaults (automatically triggers updates to variable
+        # parameter choices and precedence)
+        self.data_var = self.param.data_var.default
+        self.plot_type = self.param.plot_type.default
+        self.year_range = self.param.year_range.default
+        self.realization = self.param.realization.default
 
     @param.depends("plot_initiator", watch=True)
     def _update_view(self):
@@ -309,7 +312,7 @@ class PlotController(param.Parameterized):
             )
         self.param.temporal_mode.objects = temporal_mode_choices
         self.param.temporal_mode.default = temporal_mode_choices[0]
-        self.temporal_mode = temporal_mode_choices[0]
+        self.temporal_mode = self.param.temporal_mode.default
         # Ensemble mode choices
         if self.plot_type == "time_series" and base_modes["ensemble"] == "ensemble":
             ensemble_mode_choices = [
@@ -334,7 +337,7 @@ class PlotController(param.Parameterized):
             )
         self.param.ensemble_mode.objects = ensemble_mode_choices
         self.param.ensemble_mode.default = ensemble_mode_choices[0]
-        self.ensemble_mode = ensemble_mode_choices[0]
+        self.ensemble_mode = self.param.ensemble_mode.default
 
     @param.depends("plot_type", "ensemble_mode", watch=True)
     def _update_precedence(self):
@@ -346,6 +349,8 @@ class PlotController(param.Parameterized):
             self.param.realization.precedence = 1
         else:
             self.param.realization.precedence = -1
+            self.realization = self.param.realization.default  # may not be strictly
+            # needed but potentially useful if trying to cache plot datasets or objects
 
 
 class Plotter:
