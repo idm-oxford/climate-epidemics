@@ -31,8 +31,10 @@ def get_epi_data(clim_ds_name, epi_model_name):
     else:
         raise ValueError(f"Unknown epidemiological model: {epi_model_name}")
     ds_clim.epimod.model = epi_model
-    ds_epi = ds_clim.epimod.run_model()
-    return ds_epi
+    ds_suitability = ds_clim.epimod.run_model()
+    ds_months_suitable = ds_suitability.epimod.months_suitable()
+    ds_months_suitable.load()
+    return ds_months_suitable
 
 
 # Classes
@@ -184,7 +186,9 @@ class PlotController(param.Parameterized):
         self._view.clear()
         self._controls.clear()
         self._plotter = Plotter(ds_in)
+        self._ds_base = ds_in
         if ds_in is None:
+            self._base_modes = None
             return
         self._ds_base = ds_in
         self._base_modes = ds_in.climepi.modes
@@ -255,8 +259,7 @@ class PlotController(param.Parameterized):
         """Update the plot view."""
         if self.plot_generated:
             return
-        self._view.clear()  # clears view on updating plot_status parameter below to
-        # # avoid bug when updating time series (may not be needed on refactoring)
+        self._view.clear()  # figure sizing issue if not done before generating new plot
         self.plot_status = "Generating plot..."
         self._plotter.generate_plot(self.param.values())
         # self._view.clear()
@@ -350,62 +353,20 @@ class Plotter:
 
     def __init__(self, ds_in=None):
         self.plot = None
-        self._ds_base = None
+        self._ds_base = ds_in
         self._base_modes = None
-        self._ds_dict = None
-        self._initialize(ds_in)
+        if ds_in is not None:
+            self._base_modes = ds_in.climepi.modes
+        self._ds_plot = None
+        self._plot_modes = None
 
-    def generate_plot(self, param_values):
+    def generate_plot(self, plot_modes):
         """Generate the plot."""
-        ds_dict = self._ds_dict
-        data_var = param_values["data_var"]
-        plot_type = param_values["plot_type"]
-        location = param_values["location"]
-        temporal_mode = param_values["temporal_mode"]
-        ensemble_mode = param_values["ensemble_mode"]
-        year_range = param_values["year_range"]
-        realization = param_values["realization"]
-        if temporal_mode in ["annual", "difference between years"]:
-            ds_dict_temporal = ds_dict["annual"]
-        elif temporal_mode == "monthly":
-            ds_dict_temporal = ds_dict["monthly"]
-        else:
-            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
-        if ensemble_mode == "single_run":
-            ds_plot = (
-                ds_dict_temporal["ensemble"]
-                .climepi.sel_data_var(data_var)
-                .sel(realization=realization)
-            )
-        elif ensemble_mode == "mean_ci":
-            ds_plot = ds_dict_temporal["ensemble_stats"].climepi.sel_data_var(data_var)
-        elif ensemble_mode in ["mean", "std", "min", "max"]:
-            ds_plot = (
-                ds_dict_temporal["ensemble_stats"]
-                .climepi.sel_data_var(data_var)
-                .sel(ensemble_statistic=ensemble_mode)
-            )
-        else:
-            raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
-        if plot_type == "time_series":
-            if location == "Miami":
-                ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
-            elif location == "Cape Town":
-                ds_plot = ds_plot.sel(lat=-34, lon=18, method="nearest")
-            else:
-                raise ValueError(f"Unknown location: {location}")
-        elif plot_type == "map":
-            pass
-        else:
-            raise ValueError(f"Unknown plot type: {plot_type}")
-        if temporal_mode in ["annual", "monthly"]:
-            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
-        elif temporal_mode == "difference between years":
-            da_start = ds_plot[data_var].sel(time=str(year_range[0])).squeeze()
-            da_end = ds_plot[data_var].sel(time=str(year_range[1])).squeeze()
-            ds_plot[data_var] = da_end - da_start
-        else:
-            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+        plot_type = plot_modes["plot_type"]
+        ensemble_mode = plot_modes["ensemble_mode"]
+        self._plot_modes = plot_modes
+        self._update_ds_plot()
+        ds_plot = self._ds_plot
         if plot_type == "map":
             self.plot = pn.panel(
                 ds_plot.climepi.plot_map(), center=True, widget_location="bottom"
@@ -419,40 +380,109 @@ class Plotter:
         else:
             raise ValueError("Unsupported plot options")
 
-    def _initialize(self, ds_in):
-        if ds_in is None:
-            return
-        ds_base = ds_in
-        base_modes = ds_in.climepi.modes
-        self._ds_base = ds_base
-        self._base_modes = base_modes
-        ds_dict = {"base": ds_base}
-        if (base_modes["temporal"] == "monthly") and (
-            base_modes["ensemble"] == "ensemble"
-        ):
-            ds_monthly_ensemble = ds_base
-            ds_monthly_ensemble_stats = ds_base.climepi.ensemble_stats()
-            ds_annual_ensemble = ds_base.climepi.annual_mean()
-            ds_annual_ensemble_stats = ds_annual_ensemble.climepi.ensemble_stats()
-            ds_dict["monthly"] = {
-                "ensemble": ds_monthly_ensemble,
-                "ensemble_stats": ds_monthly_ensemble_stats,
-            }
-            ds_dict["annual"] = {
-                "ensemble": ds_annual_ensemble,
-                "ensemble_stats": ds_annual_ensemble_stats,
-            }
-        elif (base_modes["temporal"] == "annual") and (
-            base_modes["ensemble"] == "ensemble"
-        ):
-            ds_annual_ensemble = ds_base
-            ds_annual_ensemble_stats = ds_annual_ensemble.climepi.ensemble_stats()
-            ds_dict["annual"] = {
-                "ensemble": ds_annual_ensemble,
-                "ensemble_stats": ds_annual_ensemble_stats,
-            }
+    def _update_ds_plot(self):
+        self._ds_plot = self._ds_base
+        self._sel_data_var_ds_plot()
+        self._spatial_index_ds_plot()
+        self._temporal_index_ds_plot()
+        self._ensemble_index_ds_plot()
+        self._temporal_ops_ds_plot()
+        self._ensemble_ops_ds_plot()
+
+    def _sel_data_var_ds_plot(self):
+        data_var = self._plot_modes["data_var"]
+        ds_plot = self._ds_plot
+        ds_plot = ds_plot.climepi.sel_data_var(data_var)
+        self._ds_plot = ds_plot
+
+    def _spatial_index_ds_plot(self):
+        plot_type = self._plot_modes["plot_type"]
+        location = self._plot_modes["location"]
+        spatial_base_mode = self._base_modes["spatial"]
+        ds_plot = self._ds_plot
+        if spatial_base_mode != "global":
+            raise ValueError("Unsupported spatial base mode")
+        if plot_type == "time_series":
+            if location == "Miami":
+                ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
+            elif location == "Cape Town":
+                ds_plot = ds_plot.sel(lat=-34, lon=18, method="nearest")
+            else:
+                raise ValueError(f"Unknown location: {location}")
+        elif plot_type == "map":
+            pass
         else:
-            raise NotImplementedError(
-                "Only monthly and annual ensembles are currently supported"
+            raise ValueError(f"Unknown plot type: {plot_type}")
+        self._ds_plot = ds_plot
+
+    def _temporal_index_ds_plot(self):
+        temporal_mode = self._plot_modes["temporal_mode"]
+        year_range = self._plot_modes["year_range"]
+        temporal_base_mode = self._base_modes["temporal"]
+        ds_plot = self._ds_plot
+        if temporal_base_mode not in ["annual", "monthly"]:
+            raise ValueError("Unsupported temporal base mode")
+        if temporal_mode in ["annual", "monthly"]:
+            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
+        elif temporal_mode == "difference between years":
+            ds_plot = ds_plot.isel(time=ds_plot.time.dt.year.isin(year_range))
+        else:
+            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+        self._ds_plot = ds_plot
+
+    def _ensemble_index_ds_plot(self):
+        ensemble_mode = self._plot_modes["ensemble_mode"]
+        realization = self._plot_modes["realization"]
+        ensemble_base_mode = self._base_modes["ensemble"]
+        ds_plot = self._ds_plot
+        if ensemble_base_mode != "ensemble":
+            raise ValueError("Unsupported ensemble base mode")
+        if ensemble_mode == "single_run":
+            ds_plot = ds_plot.sel(realization=realization)
+        elif ensemble_mode in ["mean", "mean_ci", "std", "min", "max"]:
+            pass
+        else:
+            raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
+        self._ds_plot = ds_plot
+
+    def _temporal_ops_ds_plot(self):
+        temporal_mode = self._plot_modes["temporal_mode"]
+        temporal_base_mode = self._base_modes["temporal"]
+        ds_plot = self._ds_plot
+        if temporal_base_mode == "monthly" and temporal_mode == "monthly":
+            pass
+        elif temporal_base_mode == "monthly" and temporal_mode in [
+            "annual",
+            "difference between years",
+        ]:
+            ds_plot = ds_plot.climepi.annual_mean()
+        elif temporal_base_mode == "annual" and temporal_mode in [
+            "annual",
+            "difference between years",
+        ]:
+            pass
+        else:
+            raise ValueError("Unsupported base and plot temporal mode combination")
+        if temporal_mode == "difference between years":
+            data_var = self._plot_modes["data_var"]
+            year_range = self._plot_modes["year_range"]
+            da_start = ds_plot[data_var].sel(time=str(year_range[0])).squeeze()
+            da_end = ds_plot[data_var].sel(time=str(year_range[1])).squeeze()
+            ds_plot[data_var] = da_end - da_start
+        self._ds_plot = ds_plot
+
+    def _ensemble_ops_ds_plot(self):
+        ensemble_mode = self._plot_modes["ensemble_mode"]
+        ensemble_base_mode = self._base_modes["ensemble"]
+        ds_plot = self._ds_plot
+        if ensemble_base_mode != "ensemble":
+            raise ValueError("Unsupported ensemble base mode")
+        if ensemble_mode == "single_run":
+            pass
+        elif ensemble_mode in ["mean", "std", "min", "max"]:
+            ds_plot = ds_plot.climepi.ensemble_stats().sel(
+                ensemble_statistic=ensemble_mode
             )
-        self._ds_dict = ds_dict
+        elif ensemble_mode == "mean_ci":
+            ds_plot = ds_plot.climepi.ensemble_stats()
+        self._ds_plot = ds_plot
