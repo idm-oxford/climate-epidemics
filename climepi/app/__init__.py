@@ -1,1 +1,1 @@
-from ._app_classes_methods import Controller
+from ._app_classes_methods import Controller  # noqa

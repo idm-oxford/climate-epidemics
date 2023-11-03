@@ -3,7 +3,7 @@ import pathlib
 import xcdat
 import xclim.ensembles
 
-import climepi
+import climepi  # noqa
 
 
 def load_example_data(**kwargs):
