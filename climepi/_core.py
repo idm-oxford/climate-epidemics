@@ -7,6 +7,9 @@ import numpy as np
 import xarray as xr
 import xcdat  # noqa
 import xclim.ensembles
+from geopy.geocoders import Nominatim
+
+geolocator = Nominatim(user_agent="climepi")
 
 
 @xr.register_dataset_accessor("climepi")
@@ -27,7 +30,7 @@ class ClimEpiDatasetAccessor:
         Gets and sets a dictionary containing the modes of the dataset.The dictionary
         should contain the following keys and currently supported values:
         modes = {
-            "spatial": "global",
+            "spatial": "global" or "single",
             "temporal": "monthly" or "annual",
             "ensemble": "ensemble", "single_run" or "stats",
         }
@@ -358,6 +361,29 @@ class ClimEpiDatasetAccessor:
         ds[data_var] = self._obj[data_var]
         ds.climepi.copy_bnds_from(self._obj)
         ds.climepi.modes = self.modes
+        return ds
+
+    def sel_geopy(self, loc_str, **kwargs):
+        """
+        Uses geopy to obtain the latitude and longitude co-ordinates of the location
+        specified in loc_str, and returns a new dataset containing the data for the
+        nearest grid point.
+
+        Parameters
+        ----------
+        loc_str : str
+            Name of the location to select.
+
+        Returns
+        -------
+        xarray.Dataset
+            A new dataset containing the data for the specified location.
+        """
+        location = geolocator.geocode(loc_str, **kwargs)
+        lat = location.latitude
+        lon = location.longitude
+        ds = self._obj.sel(lat=lat, lon=lon, method="nearest")
+        ds.climepi.modes = dict(self.modes, spatial="single")
         return ds
 
     def copy_var_attrs_from(self, ds_from, var):

@@ -13,7 +13,7 @@ import climepi.epimod.ecolniche as ecolniche
 @pn.cache
 def get_clim_data(clim_ds_name):
     """Load climate data from the data source."""
-    if clim_ds_name in ["CESM2", "Also CESM2"]:
+    if clim_ds_name in ["CESM LENS2", "Also CESM LENS2"]:
         ds_clim = cesm.load_example_data()
     else:
         raise ValueError(f"Unknown climate dataset: {clim_ds_name}")
@@ -24,7 +24,7 @@ def get_clim_data(clim_ds_name):
 def get_epi_data(clim_ds_name, epi_model_name):
     """Get and run the epidemiological model."""
     ds_clim = get_clim_data(clim_ds_name)
-    if clim_ds_name in ["CESM2", "Also CESM2"] and epi_model_name in [
+    if clim_ds_name in ["CESM LENS2", "Also CESM LENS2"] and epi_model_name in [
         "Kaye ecological niche",
         "Also Kaye ecological niche",
     ]:
@@ -45,7 +45,9 @@ class DataController(param.Parameterized):
     """Controller parameters for the dashboard side panel."""
 
     clim_ds_name = param.ObjectSelector(
-        default="CESM2", objects=["CESM2", "Also CESM2", "The googly"], precedence=1
+        default="CESM LENS2",
+        objects=["CESM LENS2", "Also CESM LENS2", "The googly"],
+        precedence=1,
     )
     clim_data_load_initiator = param.Event(default=False, precedence=1)
     clim_data_loaded = param.Boolean(default=False, precedence=-1)
@@ -159,7 +161,7 @@ class PlotController(param.Parameterized):
 
     data_var = param.ObjectSelector(precedence=1)
     plot_type = param.ObjectSelector(precedence=1)
-    location = param.ObjectSelector(precedence=-1)
+    location = param.String(default="Miami", precedence=-1)
     temporal_mode = param.ObjectSelector(precedence=1)
     year_range = param.Range(precedence=1)
     ensemble_mode = param.ObjectSelector(precedence=1)
@@ -231,11 +233,12 @@ class PlotController(param.Parameterized):
         self.param.plot_type.default = plot_type_choices[0]
         # Location choices
         if base_modes["spatial"] == "global":
-            location_choices = ["Miami", "Cape Town"]
+            # location_choices = ["Miami", "Cape Town"]
+            pass
         else:
             raise NotImplementedError("Only global spatial mode is currently supported")
-        self.param.location.objects = location_choices
-        self.param.location.default = location_choices[0]
+        # self.param.location.objects = location_choices
+        # self.param.location.default = location_choices[0]
         self.location = self.param.location.default
         # Year range choices
         data_years = np.unique(ds_base.time.dt.year.values)
@@ -421,12 +424,13 @@ class Plotter:
         if spatial_base_mode != "global":
             raise ValueError("Unsupported spatial base mode")
         if plot_type == "time_series":
-            if location == "Miami":
-                ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
-            elif location == "Cape Town":
-                ds_plot = ds_plot.sel(lat=-34, lon=18, method="nearest")
-            else:
-                raise ValueError(f"Unknown location: {location}")
+            ds_plot = ds_plot.climepi.sel_geopy(location)
+            # if location == "Miami":
+            #     ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
+            # elif location == "Cape Town":
+            #     ds_plot = ds_plot.sel(lat=-34, lon=18, method="nearest")
+            # else:
+            #     raise ValueError(f"Unknown location: {location}")
         elif plot_type == "map":
             pass
         else:
