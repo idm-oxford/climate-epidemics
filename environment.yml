@@ -22,10 +22,12 @@ dependencies:
   - xclim>=0.45
   - clisops
   - flox
-  - matplotlib
+  - geopy
   - cartopy
   - hvplot
   - geoviews
+  - panel
+  - param
   # This package
   - pip:
     - -e .

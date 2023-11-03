@@ -33,9 +33,12 @@ dependencies = [
   "xclim>=0.45",
   "clisops",
   "flox",
+  "geopy",
   "cartopy",
   "hvplot",
   "geoviews",
+  "panel",
+  "param",
 ]
 
 [project.urls]
