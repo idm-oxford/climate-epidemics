@@ -41,8 +41,8 @@ def get_epi_data(clim_ds_name, epi_model_name):
 # Classes
 
 
-class DataController(param.Parameterized):
-    """Controller parameters for the dashboard side panel."""
+class Controller(param.Parameterized):
+    """Main controller class for the dashboard."""
 
     clim_ds_name = param.ObjectSelector(
         default="CESM LENS2",
@@ -65,7 +65,7 @@ class DataController(param.Parameterized):
         super().__init__(**params)
         self._clim_plot_controller = PlotController()
         self._epi_plot_controller = PlotController()
-        sidebar_widgets = {
+        data_widgets = {
             "clim_ds_name": {"name": "Climate dataset"},
             "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
             "clim_data_status": {
@@ -79,7 +79,7 @@ class DataController(param.Parameterized):
                 "name": "",
             },
         }
-        self.sidebar_controls = pn.Param(self, widgets=sidebar_widgets, show_name=False)
+        self.data_controls = pn.Param(self, widgets=data_widgets, show_name=False)
 
     def clim_plot_controls(self):
         """The climate data plot controls."""
@@ -226,7 +226,7 @@ class PlotController(param.Parameterized):
         self.param.data_var.default = data_var_choices[0]
         # Plot type choices
         if base_modes["spatial"] == "global":
-            plot_type_choices = ["time_series", "map"]
+            plot_type_choices = ["time series", "map"]
         else:
             raise NotImplementedError("Only global spatial mode is currently supported")
         self.param.plot_type.objects = plot_type_choices
@@ -305,12 +305,12 @@ class PlotController(param.Parameterized):
     def _update_variable_param_choices(self):
         base_modes = self._base_modes
         # Temporal mode choices
-        if self.plot_type == "time_series" and base_modes["temporal"] == "monthly":
+        if self.plot_type == "time series" and base_modes["temporal"] == "monthly":
             temporal_mode_choices = [
                 "annual",
                 "monthly",
             ]
-        elif self.plot_type == "time_series" and base_modes["temporal"] == "annual":
+        elif self.plot_type == "time series" and base_modes["temporal"] == "annual":
             temporal_mode_choices = [
                 "annual",
             ]
@@ -330,14 +330,14 @@ class PlotController(param.Parameterized):
         self.param.temporal_mode.default = temporal_mode_choices[0]
         self.temporal_mode = self.param.temporal_mode.default
         # Ensemble mode choices
-        if self.plot_type == "time_series" and base_modes["ensemble"] == "ensemble":
+        if self.plot_type == "time series" and base_modes["ensemble"] == "ensemble":
             ensemble_mode_choices = [
                 "mean",
-                "mean_ci",
+                "mean and 90% confidence interval",
                 "std",
                 "min",
                 "max",
-                "single_run",
+                "single run",
             ]
         elif self.plot_type == "map" and base_modes["ensemble"] == "ensemble":
             ensemble_mode_choices = [
@@ -345,7 +345,7 @@ class PlotController(param.Parameterized):
                 "std",
                 "min",
                 "max",
-                "single_run",
+                "single run",
             ]
         else:
             raise NotImplementedError(
@@ -357,11 +357,11 @@ class PlotController(param.Parameterized):
 
     @param.depends("plot_type", "ensemble_mode", watch=True)
     def _update_precedence(self):
-        if self.plot_type == "time_series":
+        if self.plot_type == "time series":
             self.param.location.precedence = 1
         else:
             self.param.location.precedence = -1
-        if self.ensemble_mode == "single_run":
+        if self.ensemble_mode == "single run":
             self.param.realization.precedence = 1
         else:
             self.param.realization.precedence = -1
@@ -392,11 +392,14 @@ class Plotter:
             self.plot = pn.panel(
                 ds_plot.climepi.plot_map(), center=True, widget_location="bottom"
             )
-        elif plot_type == "time_series" and ensemble_mode == "mean_ci":
+        elif (
+            plot_type == "time series"
+            and ensemble_mode == "mean and 90% confidence interval"
+        ):
             self.plot = pn.panel(
                 ds_plot.climepi.plot_ensemble_ci_time_series(), center=True
             )
-        elif plot_type == "time_series":
+        elif plot_type == "time series":
             self.plot = pn.panel(ds_plot.climepi.plot_time_series(), center=True)
         else:
             raise ValueError("Unsupported plot options")
@@ -423,7 +426,7 @@ class Plotter:
         ds_plot = self._ds_plot
         if spatial_base_mode != "global":
             raise ValueError("Unsupported spatial base mode")
-        if plot_type == "time_series":
+        if plot_type == "time series":
             ds_plot = ds_plot.climepi.sel_geopy(location)
             # if location == "Miami":
             #     ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
@@ -464,9 +467,15 @@ class Plotter:
         ds_plot = self._ds_plot
         if ensemble_base_mode != "ensemble":
             raise ValueError("Unsupported ensemble base mode")
-        if ensemble_mode == "single_run":
+        if ensemble_mode == "single run":
             ds_plot = ds_plot.sel(realization=realization)
-        elif ensemble_mode in ["mean", "mean_ci", "std", "min", "max"]:
+        elif ensemble_mode in [
+            "mean",
+            "mean and 90% confidence interval",
+            "std",
+            "min",
+            "max",
+        ]:
             pass
         else:
             raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
@@ -504,12 +513,12 @@ class Plotter:
         ds_plot = self._ds_plot
         if ensemble_base_mode != "ensemble":
             raise ValueError("Unsupported ensemble base mode")
-        if ensemble_mode == "single_run":
+        if ensemble_mode == "single run":
             pass
         elif ensemble_mode in ["mean", "std", "min", "max"]:
             ds_plot = ds_plot.climepi.ensemble_stats().sel(
                 ensemble_statistic=ensemble_mode
             )
-        elif ensemble_mode == "mean_ci":
+        elif ensemble_mode == "mean and 90% confidence interval":
             ds_plot = ds_plot.climepi.ensemble_stats()
         self._ds_plot = ds_plot
