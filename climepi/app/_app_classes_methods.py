@@ -1,9 +1,10 @@
+import numpy as np
 import panel as pn
 import param
 
-import climepi
+import climepi  # noqa
 import climepi.climdata.cesm as cesm
-import climepi.epimod
+import climepi.epimod  # noqa
 import climepi.epimod.ecolniche as ecolniche
 
 # Pure functions
@@ -44,14 +45,14 @@ class DataController(param.Parameterized):
     """Controller parameters for the dashboard side panel."""
 
     clim_ds_name = param.ObjectSelector(
-        default="CESM2", objects=["CESM2", "Also CESM2"], precedence=1
+        default="CESM2", objects=["CESM2", "Also CESM2", "The googly"], precedence=1
     )
     clim_data_load_initiator = param.Event(default=False, precedence=1)
     clim_data_loaded = param.Boolean(default=False, precedence=-1)
     clim_data_status = param.String(default="Data not loaded", precedence=1)
     epi_model_name = param.ObjectSelector(
         default="Kaye ecological niche",
-        objects=["Kaye ecological niche", "Also Kaye ecological niche"],
+        objects=["Kaye ecological niche", "Also Kaye ecological niche", "The flipper"],
         precedence=1,
     )
     epi_model_run_initiator = param.Event(default=False, precedence=1)
@@ -99,17 +100,17 @@ class DataController(param.Parameterized):
         """Load data from the data source."""
         if self.clim_data_loaded:
             return
-        self.clim_data_status = "Loading data..."
-        ds_clim = get_clim_data(self.clim_ds_name)
-        self._clim_plot_controller.initialize(
-            ds_clim
-        )  # update before setting self.clim_data_loaded = True so that plot options are
-        # correctly updated
-        self.clim_data_status = "Data loaded"
-        self.clim_data_loaded = True
-        self._epi_plot_controller.initialize()
-        self.epi_model_status = "Model has not been run"
-        self.epi_model_ran = False
+        try:
+            self.clim_data_status = "Loading data..."
+            ds_clim = get_clim_data(self.clim_ds_name)
+            self._clim_plot_controller.initialize(ds_clim)
+            self.clim_data_status = "Data loaded"
+            self.clim_data_loaded = True
+            self._epi_plot_controller.initialize()
+            self.epi_model_status = "Model has not been run"
+            self.epi_model_ran = False
+        except Exception as e:
+            self.clim_data_status = f"Data load failed: {e}"
 
     @param.depends("epi_model_run_initiator", watch=True)
     def _run_epi_model(self):
@@ -119,11 +120,14 @@ class DataController(param.Parameterized):
         if not self.clim_data_loaded:
             self.epi_model_status = "Need to load climate data"
             return
-        self.epi_model_status = "Running model..."
-        ds_epi = get_epi_data(self.clim_ds_name, self.epi_model_name)
-        self._epi_plot_controller.initialize(ds_epi)
-        self.epi_model_status = "Model run complete"
-        self.epi_model_ran = True
+        try:
+            self.epi_model_status = "Running model..."
+            ds_epi = get_epi_data(self.clim_ds_name, self.epi_model_name)
+            self._epi_plot_controller.initialize(ds_epi)
+            self.epi_model_status = "Model run complete"
+            self.epi_model_ran = True
+        except Exception as e:
+            self.epi_model_status = f"Model run failed: {e}"
 
     @param.depends("clim_ds_name", watch=True)
     def _revert_clim_data_load_status(self):
@@ -234,14 +238,20 @@ class PlotController(param.Parameterized):
         self.param.location.default = location_choices[0]
         self.location = self.param.location.default
         # Year range choices
-        self.param.year_range.bounds = [
-            ds_base.time.values[0].year,
-            ds_base.time.values[-1].year,
-        ]
-        self.param.year_range.default = (
-            ds_base.time.values[0].year,
-            ds_base.time.values[-1].year,
+        data_years = np.unique(ds_base.time.dt.year.values)
+        self.param.year_range.bounds = (
+            data_years[0],
+            data_years[-1],
         )
+        self.param.year_range.default = (
+            data_years[0],
+            data_years[-1],
+        )
+        data_year_diffs = np.diff(data_years)
+        if np.all(data_year_diffs == data_year_diffs[0]):
+            self.param.year_range.step = data_year_diffs[0]
+        else:
+            self.param.year_range.step = 1
         # Ensemble member choices
         if base_modes["ensemble"] == "ensemble":
             self.param.realization.bounds = [
@@ -264,11 +274,14 @@ class PlotController(param.Parameterized):
             return
         self._view.clear()  # figure sizing issue if not done before generating new plot
         self.plot_status = "Generating plot..."
-        self._plotter.generate_plot(self.param.values())
-        # self._view.clear()
-        self._view.append(self._plotter.plot)
-        self.plot_status = "Plot generated"
-        self.plot_generated = True
+        try:
+            self._plotter.generate_plot(self.param.values())
+            # self._view.clear()
+            self._view.append(self._plotter.plot)
+            self.plot_status = "Plot generated"
+            self.plot_generated = True
+        except Exception as e:
+            self.plot_status = f"Plot generation failed: {e}"
 
     @param.depends(
         "data_var",
@@ -430,6 +443,11 @@ class Plotter:
         if temporal_mode in ["annual", "monthly"]:
             ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
         elif temporal_mode == "difference between years":
+            if any(year not in ds_plot.time.dt.year.values for year in year_range):
+                raise ValueError(
+                    """Only years in the dataset can be used as a range with the
+                    'difference between years' temporal mode"""
+                )
             ds_plot = ds_plot.isel(time=ds_plot.time.dt.year.isin(year_range))
         else:
             raise ValueError(f"Unknown temporal mode: {temporal_mode}")
