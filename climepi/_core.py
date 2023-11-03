@@ -379,6 +379,17 @@ class ClimEpiDatasetAccessor:
         xarray.Dataset
             A new dataset containing the data for the specified location.
         """
+        if not self._obj.climepi.modes["spatial"] == "global":
+            raise ValueError(
+                """The sel_geopy method can only be used on datasets with climepi
+                spatial mode "global"."""
+            )
+        if any(self._obj.lon > 180.001):
+            raise ValueError(
+                """The sel_geopy method can only be used on datasets with longitude
+                values in the range [-180, 180]. Use xcdat.swap_lon_axis to convert
+                longitudes."""
+            )
         location = geolocator.geocode(loc_str, **kwargs)
         lat = location.latitude
         lon = location.longitude

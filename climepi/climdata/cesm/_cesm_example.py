@@ -28,6 +28,10 @@ def load_example_data(**kwargs):
     ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
     ds = ds.rename_vars({"TS": "temperature", "PRECT": "precipitation"})
 
+    ds.temperature.attrs.update(long_name="Temperature")
+    ds.temperature.attrs.update(units="°C")
+    ds.precipitation.attrs.update(long_name="Precipitation")
+
     ds.climepi.modes = {
         "spatial": "global",
         "temporal": "monthly",
