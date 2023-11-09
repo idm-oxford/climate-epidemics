@@ -2,7 +2,6 @@ import os
 import re
 import shutil
 import urllib.request
-from datetime import datetime
 from urllib.parse import urlparse
 
 from siphon.catalog import TDSCatalog
@@ -27,7 +26,8 @@ def _get_catalog_name(var_name):
 
 def _filter_time_range(siphon_datasets_in, start_year, end_year):
     regex = re.compile(
-        r"(?P<startyear>\d{4})(?P<startmonth>[01]\d)-(?P<endyear>\d{4})(?P<endmonth>[01]\d)"
+        r"""(?P<startyear>\d{4})(?P<startmonth>[01]\d)-(?P<endyear>\d{4})
+        (?P<endmonth>[01]\d)"""
     )
     siphon_datasets_out = []
     for i in range(len(siphon_datasets_in)):  # pylint: disable=consider-using-enumerate
