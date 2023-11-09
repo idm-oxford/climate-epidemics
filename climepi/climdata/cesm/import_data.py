@@ -15,13 +15,14 @@ def _get_catalog_name(var_name):
             + var_name
             + ".v1.xml"
         )
-    elif var_name == "PRECT":
+    if var_name == "PRECT":
         return (
             "https://tds.ucar.edu/thredds/catalog/"
             + "esgcet/457/ucar.cgd.cesm2le.atm.proc.monthly_ave."
             + var_name
             + ".v1.xml"
         )
+    raise ValueError("Variable name not recognized")
 
 
 def _filter_time_range(siphon_datasets_in, start_year, end_year):
