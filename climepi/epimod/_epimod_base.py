@@ -61,7 +61,7 @@ class EpiModDatasetAccessor:
 
     @property
     def model(self):
-        """The epidemiological model (EpiModel object)."""
+        """Gets and sets the epidemiological model (EpiModel object)."""
         if self._model is None:
             raise ValueError("Model not set.")
         return self._model
