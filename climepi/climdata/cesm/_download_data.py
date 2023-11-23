@@ -150,7 +150,8 @@ def _get_catalog_name(var_name):
 
 def _filter_time_range(siphon_datasets_in, start_year, end_year):
     regex = re.compile(
-        r"(?P<startyear>\d{4})(?P<startmonth>\d{2})-(?P<endyear>\d{4})(?P<endmonth>\d{2})"
+        r"(?P<startyear>\d{4})(?P<startmonth>\d{2})" +
+        "-"+r"(?P<endyear>\d{4})(?P<endmonth>\d{2})"
     )
     siphon_datasets_out = []
     for i in range(len(siphon_datasets_in)):  # pylint: disable=consider-using-enumerate
