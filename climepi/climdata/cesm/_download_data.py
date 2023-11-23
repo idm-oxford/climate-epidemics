@@ -150,8 +150,9 @@ def _get_catalog_name(var_name):
 
 def _filter_time_range(siphon_datasets_in, start_year, end_year):
     regex = re.compile(
-        r"(?P<startyear>\d{4})(?P<startmonth>\d{2})" +
-        "-"+r"(?P<endyear>\d{4})(?P<endmonth>\d{2})"
+        r"(?P<startyear>\d{4})(?P<startmonth>\d{2})"
+        + "-"
+        + r"(?P<endyear>\d{4})(?P<endmonth>\d{2})"
     )
     siphon_datasets_out = []
     for i in range(len(siphon_datasets_in)):  # pylint: disable=consider-using-enumerate
@@ -189,7 +190,6 @@ def _get_ensemble_ids(siphon_datasets):
 
 
 def _download_from_url(opener, url, out_file_path):
-
     try:
         with opener.open(url) as response, open(out_file_path, "ab") as out_file:
             shutil.copyfileobj(response, out_file)
