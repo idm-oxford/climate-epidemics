@@ -18,18 +18,11 @@ if not BASE_DIR.exists():
     BASE_DIR = pooch.os_cache("climepi/cesm_examples")
 REALIZATIONS_AVAILABLE = np.arange(100)
 EXAMPLES = {
-    # "world_2020_2060_2100": {
-    #     "data_dir": BASE_DIR / "world_2020_2060_2100",
-    #     "subset": {
-    #         "realizations": [0, 1],
-    #         "years": [2020, 2060, 2100],
-    #     },
-    # },
     "world_2020_2060_2100": {
         "data_dir": BASE_DIR / "world_2020_2060_2100",
         "subset": {
-            "realizations": [0],
-            "years": [2020, 2060],
+            "realizations": [0, 1],
+            "years": [2020, 2060, 2100],
         },
     },
 }

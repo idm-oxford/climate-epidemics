@@ -4,9 +4,13 @@ import re
 from urllib.parse import urlparse
 
 import numpy as np
+import parfive
 import pooch
 import xcdat
 from siphon.catalog import TDSCatalog
+
+TEMP_FILE_DIR = pooch.os_cache("climepi/cesm_temp")
+PARFIVE_MAX_CONNECTIONS = 5
 
 
 class CESMDataDownloader:
@@ -46,7 +50,7 @@ class CESMDataDownloader:
     def _find_data(self):
         realizations = self._realizations
 
-        print("Searching for remote data files...")
+        print("Searching for CESM data files...")
         siphon_datasets = []
         for var_name in self._var_name_mapping:
             # Delicate handling to avoid siphon datasets being converted to ID strings
@@ -97,6 +101,31 @@ class CESMDataDownloader:
         self._id_realization_mapping = id_realization_mapping
 
     def _download_data(self):
+        self._download_data_parfive()
+        # self._download_data_pooch()
+
+    def _download_data_parfive(self):
+        downloader = parfive.Downloader()
+        download_dir = TEMP_FILE_DIR
+        urls = self._urls
+        no_files = len(urls)
+        temp_file_paths = []
+
+        for ind in range(0, len(urls), PARFIVE_MAX_CONNECTIONS):
+            urls_curr = urls[ind : min(ind + PARFIVE_MAX_CONNECTIONS, len(urls) + 1)]
+            for url in urls_curr:
+                downloader.enqueue_file(url, path=download_dir)
+            raw_file_paths_curr = [*downloader.download()]
+            for raw_file_path in raw_file_paths_curr:
+                formatted_file_path = raw_file_path.replace(".nc", "_formatted.nc")
+                self._subset_format_dataset(raw_file_path, formatted_file_path)
+                pathlib.Path(raw_file_path).unlink()
+                temp_file_paths.append(formatted_file_path)
+            print(f"Downloaded {len(temp_file_paths)}/{no_files} files.")
+
+        self._temp_file_paths = temp_file_paths
+
+    def _download_data_pooch(self):
         def _pooch_postprocess(path_in, _action, _pup):
             path_out = path_in.replace(".nc", "_formatted.nc")
             self._subset_format_dataset(path_in, path_out)
@@ -107,7 +136,7 @@ class CESMDataDownloader:
         file_names_in = [os.path.basename(urlparse(url).path) for url in urls]
         pup = pooch.create(
             base_url="",
-            path=pooch.os_cache("climepi/CESM/temp"),
+            path=TEMP_FILE_DIR,
             registry={file_name: None for file_name in file_names_in},
             urls=dict(zip(file_names_in, urls)),
         )
@@ -142,7 +171,7 @@ class CESMDataDownloader:
             ds = ds.drop_dims([dim for dim in ds.dims if dim not in keep_vars])
             ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
 
-            ds = ds.isel(time=(np.isin(ds.time.dt.year, years)))
+            ds = ds.isel(time=np.isin(ds.time.dt.year, years))
             if loc_str is not None:
                 ds.climepi.modes = {"spatial": "global"}
                 ds = ds.climepi.sel_geopy(loc_str)
