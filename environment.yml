@@ -28,6 +28,8 @@ dependencies:
   - geoviews
   - panel
   - param
+  - parfive
+  - pooch
   - siphon
   # This package
   - pip:
