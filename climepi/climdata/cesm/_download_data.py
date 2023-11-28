@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import parfive
 import pooch
+import xarray as xr
 import xcdat
 from siphon.catalog import TDSCatalog
 
@@ -20,6 +21,12 @@ class ParfiveDownloaderPostprocess(parfive.Downloader):
     def __init__(self, postprocess=None, **kwargs):
         super().__init__(**kwargs)
         self._postprocess = postprocess
+        self._raw_files_to_delete = []
+
+    def download(self):
+        results = super().download()
+        self._delete_raw_files(max_fails=0)
+        return results
 
     async def _get_http(self, *args, **kwargs):
         filepath_raw = await super()._get_http(*args, **kwargs)
@@ -27,7 +34,22 @@ class ParfiveDownloaderPostprocess(parfive.Downloader):
         if postprocess is None:
             return filepath_raw
         filepath_processed = self._postprocess(filepath_raw)
+        self._raw_files_to_delete.append(filepath_raw)
+        self._delete_raw_files()
         return filepath_processed
+
+    def _delete_raw_files(self, max_fails=1):
+        files_to_delete = self._raw_files_to_delete
+        files_couldnt_delete = []
+        for filepath in files_to_delete:
+            try:
+                pathlib.Path(filepath).unlink()
+            except WindowsError as exc:
+                files_couldnt_delete.append(filepath)
+                if len(files_couldnt_delete) > max_fails:
+                    raise RuntimeError("Unable to delete sufficiently many temporary"
+                                       "files.") from exc
+        self._raw_files_to_delete = files_couldnt_delete
 
 
 class CESMDataFinder:
@@ -227,7 +249,6 @@ class CESMDataDownloader:
         def _postprocess(path_in):
             path_out = path_in.replace(".nc", "_formatted.nc")
             self._subset_format_dataset(path_in, path_out)
-            pathlib.Path(path_in).unlink()
             return path_out
 
         downloader = ParfiveDownloaderPostprocess(
@@ -253,18 +274,16 @@ class CESMDataDownloader:
         lat_range = self._lat_range
         loc_str = self._loc_str
 
-        with xcdat.open_mfdataset(path_in, center_times=True) as ds:
-            keep_vars = [
-                "lon",
-                "lon_bnds",
-                "lat",
-                "lat_bnds",
-                "time",
-                "time_bnds",
-            ] + list(CESM_DATA_VARS)
-            ds = ds.drop_vars([var for var in ds.data_vars if var not in keep_vars])
-            ds = ds.drop_dims([dim for dim in ds.dims if dim not in keep_vars])
+        with xr.open_dataset(path_in) as ds:
+            ds = xcdat.center_times(ds)
             ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
+            ds = ds.rename_dims({"nbnd": "bnds"})
+            ds = ds.bounds.add_missing_bounds(axes=["X", "Y"])
+
+            keep_dims = ["lon", "lat", "time", "bnds"]
+            keep_vars = list(CESM_DATA_VARS)+["lon_bnds", "lat_bnds", "time_bnds"]
+            ds = ds.drop_dims([dim for dim in ds.dims if dim not in keep_dims])
+            ds = ds.drop_vars([var for var in ds.data_vars if var not in keep_vars])
 
             ds = ds.isel(time=np.isin(ds.time.dt.year, years))
             if loc_str is not None:
@@ -296,23 +315,24 @@ class CESMDataDownloader:
         temp_file_ensemble_ids = self._temp_file_ensemble_ids
         id_realization_mapping = self._id_realization_mapping
 
-        for id_curr in temp_file_ensemble_ids:
+        for id_curr in set(temp_file_ensemble_ids):
             realization_curr = id_realization_mapping[id_curr]
             temp_file_paths_curr = [
                 temp_file_paths[i]
                 for i, id in enumerate(temp_file_ensemble_ids)
                 if id == id_curr
             ]
-            ds_curr = xcdat.open_mfdataset(temp_file_paths_curr)
-
-            for var in VAR_NAME_MAPPING.values():
-                ds_curr[var] = ds_curr[var].expand_dims(
-                    {"realization": [realization_curr]}
+            with xr.open_mfdataset(temp_file_paths_curr) as ds_curr:
+                ds_curr['lon_bnds'] = ds_curr['lon_bnds'].isel(time=0)
+                ds_curr['lat_bnds'] = ds_curr['lat_bnds'].isel(time=0)
+                for var in VAR_NAME_MAPPING.values():
+                    ds_curr[var] = ds_curr[var].expand_dims(
+                        {"realization": [realization_curr]}
+                    )
+                file_path_curr = pathlib.Path(self._data_dir).joinpath(
+                    "realization_" + str(realization_curr) + ".nc"
                 )
-            file_path_curr = pathlib.Path(self._data_dir).joinpath(
-                "realization_" + str(realization_curr) + ".nc"
-            )
-            ds_curr.to_netcdf(file_path_curr)
+                ds_curr.to_netcdf(file_path_curr)
 
     def _delete_temp_files(self):
         temp_file_paths = self._temp_file_paths
