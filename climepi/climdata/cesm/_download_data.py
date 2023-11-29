@@ -1,6 +1,8 @@
+import asyncio
 import os
 import pathlib
 import re
+import urllib.parse
 
 import aiohttp
 import numpy as np
@@ -19,14 +21,11 @@ TEMP_FILE_DIR = pooch.os_cache("climepi/cesm_temp")
 
 
 class ParfiveDownloaderPostprocess(parfive.Downloader):
-    max_tries = 3
-    total_timeout = 60
+    max_tries = 10
+    total_timeout = 15
 
     def __init__(self, postprocess=None):
-        config = parfive.SessionConfig(
-            timeouts=aiohttp.ClientTimeout(total=self.total_timeout)
-        )
-        super().__init__(overwrite=True, config=config)
+        super().__init__(overwrite=True)
         self._postprocess = postprocess
         self._raw_files_to_delete = []
 
@@ -58,7 +57,8 @@ class ParfiveDownloaderPostprocess(parfive.Downloader):
         return results
 
     async def _get_http(self, *args, **kwargs):
-        filepath_raw = await super()._get_http(*args, **kwargs)
+        async with asyncio.timeout(self.total_timeout):
+            filepath_raw = await super()._get_http(*args, **kwargs)
         postprocess = self._postprocess
         if postprocess is None:
             return filepath_raw
@@ -285,7 +285,6 @@ class CESMDataDownloader:
         temp_file_dir = self._temp_file_dir
         urls = self._urls
         no_files = len(urls)
-        temp_file_paths = []
 
         for url in urls:
             downloader.enqueue_file(url, path=temp_file_dir)
@@ -298,8 +297,20 @@ class CESMDataDownloader:
             )
 
         print(f"Downloading {no_files} files...")
-        temp_file_paths = [*downloader.download_with_retries()]
+        results = [*downloader.download_with_retries()]
         print("Download completed.")
+
+        temp_file_paths = [
+            str(
+                pathlib.Path(temp_file_dir).joinpath(
+                    os.path.basename(urllib.parse.urlsplit(urls[i]).path)
+                )
+            ).replace(".nc", "_processed.nc")
+            for i in range(len(urls))
+        ]
+        assert np.all(
+            np.sort(temp_file_paths) == np.sort(results)
+        ), "The downloaded files do not match the expected files."
 
         self._temp_file_paths = temp_file_paths
 
