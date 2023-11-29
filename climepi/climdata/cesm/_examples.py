@@ -2,7 +2,9 @@
 Module for creating and accessing example CESM LENS2 datasets. If a directory named
 'data/cesm_examples' exists in the same parent directory as the climepi package, the
 example datasets will be downloaded to and accessed from that directory. Otherwise,
-the datasets will be downloaded to and accessed from the OS cache directory.
+the datasets will be downloaded to and accessed from the OS cache directory. Running
+this module as a script will create all example datasets by downloading and formatting
+the relevant CESM LENS2 output data.
 """
 
 import pathlib
@@ -21,10 +23,17 @@ EXAMPLES = {
     "world_2020_2060_2100": {
         "data_dir": BASE_DIR / "world_2020_2060_2100",
         "subset": {
-            "realizations": [0, 1],
             "years": [2020, 2060, 2100],
+            "realizations": np.arange(3),
         },
     },
+    # "cape_town": {
+    #     "data_dir": BASE_DIR / "cape_town",
+    #     "subset": {
+    #         "years": np.arange(2020, 2101),
+    #         "loc_str": "Cape Town",
+    #     },
+    # },
 }
 
 
@@ -51,9 +60,9 @@ def get_example_dataset(name):
         paths = [pup.fetch(file_name) for file_name in file_names]
     except ValueError as exc:
         raise NotImplementedError(
-            "The formatted example dataset was not found locally and is not available",
-            " to download. Run 'create_example_data' to download the relevant CESM ",
-            " output data and create the formatted dataset.",
+            "The formatted example dataset was not found locally and is not yet",
+            " available to download directly. Run 'create_example_data' to download",
+            " the raw CESM output data and create the formatted dataset.",
         ) from exc
 
     ds = xcdat.open_mfdataset(paths)
@@ -78,6 +87,5 @@ def create_example_dataset(name):
 
 
 if __name__ == "__main__":
-    create_example_dataset("world_2020_2060_2100")
-    ds = get_example_dataset("world_2020_2060_2100")
-    print(ds)
+    for example_name in EXAMPLES:
+        create_example_dataset(example_name)
