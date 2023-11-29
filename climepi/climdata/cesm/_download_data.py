@@ -2,6 +2,7 @@ import os
 import pathlib
 import re
 
+import aiohttp
 import numpy as np
 import pandas as pd
 import parfive
@@ -18,14 +19,42 @@ TEMP_FILE_DIR = pooch.os_cache("climepi/cesm_temp")
 
 
 class ParfiveDownloaderPostprocess(parfive.Downloader):
-    def __init__(self, postprocess=None, **kwargs):
-        super().__init__(**kwargs)
+    max_tries = 3
+    total_timeout = 60
+
+    def __init__(self, postprocess=None):
+        config = parfive.SessionConfig(
+            timeouts=aiohttp.ClientTimeout(total=self.total_timeout)
+        )
+        super().__init__(overwrite=True, config=config)
         self._postprocess = postprocess
         self._raw_files_to_delete = []
 
     def download(self):
         results = super().download()
         self._delete_raw_files(max_fails=0)
+        return results
+
+    def download_with_retries(self):
+        results = self.download()
+        no_errors = len(results.errors)
+        if no_errors == 0:
+            return results
+        tries = 1
+        while no_errors > 0 and tries < self.max_tries:
+            print(
+                f"Retrying download of {no_errors} files "
+                f"({tries+1}/{self.max_tries})..."
+            )
+            results = super().retry(results)
+            self._delete_raw_files(max_fails=0)
+            no_errors = len(results.errors)
+            tries += 1
+        if no_errors > 0:
+            raise RuntimeError(
+                f"Unable to download {no_errors} files after "
+                f"{self.max_tries} tries."
+            )
         return results
 
     async def _get_http(self, *args, **kwargs):
@@ -47,8 +76,7 @@ class ParfiveDownloaderPostprocess(parfive.Downloader):
             except WindowsError as exc:
                 files_couldnt_delete.append(filepath)
                 if len(files_couldnt_delete) > max_fails:
-                    raise RuntimeError("Unable to delete sufficiently many temporary"
-                                       "files.") from exc
+                    raise RuntimeError("Temporary files could not be deleted.") from exc
         self._raw_files_to_delete = files_couldnt_delete
 
 
@@ -216,6 +244,7 @@ class CESMDataDownloader:
         lon_range=None,
         lat_range=None,
         loc_str=None,
+        temp_file_dir=TEMP_FILE_DIR,
     ):
         self._data_dir = data_dir
         os.makedirs(data_dir, exist_ok=True)
@@ -229,6 +258,7 @@ class CESMDataDownloader:
         self._temp_file_ensemble_ids = None
         self._id_realization_mapping = None
         self._file_paths = None
+        self._temp_file_dir = temp_file_dir
 
     def download(self):
         self._find_data()
@@ -247,23 +277,28 @@ class CESMDataDownloader:
 
     def _download_data(self):
         def _postprocess(path_in):
-            path_out = path_in.replace(".nc", "_formatted.nc")
+            path_out = path_in.replace(".nc", "_processed.nc")
             self._subset_format_dataset(path_in, path_out)
             return path_out
 
-        downloader = ParfiveDownloaderPostprocess(
-            overwrite=True, postprocess=_postprocess
-        )
-        download_dir = TEMP_FILE_DIR
+        downloader = ParfiveDownloaderPostprocess(postprocess=_postprocess)
+        temp_file_dir = self._temp_file_dir
         urls = self._urls
         no_files = len(urls)
         temp_file_paths = []
 
         for url in urls:
-            downloader.enqueue_file(url, path=download_dir)
+            downloader.enqueue_file(url, path=temp_file_dir)
+
+        if any(pathlib.Path(temp_file_dir).iterdir()):
+            raise RuntimeError(
+                f"Directory for temporary files ({temp_file_dir}) must be empty."
+                " Either clear the directory or pass an empty directory to the"
+                " 'temp_file_dir' argument of the CESMDataDownloader constructor."
+            )
 
         print(f"Downloading {no_files} files...")
-        temp_file_paths = [*downloader.download()]
+        temp_file_paths = [*downloader.download_with_retries()]
         print("Download completed.")
 
         self._temp_file_paths = temp_file_paths
@@ -281,7 +316,7 @@ class CESMDataDownloader:
             ds = ds.bounds.add_missing_bounds(axes=["X", "Y"])
 
             keep_dims = ["lon", "lat", "time", "bnds"]
-            keep_vars = list(CESM_DATA_VARS)+["lon_bnds", "lat_bnds", "time_bnds"]
+            keep_vars = list(CESM_DATA_VARS) + ["lon_bnds", "lat_bnds", "time_bnds"]
             ds = ds.drop_dims([dim for dim in ds.dims if dim not in keep_dims])
             ds = ds.drop_vars([var for var in ds.data_vars if var not in keep_vars])
 
@@ -323,8 +358,8 @@ class CESMDataDownloader:
                 if id == id_curr
             ]
             with xr.open_mfdataset(temp_file_paths_curr) as ds_curr:
-                ds_curr['lon_bnds'] = ds_curr['lon_bnds'].isel(time=0)
-                ds_curr['lat_bnds'] = ds_curr['lat_bnds'].isel(time=0)
+                ds_curr["lon_bnds"] = ds_curr["lon_bnds"].isel(time=0)
+                ds_curr["lat_bnds"] = ds_curr["lat_bnds"].isel(time=0)
                 for var in VAR_NAME_MAPPING.values():
                     ds_curr[var] = ds_curr[var].expand_dims(
                         {"realization": [realization_curr]}
