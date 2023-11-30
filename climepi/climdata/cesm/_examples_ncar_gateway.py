@@ -13,15 +13,15 @@ import numpy as np
 import pooch
 import xcdat
 
-from climepi.climdata.cesm import CESMDataGetter, get_cesm_data
+from climepi.climdata.cesm import CESMDataDownloader
 
 BASE_DIR = pathlib.Path(__file__).parents[3] / "data/cesm_examples"
 if not BASE_DIR.exists():
-    BASE_DIR = pooch.os_cache("climepi")
+    BASE_DIR = pooch.os_cache("climepi/cesm_examples")
 REALIZATIONS_AVAILABLE = np.arange(100)
 EXAMPLES = {
     "world_2020_2060_2100": {
-        "data_dir": BASE_DIR,
+        "data_dir": BASE_DIR / "world_2020_2060_2100",
         "subset": {
             "years": [2020, 2060, 2100],
             "realizations": np.arange(3),
@@ -47,9 +47,9 @@ def get_example_dataset(name):
         ) from exc
 
     data_dir = example_details["data_dir"]
-    data_getter = CESMDataGetter(**example_details["subset"], save_dir=data_dir)
-    file_names = data_getter.file_names
+    realizations = example_details["subset"].get("realizations", REALIZATIONS_AVAILABLE)
 
+    file_names = ["realization_" + str(i) + ".nc" for i in realizations]
     pup = pooch.create(
         base_url="",
         path=data_dir,
@@ -60,9 +60,9 @@ def get_example_dataset(name):
         paths = [pup.fetch(file_name) for file_name in file_names]
     except ValueError as exc:
         raise NotImplementedError(
-            "The formatted example dataset was not found locally and is not yet"
-            + " available to download directly. Run 'create_example_data' to download"
-            + " the raw CESM output data and create the formatted dataset."
+            "The formatted example dataset was not found locally and is not yet",
+            " available to download directly. Run 'create_example_data' to download",
+            " the raw CESM output data and create the formatted dataset.",
         ) from exc
 
     ds = xcdat.open_mfdataset(paths)
@@ -82,10 +82,10 @@ def create_example_dataset(name):
     data_dir = example_details["data_dir"]
     subset = example_details["subset"]
 
-    get_cesm_data(**subset, download=True, save_dir=data_dir)
+    downloader = CESMDataDownloader(data_dir, **subset)
+    downloader.download()
 
 
 if __name__ == "__main__":
     for example_name in EXAMPLES:
         create_example_dataset(example_name)
-        # get_example_dataset(example_name)

@@ -31,6 +31,8 @@ dependencies:
   - parfive
   - pooch
   - siphon
+  - intake
+  - intake-esm
   # This package
   - pip:
     - xclim>=0.45 #macos not finding version >0.42 in conda-forge
