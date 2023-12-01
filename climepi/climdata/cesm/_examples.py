@@ -13,7 +13,7 @@ import numpy as np
 import pooch
 import xcdat
 
-from climepi.climdata.cesm import CESMDataGetter, get_cesm_data
+import climepi.climdata.cesm as cesm
 
 BASE_DIR = pathlib.Path(__file__).parents[3] / "data/cesm_examples"
 if not BASE_DIR.exists():
@@ -25,6 +25,11 @@ EXAMPLES = {
             "years": [2020, 2060, 2100],
             "realizations": np.arange(3),
         },
+        "climepi_modes": {
+            "spatial": "global",
+            "temporal": "monthly",
+            "ensemble": "ensemble",
+        },
     },
     "cape_town": {
         "data_dir": BASE_DIR,
@@ -32,6 +37,11 @@ EXAMPLES = {
             "years": np.arange(2020, 2101),
             "realizations": np.arange(3),
             "loc_str": "Cape Town",
+        },
+        "climepi_modes": {
+            "spatial": "single",
+            "temporal": "monthly",
+            "ensemble": "ensemble",
         },
     },
 }
@@ -47,7 +57,7 @@ def get_example_dataset(name):
         ) from exc
 
     data_dir = example_details["data_dir"]
-    data_getter = CESMDataGetter(**example_details["subset"], save_dir=data_dir)
+    data_getter = cesm.CESMDataGetter(**example_details["subset"], save_dir=data_dir)
     file_names = data_getter.file_names
 
     pup = pooch.create(
@@ -66,6 +76,7 @@ def get_example_dataset(name):
         ) from exc
 
     ds = xcdat.open_mfdataset(paths)
+    ds.climepi.modes = example_details["climepi_modes"]
     return ds
 
 
@@ -82,7 +93,7 @@ def create_example_dataset(name):
     data_dir = example_details["data_dir"]
     subset = example_details["subset"]
 
-    get_cesm_data(**subset, download=True, save_dir=data_dir)
+    cesm.get_cesm_data(**subset, download=True, save_dir=data_dir)
 
 
 if __name__ == "__main__":
