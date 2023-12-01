@@ -7,16 +7,25 @@ import climepi.climdata.cesm as cesm
 import climepi.epimod  # noqa
 import climepi.epimod.ecolniche as ecolniche
 
+EXAMPLE_DATASET_CALLABLES = {
+    "CESM2 world 2020, 2060, 2100": lambda: cesm.get_example_dataset(
+        "world_2020_2060_2100"
+    ),
+    "CESM2 Cape Town 2020-2100": lambda: cesm.get_example_dataset("cape_town"),
+}
+EXAMPLE_DATASETS = list(EXAMPLE_DATASET_CALLABLES.keys())
+
 # Pure functions
 
 
 @pn.cache
 def get_clim_data(clim_ds_name):
     """Load climate data from the data source."""
-    if clim_ds_name in ["CESM LENS2", "Also CESM LENS2"]:
-        ds_clim = cesm.load_example_data()
-    else:
-        raise ValueError(f"Unknown climate dataset: {clim_ds_name}")
+
+    try:
+        ds_clim = EXAMPLE_DATASET_CALLABLES[clim_ds_name]()
+    except KeyError as exc:
+        raise ValueError(f"Unknown climate dataset: {clim_ds_name}") from exc
     return ds_clim
 
 
@@ -24,7 +33,7 @@ def get_clim_data(clim_ds_name):
 def get_epi_data(clim_ds_name, epi_model_name):
     """Get and run the epidemiological model."""
     ds_clim = get_clim_data(clim_ds_name)
-    if clim_ds_name in ["CESM LENS2", "Also CESM LENS2"] and epi_model_name in [
+    if clim_ds_name in EXAMPLE_DATASET_CALLABLES and epi_model_name in [
         "Kaye ecological niche",
         "Also Kaye ecological niche",
     ]:
@@ -45,8 +54,8 @@ class Controller(param.Parameterized):
     """Main controller class for the dashboard."""
 
     clim_ds_name = param.ObjectSelector(
-        default="CESM LENS2",
-        objects=["CESM LENS2", "Also CESM LENS2", "The googly"],
+        default=EXAMPLE_DATASETS[0],
+        objects=EXAMPLE_DATASETS,
         precedence=1,
     )
     clim_data_load_initiator = param.Event(default=False, precedence=1)
