@@ -363,7 +363,7 @@ class ClimEpiDatasetAccessor:
         ds.climepi.modes = self.modes
         return ds
 
-    def sel_geopy(self, loc_str, **kwargs):
+    def sel_geopy(self, loc_str, lon_0_360=False, **kwargs):
         """
         Uses geopy to obtain the latitude and longitude co-ordinates of the location
         specified in loc_str, and returns a new dataset containing the data for the
@@ -373,6 +373,10 @@ class ClimEpiDatasetAccessor:
         ----------
         loc_str : str
             Name of the location to select.
+        lon_0_360 : bool, optional
+            Set to True if the longitude values in the dataset are in the range
+            [0, 360]. Defaults to False, in which case the longitude values are
+            assumed to be in the range [-180, 180].
 
         Returns
         -------
@@ -384,15 +388,11 @@ class ClimEpiDatasetAccessor:
                 """The sel_geopy method can only be used on datasets with climepi
                 spatial mode "global"."""
             )
-        if any(self._obj.lon > 180.001):
-            raise ValueError(
-                """The sel_geopy method can only be used on datasets with longitude
-                values in the range [-180, 180]. Use xcdat.swap_lon_axis to convert
-                longitudes."""
-            )
         location = geolocator.geocode(loc_str, **kwargs)
         lat = location.latitude
         lon = location.longitude
+        if lon_0_360:
+            lon = lon % 360
         ds = self._obj.sel(lat=lat, lon=lon, method="nearest")
         ds.climepi.modes = dict(self.modes, spatial="single")
         return ds
