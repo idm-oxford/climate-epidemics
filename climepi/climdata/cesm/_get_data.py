@@ -1,12 +1,14 @@
 import pathlib
+import time
 
+import dask.diagnostics
 import intake
 import numpy as np
 import pooch
 import xarray as xr
 import xcdat
 
-DEFAULT_SAVE_DIR = pooch.os_cache("climepi")
+CACHE_DIR = pooch.os_cache("climepi")
 
 
 def get_cesm_data(
@@ -16,7 +18,7 @@ def get_cesm_data(
     lat_range=None,
     loc_str=None,
     download=False,
-    save_dir=DEFAULT_SAVE_DIR,
+    save_dir=CACHE_DIR,
 ):
     data_getter = CESMDataGetter(
         years,
@@ -38,15 +40,16 @@ class CESMDataGetter:
         lon_range=None,
         lat_range=None,
         loc_str=None,
-        save_dir=DEFAULT_SAVE_DIR,
+        save_dir=CACHE_DIR,
     ):
         self._years = years
+        if realizations is None:
+            realizations = np.arange(100)
         self._realizations = realizations
         self._lon_range = lon_range
         self._lat_range = lat_range
         self._loc_str = loc_str
         self._catalog = None
-        self._ds_in = None
         self._ds_dict = None
         self._ds = None
         self._save_dir = save_dir
@@ -56,12 +59,10 @@ class CESMDataGetter:
     @property
     def catalog(self):
         if self._catalog is None:
-            print("Loading data catalog...")
             self._catalog = intake.open_esm_datastore(
                 "https://raw.githubusercontent.com/NCAR/cesm2-le-aws"
                 + "/main/intake-catalogs/aws-cesm2-le.json"
             )
-            print("Data catalog loaded.")
         return self._catalog
 
     @property
@@ -106,10 +107,18 @@ class CESMDataGetter:
             return self._ds
         except FileNotFoundError:
             pass
+        print("Opening remote data...")
         self._open_remote_data()
-        self._process_remote_data()
+        print("\n\nRemote data opened.")
+        self._subset_data()
+        self._process_data()
         if download:
-            self._download_data()
+            print("Downloading data...")
+            self._save_temporary()
+            print("Data downloaded.")
+            self._save()
+            print(f"Formatted data saved to {self._save_dir}")
+            self._delete_temporary()
             self._open_local_data()
         return self._ds
 
@@ -120,7 +129,6 @@ class CESMDataGetter:
         self._ds = ds
 
     def _open_remote_data(self):
-        print("Opening remote data...")
         catalog = self.catalog
         catalog_subset = catalog.search(
             variable=["TREFHT", "PRECC", "PRECL"], frequency="monthly"
@@ -141,63 +149,68 @@ class CESMDataGetter:
             dim="time",
         )
         ds_in = xr.concat([ds_cmip6_in, ds_smbb_in], dim="member_id")
-        self._ds_in = ds_in
-        print("\n\nRemote data opened.")
+        self._ds = ds_in
 
-    def _process_remote_data(self):
+    def _subset_data(self):
         years = self._years
         realizations = self._realizations
         lon_range = self._lon_range
         lat_range = self._lat_range
         loc_str = self._loc_str
-        ds = self._ds_in.copy()
-        ds = ds.swap_dims({"member_id": "realization"})
-        ds["realization"] = range(100)
-        ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
-        ds = ds.rename_dims({"nbnd": "bnds"})
-        ds = ds.bounds.add_missing_bounds(axes=["X", "Y"])
+        ds = self._ds
+        ds = ds.isel(member_id=realizations)
         ds = ds.isel(time=np.isin(ds.time.dt.year, years))
         if loc_str is not None:
             ds.climepi.modes = {"spatial": "global"}
-            ds = ds.climepi.sel_geopy(loc_str)
+            ds = ds.climepi.sel_geopy(loc_str, lon_0_360=True)
         else:
             if lon_range is not None:
-                ds = ds.sel(lon=slice(*lon_range))
+                ds = ds.sel(lon=slice(lon_range[0] % 360, lon_range[1] % 360))
             if lat_range is not None:
                 ds = ds.sel(lat=slice(*lat_range))
-        ds_dict = {}
-        for realization in realizations:
-            ds_curr = ds.sel(realization=[realization])
-            ds_curr["temperature"] = ds_curr["TREFHT"] - 273.15
-            ds_curr["temperature"].attrs.update(long_name="Temperature")
-            ds_curr["temperature"].attrs.update(units="°C")
-            ds_curr["precipitation"] = (ds_curr["PRECC"] + ds_curr["PRECL"]) * (
-                1000 * 60 * 60 * 24
-            )
-            ds_curr["precipitation"].attrs.update(long_name="Precipitation")
-            ds_curr["precipitation"].attrs.update(units="mm/day")
-            ds_curr = ds_curr.drop(["TREFHT", "PRECC", "PRECL"])
-            ds_dict[realization] = ds_curr
-        ds = xr.concat(list(ds_dict.values()), dim="realization")
-        self._ds_dict = ds_dict
         self._ds = ds
 
-    def _download_data(self):
+    def _process_data(self):
+        realizations = self._realizations
+        ds = self._ds
+        ds = ds.swap_dims({"member_id": "realization"})
+        ds["realization"] = realizations
+        if ds.lon.size > 1:
+            ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
+        else:
+            ds["lon"] = ((ds["lon"] + 180) % 360) - 180
+        ds = ds.rename_dims({"nbnd": "bnds"})
+        ds = ds.reset_coords("time_bnds")
+        ds = ds.bounds.add_missing_bounds(axes=["X", "Y"])
+        ds["temperature"] = ds["TREFHT"] - 273.15
+        ds["temperature"].attrs.update(long_name="Temperature")
+        ds["temperature"].attrs.update(units="°C")
+        ds["precipitation"] = (ds["PRECC"] + ds["PRECL"]) * (1000 * 60 * 60 * 24)
+        ds["precipitation"].attrs.update(long_name="Precipitation")
+        ds["precipitation"].attrs.update(units="mm/day")
+        ds = ds.drop(["TREFHT", "PRECC", "PRECL"])
+        self._ds = ds
+
+    def _save_temporary(self):
+        temporary_save_path = pathlib.Path(CACHE_DIR) / "temporary.nc"
+        delayed_obj = self._ds.to_netcdf(temporary_save_path, compute=False)
+        with dask.diagnostics.ProgressBar():
+            delayed_obj.compute()
+        chunks = self._ds.chunks.mapping
+        self._ds = xr.open_dataset(temporary_save_path, chunks=chunks)
+
+    def _save(self):
+        realizations = self._realizations
         save_dir = pathlib.Path(self._save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         file_name_dict = self._file_name_dict
-        ds_dict = self._ds_dict
-        print(f"Downloading data to {save_dir}...")
-        for download_no, (realization, ds_curr) in enumerate(ds_dict.items()):
+        ds = self._ds
+        for realization in realizations:
+            ds_curr = ds.sel(realization=[realization])
             save_path = save_dir / file_name_dict[realization]
-            if save_path.exists():
-                print("Data already downloaded for current model realization.")
-            else:
-                ds_curr.to_netcdf(save_path)
-            print(
-                "Data downloaded for",
-                download_no + 1,
-                "out of",
-                len(ds_dict),
-                "model realizations.",
-            )
+            ds_curr.to_netcdf(save_path)
+
+    def _delete_temporary(self):
+        temporary_save_path = pathlib.Path(CACHE_DIR) / "temporary.nc"
+        self._ds.close()
+        temporary_save_path.unlink()

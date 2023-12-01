@@ -18,7 +18,6 @@ from climepi.climdata.cesm import CESMDataGetter, get_cesm_data
 BASE_DIR = pathlib.Path(__file__).parents[3] / "data/cesm_examples"
 if not BASE_DIR.exists():
     BASE_DIR = pooch.os_cache("climepi")
-REALIZATIONS_AVAILABLE = np.arange(100)
 EXAMPLES = {
     "world_2020_2060_2100": {
         "data_dir": BASE_DIR,
@@ -27,13 +26,14 @@ EXAMPLES = {
             "realizations": np.arange(3),
         },
     },
-    # "cape_town": {
-    #     "data_dir": BASE_DIR / "cape_town",
-    #     "subset": {
-    #         "years": np.arange(2020, 2101),
-    #         "loc_str": "Cape Town",
-    #     },
-    # },
+    "cape_town": {
+        "data_dir": BASE_DIR,
+        "subset": {
+            "years": np.arange(2020, 2101),
+            "realizations": np.arange(3),
+            "loc_str": "Cape Town",
+        },
+    },
 }
 
 
@@ -61,8 +61,8 @@ def get_example_dataset(name):
     except ValueError as exc:
         raise NotImplementedError(
             "The formatted example dataset was not found locally and is not yet"
-            + " available to download directly. Run 'create_example_data' to download"
-            + " the raw CESM output data and create the formatted dataset."
+            + " available to download directly. Run 'create_example_data' to create"
+            + " and download the formatted dataset from CESM output data."
         ) from exc
 
     ds = xcdat.open_mfdataset(paths)
