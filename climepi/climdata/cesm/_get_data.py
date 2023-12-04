@@ -179,8 +179,21 @@ class CESMDataGetter:
             ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
         else:
             ds["lon"] = ((ds["lon"] + 180) % 360) - 180
-        ds = ds.rename_dims({"nbnd": "bnds"})
+        time_bnds_new = xr.concat(
+            [
+                ds.isel(nbnd=nbnd)
+                .convert_calendar("proleptic_gregorian", dim="time_bnds")
+                .time_bnds.swap_dims({"time_bnds": "time"})
+                .expand_dims("nbnd", axis=1)
+                for nbnd in range(2)
+            ],
+            dim="nbnd",
+        )
+        time_bnds_new["time"] = ds["time"]
+        ds["time_bnds"] = time_bnds_new["time_bnds"]
+        ds["time"] = ds["time_bnds"].mean(dim="nbnd")
         ds = ds.reset_coords("time_bnds")
+        ds = ds.rename_dims({"nbnd": "bnds"})
         ds = ds.bounds.add_missing_bounds(axes=["X", "Y"])
         ds["temperature"] = ds["TREFHT"] - 273.15
         ds["temperature"].attrs.update(long_name="Temperature")
