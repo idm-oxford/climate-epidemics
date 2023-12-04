@@ -17,13 +17,12 @@ import climepi.climdata.cesm as cesm
 
 BASE_DIR = pathlib.Path(__file__).parents[3] / "data/cesm_examples"
 if not BASE_DIR.exists():
-    BASE_DIR = pooch.os_cache("climepi")
+    BASE_DIR = pathlib.Path(pooch.os_cache("climepi/cesm_examples"))
 EXAMPLES = {
     "world_2020_2060_2100": {
-        "data_dir": BASE_DIR,
+        "data_dir": BASE_DIR / "world_2020_2060_2100",
         "subset": {
             "years": [2020, 2060, 2100],
-            "realizations": np.arange(3),
         },
         "climepi_modes": {
             "spatial": "global",
@@ -32,10 +31,9 @@ EXAMPLES = {
         },
     },
     "cape_town": {
-        "data_dir": BASE_DIR,
+        "data_dir": BASE_DIR / "cape_town",
         "subset": {
-            "years": np.arange(2020, 2101),
-            "realizations": np.arange(3),
+            "years": np.arange(2000, 2101),
             "loc_str": "Cape Town",
         },
         "climepi_modes": {
