@@ -1,45 +1,48 @@
+import functools
+
 import numpy as np
 import panel as pn
 import param
+import pooch
+import xarray as xr
 
 import climepi  # noqa
-import climepi.climdata.cesm as cesm
 import climepi.epimod  # noqa
-import climepi.epimod.ecolniche as ecolniche
+from climepi.climdata import cesm
+from climepi.epimod import ecolniche
 
-EXAMPLE_DATASET_CALLABLES = {
-    "CESM2 world 2020, 2060, 2100": lambda: cesm.get_example_dataset(
-        "world_2020_2060_2100"
-    ),
-    "CESM2 Cape Town 2020-2100": lambda: cesm.get_example_dataset("cape_town"),
+EXAMPLE_CLIM_DATASET_NAMES = cesm.EXAMPLE_NAMES
+EXAMPLE_CLIM_DATASET_NAMES.append("The googly")
+EXAMPLE_CLIM_DATASET_GETTER_DICT = {
+    name: functools.partial(cesm.get_example_dataset, name=name)
+    for name in EXAMPLE_CLIM_DATASET_NAMES
 }
-EXAMPLE_DATASETS = list(EXAMPLE_DATASET_CALLABLES.keys())
+
+EXAMPLE_EPI_MODEL_NAMES = [
+    "Kaye ecological niche",
+    "Also Kaye ecological niche",
+    "The flipper",
+]
+EXAMPLE_EPI_MODEL_GETTER_DICT = {
+    name: ecolniche.import_kaye_model for name in EXAMPLE_EPI_MODEL_NAMES
+}
+EXAMPLE_EPI_MODEL_GETTER_DICT["The flipper"] = functools.partial(ValueError, "Ouch!")
 
 # Pure functions
 
 
 @pn.cache
-def get_clim_data(clim_ds_name):
+def get_ds_clim(ds_clim_name):
     """Load climate data from the data source."""
-
-    try:
-        ds_clim = EXAMPLE_DATASET_CALLABLES[clim_ds_name]()
-    except KeyError as exc:
-        raise ValueError(f"Unknown climate dataset: {clim_ds_name}") from exc
+    ds_clim = EXAMPLE_CLIM_DATASET_GETTER_DICT[ds_clim_name]()
     return ds_clim
 
 
 @pn.cache
-def get_epi_data(clim_ds_name, epi_model_name):
+def get_ds_epi(ds_clim_name, epi_model_name):
     """Get and run the epidemiological model."""
-    ds_clim = get_clim_data(clim_ds_name)
-    if clim_ds_name in EXAMPLE_DATASET_CALLABLES and epi_model_name in [
-        "Kaye ecological niche",
-        "Also Kaye ecological niche",
-    ]:
-        epi_model = ecolniche.import_kaye_model()
-    else:
-        raise ValueError(f"Unknown epidemiological model: {epi_model_name}")
+    ds_clim = get_ds_clim(ds_clim_name)
+    epi_model = EXAMPLE_EPI_MODEL_GETTER_DICT[epi_model_name]()
     ds_clim.epimod.model = epi_model
     ds_suitability = ds_clim.epimod.run_model()
     ds_months_suitable = ds_suitability.epimod.months_suitable()
@@ -53,17 +56,17 @@ def get_epi_data(clim_ds_name, epi_model_name):
 class Controller(param.Parameterized):
     """Main controller class for the dashboard."""
 
-    clim_ds_name = param.ObjectSelector(
-        default=EXAMPLE_DATASETS[0],
-        objects=EXAMPLE_DATASETS,
+    ds_clim_name = param.ObjectSelector(
+        default=EXAMPLE_CLIM_DATASET_NAMES[0],
+        objects=EXAMPLE_CLIM_DATASET_NAMES,
         precedence=1,
     )
     clim_data_load_initiator = param.Event(default=False, precedence=1)
     clim_data_loaded = param.Boolean(default=False, precedence=-1)
     clim_data_status = param.String(default="Data not loaded", precedence=1)
     epi_model_name = param.ObjectSelector(
-        default="Kaye ecological niche",
-        objects=["Kaye ecological niche", "Also Kaye ecological niche", "The flipper"],
+        default=EXAMPLE_EPI_MODEL_NAMES[0],
+        objects=EXAMPLE_EPI_MODEL_NAMES,
         precedence=1,
     )
     epi_model_run_initiator = param.Event(default=False, precedence=1)
@@ -75,7 +78,7 @@ class Controller(param.Parameterized):
         self._clim_plot_controller = PlotController()
         self._epi_plot_controller = PlotController()
         data_widgets = {
-            "clim_ds_name": {"name": "Climate dataset"},
+            "ds_clim_name": {"name": "Climate dataset"},
             "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
             "clim_data_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -113,15 +116,15 @@ class Controller(param.Parameterized):
             return
         try:
             self.clim_data_status = "Loading data..."
-            ds_clim = get_clim_data(self.clim_ds_name)
+            ds_clim = get_ds_clim(self.ds_clim_name)
             self._clim_plot_controller.initialize(ds_clim)
             self.clim_data_status = "Data loaded"
             self.clim_data_loaded = True
             self._epi_plot_controller.initialize()
             self.epi_model_status = "Model has not been run"
             self.epi_model_ran = False
-        except Exception as e:
-            self.clim_data_status = f"Data load failed: {e}"
+        except Exception as exc:
+            self.clim_data_status = f"Data load failed: {exc}"
 
     @param.depends("epi_model_run_initiator", watch=True)
     def _run_epi_model(self):
@@ -133,20 +136,20 @@ class Controller(param.Parameterized):
             return
         try:
             self.epi_model_status = "Running model..."
-            ds_epi = get_epi_data(self.clim_ds_name, self.epi_model_name)
+            ds_epi = get_ds_epi(self.ds_clim_name, self.epi_model_name)
             self._epi_plot_controller.initialize(ds_epi)
             self.epi_model_status = "Model run complete"
             self.epi_model_ran = True
-        except Exception as e:
-            self.epi_model_status = f"Model run failed: {e}"
+        except Exception as exc:
+            self.epi_model_status = f"Model run failed: {exc}"
 
-    @param.depends("clim_ds_name", watch=True)
+    @param.depends("ds_clim_name", watch=True)
     def _revert_clim_data_load_status(self):
         """Revert the climate data load status (but retain data for plotting)."""
         self.clim_data_status = "Data not loaded"
         self.clim_data_loaded = False
 
-    @param.depends("clim_ds_name", "epi_model_name", watch=True)
+    @param.depends("ds_clim_name", "epi_model_name", watch=True)
     def _revert_epi_model_run_status(self):
         """Revert the epi model run status (but retain data for plotting)."""
         self.epi_model_status = "Model has not been run"
@@ -292,8 +295,8 @@ class PlotController(param.Parameterized):
             self._view.append(self._plotter.plot)
             self.plot_status = "Plot generated"
             self.plot_generated = True
-        except Exception as e:
-            self.plot_status = f"Plot generation failed: {e}"
+        except Exception as exc:
+            self.plot_status = f"Plot generation failed: {exc}"
 
     @param.depends(
         "data_var",
@@ -437,12 +440,6 @@ class Plotter:
             raise ValueError("Unsupported spatial base mode")
         if plot_type == "time series":
             ds_plot = ds_plot.climepi.sel_geopy(location)
-            # if location == "Miami":
-            #     ds_plot = ds_plot.sel(lat=25, lon=360 - 80, method="nearest")
-            # elif location == "Cape Town":
-            #     ds_plot = ds_plot.sel(lat=-34, lon=18, method="nearest")
-            # else:
-            #     raise ValueError(f"Unknown location: {location}")
         elif plot_type == "map":
             pass
         else:
