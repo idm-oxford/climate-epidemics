@@ -3,8 +3,6 @@ import functools
 import numpy as np
 import panel as pn
 import param
-import pooch
-import xarray as xr
 
 import climepi  # noqa
 import climepi.epimod  # noqa
@@ -46,7 +44,13 @@ def get_ds_epi(ds_clim_name, epi_model_name):
     ds_clim.epimod.model = epi_model
     ds_suitability = ds_clim.epimod.run_model()
     ds_months_suitable = ds_suitability.epimod.months_suitable()
-    ds_months_suitable.load()
+
+    import time
+
+    st = time.time()
+    ds_months_suitable.load(scheduler="synchronous")
+    print("model run time:", time.time() - st, "seconds")
+    # ds_months_suitable.to_netcdf("months_suitable.nc")
     return ds_months_suitable
 
 
@@ -125,6 +129,7 @@ class Controller(param.Parameterized):
             self.epi_model_ran = False
         except Exception as exc:
             self.clim_data_status = f"Data load failed: {exc}"
+            raise
 
     @param.depends("epi_model_run_initiator", watch=True)
     def _run_epi_model(self):
@@ -142,6 +147,7 @@ class Controller(param.Parameterized):
             self.epi_model_ran = True
         except Exception as exc:
             self.epi_model_status = f"Model run failed: {exc}"
+            raise
 
     @param.depends("ds_clim_name", watch=True)
     def _revert_clim_data_load_status(self):
@@ -297,6 +303,7 @@ class PlotController(param.Parameterized):
             self.plot_generated = True
         except Exception as exc:
             self.plot_status = f"Plot generation failed: {exc}"
+            raise
 
     @param.depends(
         "data_var",
