@@ -185,7 +185,9 @@ class CESMDataGetter:
         # files are not found), and store the dataset in the _ds attribute.
         save_dir = pathlib.Path(self._save_dir)
         file_names = self.file_names
-        _ds = xcdat.open_mfdataset([save_dir / file_name for file_name in file_names])
+        _ds = xcdat.open_mfdataset(
+            [save_dir / file_name for file_name in file_names], chunks={}
+        )
         self._ds = _ds
 
     def _open_remote_data(self):
@@ -234,9 +236,18 @@ class CESMDataGetter:
         else:
             if lon_range is not None:
                 # Note the remote data are stored with longitudes in the range 0 to 360.
-                ds_subset = ds_subset.sel(
-                    lon=slice(lon_range[0] % 360, lon_range[1] % 360)
-                )
+                if lon_range[0] < 0 <= lon_range[1]:
+                    ds_subset = xr.concat(
+                        [
+                            ds_subset.sel(lon=slice(0, lon_range[1] % 360)),
+                            ds_subset.sel(lon=slice(lon_range[0] % 360, 360)),
+                        ],
+                        dim="lon",
+                    )
+                else:
+                    ds_subset = ds_subset.sel(
+                        lon=slice(lon_range[0] % 360, lon_range[1] % 360)
+                    )
             if lat_range is not None:
                 ds_subset = ds_subset.sel(lat=slice(*lat_range))
         self._ds = ds_subset
