@@ -54,6 +54,20 @@ EXAMPLES = {
             "ensemble": "ensemble",
         },
     },
+    "europe_small": {
+        "data_dir": BASE_DIR / "europe_small",
+        "subset": {
+            "years": [2020, 2100],
+            "lat_range": [35, 72],
+            "lon_range": [-25, 65],
+            "realizations": np.arange(2),
+        },
+        "climepi_modes": {
+            "spatial": "global",
+            "temporal": "monthly",
+            "ensemble": "ensemble",
+        },
+    },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
@@ -102,7 +116,7 @@ def get_example_dataset(name):
             + " and download the formatted dataset from CESM output data."
         ) from exc
     # Load the dataset and set the 'modes' property of the climepi accessor.
-    ds_example = xcdat.open_mfdataset(paths)
+    ds_example = xcdat.open_mfdataset(paths, chunks={})
     ds_example.climepi.modes = example_details["climepi_modes"]
     return ds_example
 
@@ -139,3 +153,4 @@ def _get_example_details(name):
 if __name__ == "__main__":
     for example_name in EXAMPLES:
         create_example_dataset(example_name)
+        # get_example_dataset(example_name)
