@@ -5,7 +5,6 @@ importing the model of Kaye et al.
 
 import pathlib
 
-import numpy as np
 import xarray as xr
 
 from climepi.epimod import EpiModel
@@ -36,38 +35,6 @@ class EcolNicheModel(EpiModel):
     @suitability_table.setter
     def suitability_table(self, suitability_table_in):
         self._suitability_table = suitability_table_in
-
-    def run_main1(self, ds_clim):
-        """
-        Runs the main logic of the ecological niche model on a given climate
-        dataset.
-
-        Parameters:
-        -----------
-        ds_clim : xarray.Dataset
-            The input climate dataset.
-
-        Returns:
-        --------
-        xarray.DataArray
-            Boolean suitability values.
-        """
-        da_suitability = xr.map_blocks(self._get_suitability, ds_clim)
-        return da_suitability
-
-    def _get_suitability(self, ds_clim):
-        # Function to apply to each block of the input dataset, ds_clim
-        # (xarray.Dataset), using the suitability table to determine
-        # suitability values.
-        ds_suitability = self.suitability_table.sel(
-            temperature=ds_clim["temperature"],
-            precipitation=ds_clim["precipitation"],
-            method="nearest",
-        )
-        da_suitability = ds_suitability["suitability"].reset_coords(
-            names=["temperature", "precipitation"], drop=True
-        )
-        return da_suitability
 
     def run_main(self, ds_clim):
         temperature = ds_clim["temperature"]
@@ -101,39 +68,6 @@ class EcolNicheModel(EpiModel):
         da_suitability.attrs = suitability_table["suitability"].attrs
         return da_suitability
 
-    def run_main2(self, ds_clim):
-        temperature = ds_clim["temperature"]
-        precipitation = ds_clim["precipitation"]
-        suitability_table = self.suitability_table
-        table_values = (
-            suitability_table["suitability"]
-            .transpose("temperature", "precipitation")
-            .values
-        )
-        table_temp_vals = suitability_table["temperature"].values
-        table_precip_vals = suitability_table["precipitation"].values
-
-        import scipy.interpolate
-
-        interp_func = scipy.interpolate.RegularGridInterpolator(
-            (table_temp_vals, table_precip_vals),
-            table_values,
-            method="nearest",
-            bounds_error=False,
-            fill_value=0,
-        )
-
-        def suitability_func(temp, precip):
-            suitability = interp_func((temp, precip))
-            return suitability
-
-        da_suitability = xr.apply_ufunc(
-            suitability_func, temperature, precipitation, dask="parallelized"
-        )
-        da_suitability = da_suitability.rename("suitability")
-        da_suitability.attrs = suitability_table["suitability"].attrs
-        return da_suitability
-
 
 def import_kaye_model():
     """
@@ -150,3 +84,28 @@ def import_kaye_model():
     suitability_table = xr.open_dataset(data_path)
     epi_model = EcolNicheModel(suitability_table)
     return epi_model
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import shapely
+
+    epi_model = import_kaye_model()
+    suitability_table = epi_model.suitability_table
+    temp_grid, precip_grid = xr.broadcast(
+        suitability_table["temperature"].rename("temp_grid"),
+        suitability_table["precipitation"].rename("precip_grid"),
+    )
+    suitable = suitability_table["suitability"] > 0.5
+    temp_suitable_coords = temp_grid.where(suitable).values.flatten()
+    temp_suitable_coords = temp_suitable_coords[~np.isnan(temp_suitable_coords)]
+    precip_suitable_coords = precip_grid.where(suitable).values.flatten()
+    precip_suitable_coords = precip_suitable_coords[~np.isnan(precip_suitable_coords)]
+    pts = shapely.points(temp_suitable_coords, precip_suitable_coords)
+    mp = shapely.MultiPoint(pts)
+    bdry = mp.buffer(distance=0.1)
+
+    suitability_table["suitability"].plot()
+    plt.plot(*bdry.exterior.xy)
+    plt.show()
