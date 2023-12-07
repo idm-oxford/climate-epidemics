@@ -1,13 +1,18 @@
 import functools
+import pathlib
 
+import dask.diagnostics
 import numpy as np
 import panel as pn
 import param
+import xarray as xr
 
 import climepi  # noqa
 import climepi.epimod  # noqa
 from climepi.climdata import cesm
 from climepi.epimod import ecolniche
+
+# Constants
 
 EXAMPLE_CLIM_DATASET_NAMES = cesm.EXAMPLE_NAMES
 EXAMPLE_CLIM_DATASET_NAMES.append("The googly")
@@ -26,32 +31,52 @@ EXAMPLE_EPI_MODEL_GETTER_DICT = {
 }
 EXAMPLE_EPI_MODEL_GETTER_DICT["The flipper"] = functools.partial(ValueError, "Ouch!")
 
+TEMP_FILE_DIR = pathlib.Path(__file__).parent / "temp"
+TEMP_FILE_DIR.mkdir(exist_ok=True, parents=True)
+
+# Global variables
+
+_file_ds_dict = {}
+
 # Pure functions
 
 
-@pn.cache
-def get_ds_clim(ds_clim_name):
+def load_clim_data(clim_dataset_name):
     """Load climate data from the data source."""
-    ds_clim = EXAMPLE_CLIM_DATASET_GETTER_DICT[ds_clim_name]()
+    ds_clim = EXAMPLE_CLIM_DATASET_GETTER_DICT[clim_dataset_name]()
     return ds_clim
 
 
-@pn.cache
-def get_ds_epi(ds_clim_name, epi_model_name):
+def run_epi_model(ds_clim, epi_model_name):
     """Get and run the epidemiological model."""
-    ds_clim = get_ds_clim(ds_clim_name)
     epi_model = EXAMPLE_EPI_MODEL_GETTER_DICT[epi_model_name]()
     ds_clim.epimod.model = epi_model
     ds_suitability = ds_clim.epimod.run_model()
+    ds_suitability = _compute_to_file_reopen(ds_suitability, "suitability")
     ds_months_suitable = ds_suitability.epimod.months_suitable()
-
-    import time
-
-    st = time.time()
-    ds_months_suitable.load(scheduler="synchronous")
-    print("model run time:", time.time() - st, "seconds")
-    # ds_months_suitable.to_netcdf("months_suitable.nc")
+    ds_months_suitable = _compute_to_file_reopen(ds_months_suitable, "months_suitable")
     return ds_months_suitable
+
+
+def _compute_to_file_reopen(ds, name, dask_scheduler=None):
+    temp_file_path = TEMP_FILE_DIR / f"{name}.nc"
+    try:
+        _file_ds_dict[name].close()
+    except KeyError:
+        pass
+    try:
+        temp_file_path.unlink()
+    except FileNotFoundError:
+        pass
+    chunks = ds.chunks.mapping
+    climepi_modes = ds.climepi.modes
+    delayed_obj = ds.to_netcdf(temp_file_path, compute=False)
+    with dask.diagnostics.ProgressBar():
+        delayed_obj.compute(scheduler=dask_scheduler)
+    _file_ds_dict[name] = xr.open_dataset(temp_file_path, chunks=chunks)
+    ds = _file_ds_dict[name].copy()
+    ds.climepi.modes = climepi_modes
+    return ds
 
 
 # Classes
@@ -60,7 +85,7 @@ def get_ds_epi(ds_clim_name, epi_model_name):
 class Controller(param.Parameterized):
     """Main controller class for the dashboard."""
 
-    ds_clim_name = param.ObjectSelector(
+    clim_dataset_name = param.ObjectSelector(
         default=EXAMPLE_CLIM_DATASET_NAMES[0],
         objects=EXAMPLE_CLIM_DATASET_NAMES,
         precedence=1,
@@ -79,10 +104,11 @@ class Controller(param.Parameterized):
 
     def __init__(self, **params):
         super().__init__(**params)
+        self._ds_clim = None
         self._clim_plot_controller = PlotController()
         self._epi_plot_controller = PlotController()
         data_widgets = {
-            "ds_clim_name": {"name": "Climate dataset"},
+            "clim_dataset_name": {"name": "Climate dataset"},
             "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
             "clim_data_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -115,12 +141,13 @@ class Controller(param.Parameterized):
 
     @param.depends("clim_data_load_initiator", watch=True)
     def _load_clim_data(self):
-        """Load data from the data source."""
+        # Load data from the data source.
         if self.clim_data_loaded:
             return
         try:
             self.clim_data_status = "Loading data..."
-            ds_clim = get_ds_clim(self.ds_clim_name)
+            ds_clim = load_clim_data(self.clim_dataset_name)
+            self._ds_clim = ds_clim
             self._clim_plot_controller.initialize(ds_clim)
             self.clim_data_status = "Data loaded"
             self.clim_data_loaded = True
@@ -133,7 +160,7 @@ class Controller(param.Parameterized):
 
     @param.depends("epi_model_run_initiator", watch=True)
     def _run_epi_model(self):
-        """Setup and run the epidemiological model."""
+        # Setup and run the epidemiological model.
         if self.epi_model_ran:
             return
         if not self.clim_data_loaded:
@@ -141,7 +168,7 @@ class Controller(param.Parameterized):
             return
         try:
             self.epi_model_status = "Running model..."
-            ds_epi = get_ds_epi(self.ds_clim_name, self.epi_model_name)
+            ds_epi = run_epi_model(self._ds_clim, self.epi_model_name)
             self._epi_plot_controller.initialize(ds_epi)
             self.epi_model_status = "Model run complete"
             self.epi_model_ran = True
@@ -149,29 +176,17 @@ class Controller(param.Parameterized):
             self.epi_model_status = f"Model run failed: {exc}"
             raise
 
-    @param.depends("ds_clim_name", watch=True)
+    @param.depends("clim_dataset_name", watch=True)
     def _revert_clim_data_load_status(self):
-        """Revert the climate data load status (but retain data for plotting)."""
+        # Revert the climate data load status (but retain data for plotting).
         self.clim_data_status = "Data not loaded"
         self.clim_data_loaded = False
 
-    @param.depends("ds_clim_name", "epi_model_name", watch=True)
+    @param.depends("clim_dataset_name", "epi_model_name", watch=True)
     def _revert_epi_model_run_status(self):
-        """Revert the epi model run status (but retain data for plotting)."""
+        # Revert the epi model run status (but retain data for plotting).
         self.epi_model_status = "Model has not been run"
         self.epi_model_ran = False
-
-
-class EmptyVisualizer:
-    """Empty visualizer for the dashboard."""
-
-    def __init__(self, ds_type):
-        if ds_type == "climate":
-            self.controls = pn.panel("Climate data not loaded")
-            self.view = pn.Row()
-        if ds_type == "epidemic":
-            self.controls = pn.panel("Epidemiogical model not run")
-            self.view = pn.Row()
 
 
 class PlotController(param.Parameterized):
@@ -179,7 +194,7 @@ class PlotController(param.Parameterized):
 
     data_var = param.ObjectSelector(precedence=1)
     plot_type = param.ObjectSelector(precedence=1)
-    location = param.String(default="Miami", precedence=-1)
+    location = param.String(default="Cape Town", precedence=-1)
     temporal_mode = param.ObjectSelector(precedence=1)
     year_range = param.Range(precedence=1)
     ensemble_mode = param.ObjectSelector(precedence=1)
@@ -290,7 +305,7 @@ class PlotController(param.Parameterized):
 
     @param.depends("plot_initiator", watch=True)
     def _update_view(self):
-        """Update the plot view."""
+        # Update the plot view.
         if self.plot_generated:
             return
         self._view.clear()  # figure sizing issue if not done before generating new plot
@@ -316,7 +331,7 @@ class PlotController(param.Parameterized):
         watch=True,
     )
     def _revert_plot_status(self):
-        """Revert the plot status (but retain plot view)."""
+        # Revert the plot status (but retain plot view).
         self.plot_status = "Plot not yet generated"
         self.plot_generated = False
 
@@ -409,7 +424,9 @@ class Plotter:
         ds_plot = self._ds_plot
         if plot_type == "map":
             self.plot = pn.panel(
-                ds_plot.climepi.plot_map(), center=True, widget_location="bottom"
+                ds_plot.climepi.plot_map(),
+                center=True,
+                widget_location="bottom",
             )
         elif (
             plot_type == "time series"
