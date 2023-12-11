@@ -5,6 +5,7 @@ importing the model of Kaye et al.
 
 import pathlib
 
+import hvplot.xarray  # noqa
 import xarray as xr
 
 from climepi.epimod import EpiModel
@@ -37,6 +38,9 @@ class EcolNicheModel(EpiModel):
         self._suitability_table = suitability_table_in
 
     def run_main(self, ds_clim):
+        """
+        Run the main logic of the epidemiological model.
+        """
         temperature = ds_clim["temperature"]
         precipitation = ds_clim["precipitation"]
         suitability_table = self.suitability_table
@@ -68,6 +72,13 @@ class EcolNicheModel(EpiModel):
         da_suitability.attrs = suitability_table["suitability"].attrs
         return da_suitability
 
+    def plot_niche(self):
+        """Plot suitability against temperature and precipitation."""
+        suitability_table = self.suitability_table
+        return suitability_table["suitability"].hvplot.image(
+            x="temperature", y="precipitation"
+        )
+
 
 def import_kaye_model():
     """
@@ -84,28 +95,3 @@ def import_kaye_model():
     suitability_table = xr.open_dataset(data_path)
     epi_model = EcolNicheModel(suitability_table)
     return epi_model
-
-
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import shapely
-
-    epi_model = import_kaye_model()
-    suitability_table = epi_model.suitability_table
-    temp_grid, precip_grid = xr.broadcast(
-        suitability_table["temperature"].rename("temp_grid"),
-        suitability_table["precipitation"].rename("precip_grid"),
-    )
-    suitable = suitability_table["suitability"] > 0.5
-    temp_suitable_coords = temp_grid.where(suitable).values.flatten()
-    temp_suitable_coords = temp_suitable_coords[~np.isnan(temp_suitable_coords)]
-    precip_suitable_coords = precip_grid.where(suitable).values.flatten()
-    precip_suitable_coords = precip_suitable_coords[~np.isnan(precip_suitable_coords)]
-    pts = shapely.points(temp_suitable_coords, precip_suitable_coords)
-    mp = shapely.MultiPoint(pts)
-    bdry = mp.buffer(distance=0.1)
-
-    suitability_table["suitability"].plot()
-    plt.plot(*bdry.exterior.xy)
-    plt.show()
