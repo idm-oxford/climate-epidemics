@@ -27,8 +27,8 @@ class ClimEpiDatasetAccessor:
     @property
     def modes(self):
         """
-        Gets and sets a dictionary containing the modes of the dataset.The dictionary
-        should contain the following keys and currently supported values:
+        Gets and sets a dictionary containing properties of the dataset used by climepi.
+        The dictionary should contain the following keys and currently supported values:
         modes = {
             "spatial": "global" or "single",
             "temporal": "monthly" or "annual",
@@ -49,7 +49,7 @@ class ClimEpiDatasetAccessor:
 
     def annual_mean(self, data_var=None, **kwargs):
         """
-        Computes the annual mean of a data variable.
+        Computes the annual mean of a data variable. Wraps xcdat temporal.group_average.
 
         Parameters
         ----------
@@ -108,7 +108,8 @@ class ClimEpiDatasetAccessor:
 
     def ensemble_percentiles(self, data_var=None, values=None, **kwargs):
         """
-        Computes ensemble percentiles of a data variable.
+        Computes ensemble percentiles of a data variable. Wraps
+        xclim.ensembles.ensemble_percentiles.
 
         Parameters
         ----------
@@ -142,7 +143,7 @@ class ClimEpiDatasetAccessor:
     def ensemble_mean_std_max_min(self, data_var=None, **kwargs):
         """
         Computes the ensemble mean, standard deviation, maximum, and minimum of
-        a data variable.
+        a data variable. Wraps xclim.ensembles.ensemble_mean_std_max_min.
 
         Parameters
         ----------
@@ -223,7 +224,7 @@ class ClimEpiDatasetAccessor:
 
     def plot_time_series(self, data_var=None, **kwargs):
         """
-        Generates a time series plot of a data variable.
+        Generates a time series plot of a data variable. Wraps hvplot.line.
 
         Parameters
         ----------
@@ -246,7 +247,7 @@ class ClimEpiDatasetAccessor:
 
     def plot_map(self, data_var=None, include_ocean=False, **kwargs):
         """
-        Generates a map plot of a data variable.
+        Generates a map plot of a data variable. Wraps hvplot.quadmesh.
 
         Parameters
         ----------
