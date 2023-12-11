@@ -227,7 +227,7 @@ class CESMDataGetter:
         loc_str = self._subset["loc_str"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
-        ds_subset = self._ds
+        ds_subset = self._ds.copy()
         ds_subset = ds_subset.isel(member_id=realizations)
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
         if loc_str is not None:
@@ -256,7 +256,7 @@ class CESMDataGetter:
         # Process the remotely opened dataset, and store the processed dataset in the
         # _ds attribute.
         realizations = self._subset["realizations"]
-        ds_processed = self._ds
+        ds_processed = self._ds.copy()
         # Index data variables by an integer realization coordinate instead of the
         # member_id coordinate (which is a string).
         ds_processed = ds_processed.swap_dims({"member_id": "realization"})
@@ -282,8 +282,10 @@ class CESMDataGetter:
         time_bnds_new["time"] = ds_processed["time"]
         ds_processed["time_bnds"] = time_bnds_new["time_bnds"]
         time_attrs = ds_processed["time"].attrs
+        time_encoding = {key:ds_processed["time"].encoding[key] for key in ['units', 'dtype']}
         ds_processed["time"] = ds_processed["time_bnds"].mean(dim="nbnd")
         ds_processed["time"].attrs = time_attrs
+        ds_processed["time"].encoding = time_encoding
         # Make time bounds a data variable instead of a coordinate, and format in order
         # to match the conventions of xcdat.
         ds_processed = ds_processed.reset_coords("time_bnds")
