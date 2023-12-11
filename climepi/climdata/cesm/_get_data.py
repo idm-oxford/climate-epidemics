@@ -281,7 +281,9 @@ class CESMDataGetter:
         )
         time_bnds_new["time"] = ds_processed["time"]
         ds_processed["time_bnds"] = time_bnds_new["time_bnds"]
+        time_attrs = ds_processed["time"].attrs
         ds_processed["time"] = ds_processed["time_bnds"].mean(dim="nbnd")
+        ds_processed["time"].attrs = time_attrs
         # Make time bounds a data variable instead of a coordinate, and format in order
         # to match the conventions of xcdat.
         ds_processed = ds_processed.reset_coords("time_bnds")
