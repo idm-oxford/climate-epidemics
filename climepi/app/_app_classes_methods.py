@@ -86,7 +86,7 @@ def _cleanup_temp_files():
         ds.close()
         temp_file_path = _TEMP_FILE_DIR / f"{name}.nc"
         temp_file_path.unlink()
-    print("Delted temporary files.")
+    print("Deleted temporary files.")
 
 
 # Classes
