@@ -1,3 +1,4 @@
+import atexit
 import functools
 import pathlib
 
@@ -14,25 +15,25 @@ from climepi.epimod import ecolniche
 
 # Constants
 
-EXAMPLE_CLIM_DATASET_NAMES = cesm.EXAMPLE_NAMES
-EXAMPLE_CLIM_DATASET_NAMES.append("The googly")
-EXAMPLE_CLIM_DATASET_GETTER_DICT = {
+_EXAMPLE_CLIM_DATASET_NAMES = cesm.EXAMPLE_NAMES
+_EXAMPLE_CLIM_DATASET_NAMES.append("The googly")
+_EXAMPLE_CLIM_DATASET_GETTER_DICT = {
     name: functools.partial(cesm.get_example_dataset, name=name)
-    for name in EXAMPLE_CLIM_DATASET_NAMES
+    for name in _EXAMPLE_CLIM_DATASET_NAMES
 }
 
-EXAMPLE_EPI_MODEL_NAMES = [
+_EXAMPLE_EPI_MODEL_NAMES = [
     "Kaye ecological niche",
     "Also Kaye ecological niche",
     "The flipper",
 ]
-EXAMPLE_EPI_MODEL_GETTER_DICT = {
-    name: ecolniche.import_kaye_model for name in EXAMPLE_EPI_MODEL_NAMES
+_EXAMPLE_EPI_MODEL_GETTER_DICT = {
+    name: ecolniche.import_kaye_model for name in _EXAMPLE_EPI_MODEL_NAMES
 }
-EXAMPLE_EPI_MODEL_GETTER_DICT["The flipper"] = functools.partial(ValueError, "Ouch!")
+_EXAMPLE_EPI_MODEL_GETTER_DICT["The flipper"] = functools.partial(ValueError, "Ouch!")
 
-TEMP_FILE_DIR = pathlib.Path(__file__).parent / "temp"
-TEMP_FILE_DIR.mkdir(exist_ok=True, parents=True)
+_TEMP_FILE_DIR = pathlib.Path(__file__).parent / "temp"
+_TEMP_FILE_DIR.mkdir(exist_ok=True, parents=True)
 
 # Global variables
 
@@ -41,15 +42,15 @@ _file_ds_dict = {}
 # Pure functions
 
 
-def load_clim_data(clim_dataset_name):
+def _load_clim_data_func(clim_dataset_name):
     """Load climate data from the data source."""
-    ds_clim = EXAMPLE_CLIM_DATASET_GETTER_DICT[clim_dataset_name]()
+    ds_clim = _EXAMPLE_CLIM_DATASET_GETTER_DICT[clim_dataset_name]()
     return ds_clim
 
 
-def run_epi_model(ds_clim, epi_model_name):
+def _run_epi_model_func(ds_clim, epi_model_name):
     """Get and run the epidemiological model."""
-    epi_model = EXAMPLE_EPI_MODEL_GETTER_DICT[epi_model_name]()
+    epi_model = _EXAMPLE_EPI_MODEL_GETTER_DICT[epi_model_name]()
     ds_clim.epimod.model = epi_model
     ds_suitability = ds_clim.epimod.run_model()
     ds_suitability = _compute_to_file_reopen(ds_suitability, "suitability")
@@ -59,7 +60,7 @@ def run_epi_model(ds_clim, epi_model_name):
 
 
 def _compute_to_file_reopen(ds, name, dask_scheduler=None):
-    temp_file_path = TEMP_FILE_DIR / f"{name}.nc"
+    temp_file_path = _TEMP_FILE_DIR / f"{name}.nc"
     try:
         _file_ds_dict[name].close()
     except KeyError:
@@ -79,6 +80,15 @@ def _compute_to_file_reopen(ds, name, dask_scheduler=None):
     return ds
 
 
+@atexit.register
+def _cleanup_temp_files():
+    for name, ds in _file_ds_dict.items():
+        ds.close()
+        temp_file_path = _TEMP_FILE_DIR / f"{name}.nc"
+        temp_file_path.unlink()
+    print("Delted temporary files.")
+
+
 # Classes
 
 
@@ -86,16 +96,16 @@ class Controller(param.Parameterized):
     """Main controller class for the dashboard."""
 
     clim_dataset_name = param.ObjectSelector(
-        default=EXAMPLE_CLIM_DATASET_NAMES[0],
-        objects=EXAMPLE_CLIM_DATASET_NAMES,
+        default=_EXAMPLE_CLIM_DATASET_NAMES[0],
+        objects=_EXAMPLE_CLIM_DATASET_NAMES,
         precedence=1,
     )
     clim_data_load_initiator = param.Event(default=False, precedence=1)
     clim_data_loaded = param.Boolean(default=False, precedence=-1)
     clim_data_status = param.String(default="Data not loaded", precedence=1)
     epi_model_name = param.ObjectSelector(
-        default=EXAMPLE_EPI_MODEL_NAMES[0],
-        objects=EXAMPLE_EPI_MODEL_NAMES,
+        default=_EXAMPLE_EPI_MODEL_NAMES[0],
+        objects=_EXAMPLE_EPI_MODEL_NAMES,
         precedence=1,
     )
     epi_model_run_initiator = param.Event(default=False, precedence=1)
@@ -105,8 +115,8 @@ class Controller(param.Parameterized):
     def __init__(self, **params):
         super().__init__(**params)
         self._ds_clim = None
-        self._clim_plot_controller = PlotController()
-        self._epi_plot_controller = PlotController()
+        self._clim_plot_controller = _PlotController()
+        self._epi_plot_controller = _PlotController()
         data_widgets = {
             "clim_dataset_name": {"name": "Climate dataset"},
             "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
@@ -146,7 +156,7 @@ class Controller(param.Parameterized):
             return
         try:
             self.clim_data_status = "Loading data..."
-            ds_clim = load_clim_data(self.clim_dataset_name)
+            ds_clim = _load_clim_data_func(self.clim_dataset_name)
             self._ds_clim = ds_clim
             self._clim_plot_controller.initialize(ds_clim)
             self.clim_data_status = "Data loaded"
@@ -168,7 +178,7 @@ class Controller(param.Parameterized):
             return
         try:
             self.epi_model_status = "Running model..."
-            ds_epi = run_epi_model(self._ds_clim, self.epi_model_name)
+            ds_epi = _run_epi_model_func(self._ds_clim, self.epi_model_name)
             self._epi_plot_controller.initialize(ds_epi)
             self.epi_model_status = "Model run complete"
             self.epi_model_ran = True
@@ -189,7 +199,7 @@ class Controller(param.Parameterized):
         self.epi_model_ran = False
 
 
-class PlotController(param.Parameterized):
+class _PlotController(param.Parameterized):
     """Plot controller class."""
 
     data_var = param.ObjectSelector(precedence=1)
@@ -224,7 +234,7 @@ class PlotController(param.Parameterized):
         """Initialize the plot controller."""
         self._view.clear()
         self._controls.clear()
-        self._plotter = Plotter(ds_in)
+        self._plotter = _Plotter(ds_in)
         self._ds_base = ds_in
         if ds_in is None:
             self._base_modes = None
@@ -260,19 +270,14 @@ class PlotController(param.Parameterized):
         # Plot type choices
         if base_modes["spatial"] == "global":
             plot_type_choices = ["time series", "map"]
+        elif base_modes["spatial"] == "single":
+            plot_type_choices = ["time series"]
         else:
-            raise NotImplementedError("Only global spatial mode is currently supported")
+            raise NotImplementedError(
+                "Only global and single spatial modes are currently supported"
+            )
         self.param.plot_type.objects = plot_type_choices
         self.param.plot_type.default = plot_type_choices[0]
-        # Location choices
-        if base_modes["spatial"] == "global":
-            # location_choices = ["Miami", "Cape Town"]
-            pass
-        else:
-            raise NotImplementedError("Only global spatial mode is currently supported")
-        # self.param.location.objects = location_choices
-        # self.param.location.default = location_choices[0]
-        self.location = self.param.location.default
         # Year range choices
         data_years = np.unique(ds_base.time.dt.year.values)
         self.param.year_range.bounds = (
@@ -295,11 +300,11 @@ class PlotController(param.Parameterized):
                 ds_base.realization.values[-1].item(),
             ]
             self.param.realization.default = ds_base.realization.values[0].item()
-            self.realization = self.param.realization.default
         # Set parameters to defaults (automatically triggers updates to variable
         # parameter choices and precedence)
         self.data_var = self.param.data_var.default
         self.plot_type = self.param.plot_type.default
+        self.location = self.param.location.default
         self.year_range = self.param.year_range.default
         self.realization = self.param.realization.default
 
@@ -391,19 +396,19 @@ class PlotController(param.Parameterized):
 
     @param.depends("plot_type", "ensemble_mode", watch=True)
     def _update_precedence(self):
-        if self.plot_type == "time series":
+        if self.plot_type == "time series" and self._base_modes["spatial"] == "global":
             self.param.location.precedence = 1
         else:
             self.param.location.precedence = -1
+            self.location = self.param.location.default  # could remove this
         if self.ensemble_mode == "single run":
             self.param.realization.precedence = 1
         else:
             self.param.realization.precedence = -1
-            self.realization = self.param.realization.default  # may not be strictly
-            # needed but potentially useful if trying to cache plot datasets or objects
+            self.realization = self.param.realization.default  # could remove this
 
 
-class Plotter:
+class _Plotter:
     """Class for generating plots"""
 
     def __init__(self, ds_in=None):
@@ -460,14 +465,12 @@ class Plotter:
         location = self._plot_modes["location"]
         spatial_base_mode = self._base_modes["spatial"]
         ds_plot = self._ds_plot
-        if spatial_base_mode != "global":
-            raise ValueError("Unsupported spatial base mode")
-        if plot_type == "time series":
-            ds_plot = ds_plot.climepi.sel_geopy(location)
-        elif plot_type == "map":
+        if spatial_base_mode == "single" or plot_type == "map":
             pass
+        elif spatial_base_mode == "global" and plot_type == "time series":
+            ds_plot = ds_plot.climepi.sel_geopy(location)
         else:
-            raise ValueError(f"Unknown plot type: {plot_type}")
+            raise ValueError("Unsupported spatial base mode and plot type combination")
         self._ds_plot = ds_plot
 
     def _temporal_index_ds_plot(self):
