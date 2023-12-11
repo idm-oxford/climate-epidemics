@@ -280,11 +280,10 @@ class ClimEpiDatasetAccessor:
         else:
             kwargs_hvplot["groupby"] = None
         kwargs_hvplot.update(kwargs)
-        p_main = da_plot.hvplot.quadmesh(**kwargs_hvplot)
-        if include_ocean:
-            return p_main
-        p_ocean = gf.ocean.options(fill_color="white")
-        return p_main * p_ocean
+        p = da_plot.hvplot.quadmesh(**kwargs_hvplot)
+        if not include_ocean:
+            p *= gf.ocean.options(fill_color="white")
+        return p
 
     def plot_ensemble_ci_time_series(
         self, data_var=None, central="mean", conf_level=None, **kwargs
