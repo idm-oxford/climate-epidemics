@@ -4,10 +4,10 @@ channels:
   - nodefaults
 dependencies:
   # Core
-  - python>=3.8,<3.12
+  - python>=3.8
   - pip
   # climepi dependencies (should match dependencies in pyproject.toml)
-  - xcdat
+  - xcdat<0.6.1 #0.6.1 requires xesmf, which complicates Windows installation (may revisit in future)
   - xclim>=0.45
   - bottleneck
   - flox
@@ -18,6 +18,7 @@ dependencies:
   - panel
   - pooch
   - intake-esm
+  - s3fs # needed when using intake-esm to access CESM data on AWS server
   # This package
   - pip:
     - -e .
@@ -29,9 +30,7 @@ dependencies:
   - pytest
   - pytest-cov
   # Documentation
-  - sphinx<7.0.0 #bug with v7 using sphinx-book-theme https://github.com/executablebooks/sphinx-book-theme/issues/749
   - sphinx-book-theme
   - sphinx-autosummary-accessors
   # Example notebooks
-  - jupyter
   - jupyter_bokeh
