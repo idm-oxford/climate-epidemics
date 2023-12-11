@@ -282,7 +282,8 @@ class CESMDataGetter:
         time_bnds_new["time"] = ds_processed["time"]
         ds_processed["time_bnds"] = time_bnds_new["time_bnds"]
         time_attrs = ds_processed["time"].attrs
-        time_encoding = {key:ds_processed["time"].encoding[key] for key in ['units', 'dtype']}
+        time_encoding = {key: ds_processed["time"].encoding[key]
+                         for key in ['units', 'dtype']}
         ds_processed["time"] = ds_processed["time_bnds"].mean(dim="nbnd")
         ds_processed["time"].attrs = time_attrs
         ds_processed["time"].encoding = time_encoding
