@@ -5,8 +5,8 @@ Installation
 ------------
 
 To use climepi, download the source code from the github repository
-(https://github.com/will-s-hart/climate-epidemics). The pacakge and its dependencies can
-then be installed via conda into a new conda virtual environment using the provided
+(https://github.com/will-s-hart/climate-epidemics). The package and its dependencies can
+then be installed via conda into a new virtual environment using the provided
 environment.yml file: working in the repository root directory, run
 
 .. code-block:: console
