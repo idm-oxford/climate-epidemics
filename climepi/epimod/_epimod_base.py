@@ -94,17 +94,17 @@ class EpiModDatasetAccessor:
         xarray.Dataset:
             Dataset with a single non-bounds variable "months_suitable".
         """
-        if "suitability" not in self._obj:
-            raise ValueError(
-                """No suitability data found. To calculate the number of months suitable
-                from on a climate dataset, first run the model and then apply this
-                method to the output dataset."""
-            )
         if self._obj.climepi.modes["temporal"] != "monthly":
             raise ValueError("Suitability data must be monthly.")
-        ds_suitability_mean = self._obj.climepi.annual_mean(
-            "suitability", weighted=False
-        )
+        try:
+            ds_suitability = self._obj.climepi.sel_data_var("suitability")
+        except KeyError as exc:
+            raise KeyError(
+                """No suitability data found. To calculate the number of months suitable
+                from a climate dataset, first run the suitability model and then apply
+                this method to the output dataset."""
+            ) from exc
+        ds_suitability_mean = ds_suitability.climepi.annual_mean(weighted=False)
         ds_months_suitable = 12 * ds_suitability_mean.rename(
             {"suitability": "months_suitable"}
         )
