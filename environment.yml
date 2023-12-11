@@ -7,35 +7,19 @@ dependencies:
   - python>=3.8,<3.12
   - pip
   # climepi dependencies (should match dependencies in pyproject.toml)
-  - numpy
-  - scipy
-  - pandas
-  - xarray
-  - bottleneck
-  - cftime
-  - nc-time-axis
-  - dask
-  - netcdf4
-  - pint
-  - pint-xarray
-  - cf_xarray
   - xcdat
-  - clisops
+  - xclim>=0.45
+  - bottleneck
   - flox
   - geopy
-  - cartopy
   - hvplot
   - geoviews
+  - nc-time-axis
   - panel
-  - param
-  - parfive
   - pooch
-  - siphon
-  - intake
   - intake-esm
   # This package
   - pip:
-    - xclim>=0.45 #macos not finding version >0.42 in conda-forge
     - -e .
   # Linting
   - flake8

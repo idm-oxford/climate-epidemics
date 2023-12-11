@@ -2,6 +2,9 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = ["climepi"]
+
 [project]
 name = "climepi"
 version = "0.0.0"
@@ -10,36 +13,23 @@ authors = [
 ]
 description = "Combining climate and epidemiological models"
 readme = "README.md"
-requires-python = ">=3.7, <3.12"
+requires-python = ">=3.8, <3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  "numpy",
-  "scipy",
-  "pandas",
-  "xarray",
-  "bottleneck",
-  "cftime",
-  "nc-time-axis",
-  "dask",
-  "netcdf4",
-  "pint",
-  "pint-xarray",
-  "cf_xarray",
   "xcdat",
-  "xclim>=0.45",
-  "clisops",
+  "bottleneck",
   "flox",
   "geopy",
-  "cartopy",
   "hvplot",
   "geoviews",
+  "nc-time-axis",
   "panel",
-  "param",
-  "siphon",
+  "pooch",
+  "intake-esm"
 ]
 
 [project.urls]
