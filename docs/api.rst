@@ -34,3 +34,26 @@ Methods
    Dataset.climepi.plot_time_series
    Dataset.climepi.sel_data_var
    Dataset.climepi.sel_geopy
+
+Climate data subpackage
+-----------------------
+
+.. currentmodule:: climepi.climdata
+
+Classes
+~~~~~~~
+
+.. autosummary::
+   :toctree: generated/
+
+   cesm.CESMDataGetter
+
+Methods
+~~~~~~~
+
+.. autosummary::
+   :toctree: generated/
+
+   cesm.create_example_dataset
+   cesm.get_example_dataset
+   cesm.get_cesm_data
