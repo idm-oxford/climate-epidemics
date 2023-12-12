@@ -1,2 +1,5 @@
 """Subpackage for ecological niche models."""
-from ._ecolniche_base import EcolNicheModel, import_kaye_model  # noqa
+from climepi.epimod.ecolniche._ecolniche_base import (  # noqa
+    EcolNicheModel,
+    import_kaye_model,
+)

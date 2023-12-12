@@ -8,7 +8,7 @@ import pathlib
 import hvplot.xarray  # noqa
 import xarray as xr
 
-from climepi.epimod import EpiModel
+from climepi.epimod._epimod_base import EpiModel
 
 
 class EcolNicheModel(EpiModel):

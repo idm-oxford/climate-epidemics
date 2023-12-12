@@ -1,12 +1,12 @@
 import panel as pn
 
-from climepi.app import Controller
+from climepi import app
 
 
-def get_app():
+def _get_app():
     template = pn.template.BootstrapTemplate(title="climepi app")
 
-    controller = Controller()
+    controller = app.Controller()
 
     data_controls = controller.data_controls
     template.sidebar.append(data_controls)
@@ -26,5 +26,5 @@ def get_app():
 
 
 def run_app():
-    template = get_app()
+    template = _get_app()
     pn.serve(template)
