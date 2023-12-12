@@ -11,16 +11,14 @@ import param
 import xarray as xr
 
 import climepi  # noqa # pylint: disable=unused-import
-import climepi.epimod  # noqa # pylint: disable=unused-import
-from climepi.climdata import cesm
-from climepi.epimod import ecolniche
+from climepi import climdata, epimod
 
 # Constants
 
-_EXAMPLE_CLIM_DATASET_NAMES = cesm.EXAMPLE_NAMES
+_EXAMPLE_CLIM_DATASET_NAMES = climdata.cesm.EXAMPLE_NAMES
 _EXAMPLE_CLIM_DATASET_NAMES.append("The googly")
 _EXAMPLE_CLIM_DATASET_GETTER_DICT = {
-    name: functools.partial(cesm.get_example_dataset, name=name)
+    name: functools.partial(climdata.cesm.get_example_dataset, name=name)
     for name in _EXAMPLE_CLIM_DATASET_NAMES
 }
 
@@ -30,7 +28,7 @@ _EXAMPLE_EPI_MODEL_NAMES = [
     "The flipper",
 ]
 _EXAMPLE_EPI_MODEL_GETTER_DICT = {
-    name: ecolniche.import_kaye_model for name in _EXAMPLE_EPI_MODEL_NAMES
+    name: epimod.ecolniche.get_kaye_model for name in _EXAMPLE_EPI_MODEL_NAMES
 }
 _EXAMPLE_EPI_MODEL_GETTER_DICT["The flipper"] = functools.partial(ValueError, "Ouch!")
 
