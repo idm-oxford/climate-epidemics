@@ -15,9 +15,9 @@ geolocator = Nominatim(user_agent="climepi")
 @xr.register_dataset_accessor("climepi")
 class ClimEpiDatasetAccessor:
     """
-    Accessor class providing a core set of methods that can be applied to
-    xarray datasets. Methods for computing temporal and ensemble statistics are
-    included, in addition to methods for plotting.
+    Accessor class providing core methods, including for computing temporal and
+    ensemble statistics, and for plotting, to xarray datasets through the ``.climepi``
+    attribute.
     """
 
     def __init__(self, xarray_obj):
