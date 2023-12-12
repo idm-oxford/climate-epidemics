@@ -6,7 +6,7 @@ If the climepi package is installed into the current python virtual environment,
 application can be initiated from the command line with
 
 .. code-block:: console
-    
+
         python -m climepi.app
 
 The application is built using the `Panel` library.
