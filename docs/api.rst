@@ -98,3 +98,8 @@ application can be initiated from the command line with ``python -m climepi.app`
 
 Methods
 ~~~~~~~
+
+.. autosummary::
+   :toctree: generated/
+
+   climepi.app.run_app
