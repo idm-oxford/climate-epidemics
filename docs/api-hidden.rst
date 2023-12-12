@@ -14,3 +14,5 @@
    climepi.ClimEpiDatasetAccessor.plot_time_series
    climepi.ClimEpiDatasetAccessor.sel_data_var
    climepi.ClimEpiDatasetAccessor.sel_geopy
+
+   climepi.climdata.cesm.CESMDataGetter.get_data
