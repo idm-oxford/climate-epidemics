@@ -37,10 +37,8 @@ class EcolNicheModel(EpiModel):
     def suitability_table(self, suitability_table_in):
         self._suitability_table = suitability_table_in
 
-    def run_main(self, ds_clim):
-        """
-        Run the main logic of the epidemiological model.
-        """
+    def _run_main(self, ds_clim):
+        # Run the main logic of the ecological niche model.
         temperature = ds_clim["temperature"]
         precipitation = ds_clim["precipitation"]
         suitability_table = self.suitability_table
@@ -80,7 +78,7 @@ class EcolNicheModel(EpiModel):
         )
 
 
-def import_kaye_model():
+def get_kaye_model():
     """
     Imports the suitability model for the model of Kaye et al. from a netCDF
     file and returns an instance of the EcolNicheModel class.
