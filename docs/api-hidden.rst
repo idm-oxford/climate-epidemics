@@ -16,3 +16,10 @@
    climepi.ClimEpiDatasetAccessor.sel_geopy
 
    climepi.climdata.cesm.CESMDataGetter.get_data
+
+   climepi.epimod.EpiModel.run
+
+   climepi.epimod.EpiModDatasetAccessor.months_suitable
+   climepi.epimod.EpiModDatasetAccessor.run_model
+
+   climepi.epimod.ecolniche.EcolNicheModel.plot_niche

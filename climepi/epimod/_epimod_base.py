@@ -8,7 +8,12 @@ import climepi  # noqa # pylint: disable=unused-import
 
 
 class EpiModel:
-    """Base class for epidemiological models."""
+    """
+    Base class for epidemiological models. Intended to be subclassed.
+
+    Subclasses must implement the _run_main method to run the main logic of the
+    epidemiological model on a given climate dataset.
+    """
 
     def __init__(self):
         pass
@@ -27,7 +32,7 @@ class EpiModel:
         xarray.Dataset
             The output epidemiological dataset.
         """
-        da_epi = self.run_main(ds_clim)
+        da_epi = self._run_main(ds_clim)
         ds_epi = xr.Dataset(attrs=ds_clim.attrs)
         ds_epi[da_epi.name] = da_epi
         ds_epi.climepi.copy_bnds_from(ds_clim)
@@ -35,24 +40,27 @@ class EpiModel:
 
         return ds_epi
 
-    def run_main(self, ds_clim):
-        """
-        Abstract method that must be implemented by subclasses. Runs the main
-        logic of the epidemiological model.
+    def _run_main(self, ds_clim):
+        # Abstract method that must be implemented by subclasses. Runs the main
+        # logic of the epidemiological model.
 
-        Parameters:
-        -----------
-        ds_clim : xarray.Dataset
-            The input climate dataset.
-        """
+        # Parameters:
+        # -----------
+        # ds_clim : xarray.Dataset
+        #     The input climate dataset.
+        # Should return:
+        # --------------
+        # xarray.DataArray
+        #     The epidemiological model output, with the same dimensions as the
+        #     input climate dataset.
         raise NotImplementedError
 
 
 @xr.register_dataset_accessor("epimod")
 class EpiModDatasetAccessor:
     """
-    Accessor class for running epidemiological models on xarray climate
-    datasets.
+    Accessor class that provides climate-sensitive epidemiological modelling methods on
+    xarray datasets through the ``.epimod`` attribute.
     """
 
     def __init__(self, xarray_obj):
@@ -61,7 +69,8 @@ class EpiModDatasetAccessor:
 
     @property
     def model(self):
-        """Gets and sets the epidemiological model (EpiModel object)."""
+        """Gets and sets an epidemiological model (EpiModel object) to run on a
+        climate dataset."""
         if self._model is None:
             raise ValueError("Model not set.")
         return self._model
@@ -74,10 +83,10 @@ class EpiModDatasetAccessor:
 
     def run_model(self):
         """
-        Runs the epidemiological model on the climate dataset.
+        Runs the epidemiological model on a climate dataset.
 
         Returns:
-        -------
+        --------
         xarray.Dataset:
             The output of the model's run method.
         """

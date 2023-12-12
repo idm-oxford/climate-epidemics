@@ -57,3 +57,44 @@ Methods
    climepi.climdata.cesm.create_example_dataset
    climepi.climdata.cesm.get_example_dataset
    climepi.climdata.cesm.get_cesm_data
+
+Epidemiological model subpackage
+--------------------------------
+
+Classes
+~~~~~~~
+
+.. autosummary::
+   :toctree: generated/
+
+   climepi.epimod.EpiModel
+   climepi.epimod.EpiModDatasetAccessor
+   climepi.epimod.ecolniche.EcolNicheModel
+
+Methods
+~~~~~~~
+
+.. currentmodule:: xarray
+
+.. autosummary::
+   :toctree: generated/
+   :template: autosummary/accessor_method.rst
+
+   xarray.Dataset.epimod.months_suitable
+   xarray.Dataset.epimod.run_model
+
+.. currentmodule:: climepi
+
+.. autosummary::
+   :toctree: generated/
+
+   climepi.epimod.ecolniche.get_kaye_model
+
+Front-end application subpackage
+--------------------------------
+
+If the climepi package is installed into the current python virtual environment, the
+application can be initiated from the command line with ``python -m climepi.app``.
+
+Methods
+~~~~~~~
