@@ -1,10 +1,7 @@
 """
-Module for creating and accessing example CESM LENS2 datasets. If a directory named
-'data/cesm_examples' exists in the same parent directory as the climepi package, the
-example datasets will be downloaded to and accessed from that directory. Otherwise,
-the datasets will be downloaded to and accessed from the OS cache directory. Running
-this module as a script will create all example datasets by downloading and formatting
-the relevant CESM LENS2 output data.
+Module for creating and accessing example CESM LENS2 datasets. Running this module as a
+script will create all example datasets by downloading and formatting the relevant CESM
+LENS2 output data.
 """
 
 import pathlib
@@ -14,12 +11,6 @@ import pooch
 import xcdat
 
 from climepi.climdata import cesm
-
-# Base directory for example datasets (individual datasets are downloaded to and
-# accessed from subdirectories).
-BASE_DIR = pathlib.Path(__file__).parents[3] / "data/cesm_examples"
-if not BASE_DIR.exists():
-    BASE_DIR = pooch.os_cache("climepi/cesm_examples")
 
 # Dictionary of example datasets. Each key gives the example dataset name, and the
 # corresponding value should be a dictionary with the following keys/values:
@@ -32,7 +23,6 @@ if not BASE_DIR.exists():
 #                  details).
 EXAMPLES = {
     "world_2020_2060_2100": {
-        "data_dir": BASE_DIR / "world_2020_2060_2100",
         "subset": {
             "years": [2020, 2060, 2100],
         },
@@ -43,7 +33,6 @@ EXAMPLES = {
         },
     },
     "cape_town": {
-        "data_dir": BASE_DIR / "cape_town",
         "subset": {
             "years": np.arange(2000, 2101),
             "loc_str": "Cape Town",
@@ -55,7 +44,6 @@ EXAMPLES = {
         },
     },
     "europe_small": {
-        "data_dir": BASE_DIR / "europe_small",
         "subset": {
             "years": [2020, 2100],
             "lat_range": [35, 72],
@@ -72,7 +60,7 @@ EXAMPLES = {
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
-def get_example_dataset(name):
+def get_example_dataset(name, data_dir=None):
     """
     Load a CESM LENS2 example dataset if it exists locally. If in future the formatted
     example datasets are made available for direct download, this function will be
@@ -81,9 +69,16 @@ def get_example_dataset(name):
     Parameters
     ----------
     name : str
-        Name of the example dataset to load. Available examples are defined in the
-        EXAMPLES dictionary in the _examples.py module of the climepi.climdata.cesm
-        subpackage.
+        Name of the example dataset to load. Currently available examples are:
+        'world_2020_2060_2100' (global monthly data for the years 2020, 2060 and 2100),
+        'cape_town' (monthly data for Cape Town between 2000 and 2100), and
+        'europe_small' (monthly data for Europe between 2020 and 2100, including only
+        the first three of the 100 total ensemble members).
+    data_dir : str or pathlib.Path, optional
+        Data directory in which to look for the example dataset. If not specified, the
+        directory 'data/cesm_examples/{name}' within the same parent directory as the
+        climepi package will be used if it exists, and otherwise the OS cache will be
+        used.
 
     Returns
     -------
@@ -92,7 +87,7 @@ def get_example_dataset(name):
     """
     # Get details of the example dataset.
     example_details = _get_example_details(name)
-    data_dir = example_details["data_dir"]
+    data_dir = _get_data_dir(name, data_dir)
     data_getter = cesm.CESMDataGetter(
         subset=example_details["subset"], save_dir=data_dir
     )
@@ -121,16 +116,31 @@ def get_example_dataset(name):
     return ds_example
 
 
-def create_example_dataset(name):
+def create_example_dataset(name, data_dir=None):
     """
     Create a CESM LENS2 example dataset from data in the aws server
     (https://ncar.github.io/cesm2-le-aws/model_documentation.html), and download it
     to the local machine. If the example dataset already exists locally, this function
     will return without re-downloading the data.
+
+    Parameters
+    ----------
+    name : str
+        Name of the example dataset to create. See `get_example_dataset` for a list of
+        available examples.
+    data_dir : str or pathlib.Path, optional
+        Data directory in which to save the example dataset. If not specified, the
+        directory 'data/cesm_examples/{name}' within the same parent directory as the
+        climepi package will be used if it exists, and otherwise the OS cache will be
+        used.
+
+    Returns
+    -------
+    None
     """
     # Get details of the example dataset.
     example_details = _get_example_details(name)
-    data_dir = example_details["data_dir"]
+    data_dir = _get_data_dir(name, data_dir)
     subset = example_details["subset"]
     # Create and download the example dataset.
     cesm.get_cesm_data(subset=subset, save_dir=data_dir, download=True)
@@ -148,6 +158,21 @@ def _get_example_details(name):
             f"{', '.join(EXAMPLES.keys())}"
         ) from exc
     return example_details
+
+
+def _get_data_dir(name, data_dir):
+    # Helper function for getting the directory where the example dataset is to be
+    # downloaded/accessed. If no directory is specified, then if a directory named
+    # 'data/cesm_examples/{name}' exists in the same parent directory as the climepi
+    # package, the example datasets will be downloaded to and accessed from that
+    # directory. Otherwise, the datasets will be downloaded to and accessed from the OS
+    # cache.
+    if data_dir is None:
+        base_dir = pathlib.Path(__file__).parents[3] / "data/cesm_examples"
+        if not base_dir.exists():
+            base_dir = pooch.os_cache("climepi/cesm_examples")
+        data_dir = base_dir / name
+    return data_dir
 
 
 if __name__ == "__main__":
