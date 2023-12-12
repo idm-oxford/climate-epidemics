@@ -2,10 +2,10 @@
 ClimEpiDatasetAccessor class for xarray datasets.
 """
 import geoviews.feature as gf
-import hvplot.xarray  # noqa
+import hvplot.xarray  # noqa # pylint: disable=unused-import
 import numpy as np
 import xarray as xr
-import xcdat  # noqa
+import xcdat  # noqa # pylint: disable=unused-import
 import xclim.ensembles
 from geopy.geocoders import Nominatim
 
@@ -243,7 +243,8 @@ class ClimEpiDatasetAccessor:
         da_plot = self._obj[data_var]
         kwargs_hvplot = {"x": "time"}
         kwargs_hvplot.update(kwargs)
-        return da_plot.hvplot.line(**kwargs_hvplot)
+        plot_obj = da_plot.hvplot.line(**kwargs_hvplot)
+        return plot_obj
 
     def plot_map(self, data_var=None, include_ocean=False, **kwargs):
         """
@@ -281,10 +282,10 @@ class ClimEpiDatasetAccessor:
         else:
             kwargs_hvplot["groupby"] = None
         kwargs_hvplot.update(kwargs)
-        p = da_plot.hvplot.quadmesh(**kwargs_hvplot)
+        plot_obj = da_plot.hvplot.quadmesh(**kwargs_hvplot)
         if not include_ocean:
-            p *= gf.ocean.options(fill_color="white")
-        return p
+            plot_obj *= gf.ocean.options(fill_color="white")
+        return plot_obj
 
     def plot_ensemble_ci_time_series(
         self, data_var=None, central="mean", conf_level=None, **kwargs
@@ -332,14 +333,15 @@ class ClimEpiDatasetAccessor:
             "alpha": 0.2,
         }
         kwargs_hv_ci.update(kwargs)
-        p_ci = ds_ci.hvplot.area(**kwargs_hv_ci)
+        plot_ci = ds_ci.hvplot.area(**kwargs_hv_ci)
         if central is None:
-            return p_ci
+            return plot_ci
         da_central = self._obj[data_var].sel(ensemble_statistic=central)
         kwargs_hv_central = {"x": "time"}
         kwargs_hv_central.update(kwargs)
-        p_central = da_central.hvplot.line(**kwargs_hv_central)
-        return p_central * p_ci
+        plot_central = da_central.hvplot.line(**kwargs_hv_central)
+        plot_obj = plot_central * plot_ci
+        return plot_obj
 
     def sel_data_var(self, data_var):
         """
@@ -357,11 +359,11 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the selected data variable(s) and any bounds
             variables.
         """
-        ds = xr.Dataset(attrs=self._obj.attrs)
-        ds[data_var] = self._obj[data_var]
-        ds.climepi.copy_bnds_from(self._obj)
-        ds.climepi.modes = self.modes
-        return ds
+        ds_new = xr.Dataset(attrs=self._obj.attrs)
+        ds_new[data_var] = self._obj[data_var]
+        ds_new.climepi.copy_bnds_from(self._obj)
+        ds_new.climepi.modes = self.modes
+        return ds_new
 
     def sel_geopy(self, loc_str, **kwargs):
         """
@@ -391,9 +393,9 @@ class ClimEpiDatasetAccessor:
             # Deals with the case where the longitude co-ordinates are in the range
             # [0, 360] (slightly crude)
             lon = lon % 360
-        ds = self._obj.sel(lat=lat, lon=lon, method="nearest")
-        ds.climepi.modes = dict(self.modes, spatial="single")
-        return ds
+        ds_new = self._obj.sel(lat=lat, lon=lon, method="nearest")
+        ds_new.climepi.modes = dict(self.modes, spatial="single")
+        return ds_new
 
     def copy_var_attrs_from(self, ds_from, var):
         """

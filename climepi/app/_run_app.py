@@ -1,12 +1,17 @@
+"""
+Module defining the layout of the climepi app and providing a method to run it.
+"""
+
 import panel as pn
 
-from climepi import app
+from climepi.app._app_classes_methods import Controller
 
 
 def _get_app():
+    # Returns a Panel template object defining the layout of the app.
     template = pn.template.BootstrapTemplate(title="climepi app")
 
-    controller = app.Controller()
+    controller = Controller()
 
     data_controls = controller.data_controls
     template.sidebar.append(data_controls)
@@ -26,5 +31,16 @@ def _get_app():
 
 
 def run_app():
+    """
+    Method to run the climepi `Panel` app locally in a browser.
+
+    Parameters:
+    -----------
+    None
+
+    Returns:
+    --------
+    None
+    """
     template = _get_app()
     pn.serve(template)

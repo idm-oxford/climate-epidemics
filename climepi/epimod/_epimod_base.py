@@ -4,7 +4,7 @@ class and an xarray accessor class.
 
 import xarray as xr
 
-import climepi  # noqa
+import climepi  # noqa # pylint: disable=unused-import
 
 
 class EpiModel:

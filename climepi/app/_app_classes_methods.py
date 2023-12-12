@@ -1,3 +1,5 @@
+"""Module defining the classes and methods underlying the climepi app."""
+
 import atexit
 import functools
 import pathlib
@@ -8,8 +10,8 @@ import panel as pn
 import param
 import xarray as xr
 
-import climepi  # noqa
-import climepi.epimod  # noqa
+import climepi  # noqa # pylint: disable=unused-import
+import climepi.epimod  # noqa # pylint: disable=unused-import
 from climepi.climdata import cesm
 from climepi.epimod import ecolniche
 
@@ -43,13 +45,13 @@ _file_ds_dict = {}
 
 
 def _load_clim_data_func(clim_dataset_name):
-    """Load climate data from the data source."""
+    # Load climate data from the data source.
     ds_clim = _EXAMPLE_CLIM_DATASET_GETTER_DICT[clim_dataset_name]()
     return ds_clim
 
 
 def _run_epi_model_func(ds_clim, epi_model_name):
-    """Get and run the epidemiological model."""
+    # Get and run the epidemiological model.
     epi_model = _EXAMPLE_EPI_MODEL_GETTER_DICT[epi_model_name]()
     ds_clim.epimod.model = epi_model
     ds_suitability = ds_clim.epimod.run_model()
@@ -59,7 +61,7 @@ def _run_epi_model_func(ds_clim, epi_model_name):
     return ds_months_suitable
 
 
-def _compute_to_file_reopen(ds, name, dask_scheduler=None):
+def _compute_to_file_reopen(ds_in, name, dask_scheduler=None):
     temp_file_path = _TEMP_FILE_DIR / f"{name}.nc"
     try:
         _file_ds_dict[name].close()
@@ -69,21 +71,21 @@ def _compute_to_file_reopen(ds, name, dask_scheduler=None):
         temp_file_path.unlink()
     except FileNotFoundError:
         pass
-    chunks = ds.chunks.mapping
-    climepi_modes = ds.climepi.modes
-    delayed_obj = ds.to_netcdf(temp_file_path, compute=False)
+    chunks = ds_in.chunks.mapping
+    climepi_modes = ds_in.climepi.modes
+    delayed_obj = ds_in.to_netcdf(temp_file_path, compute=False)
     with dask.diagnostics.ProgressBar():
         delayed_obj.compute(scheduler=dask_scheduler)
     _file_ds_dict[name] = xr.open_dataset(temp_file_path, chunks=chunks)
-    ds = _file_ds_dict[name].copy()
-    ds.climepi.modes = climepi_modes
-    return ds
+    ds_out = _file_ds_dict[name].copy()
+    ds_out.climepi.modes = climepi_modes
+    return ds_out
 
 
 @atexit.register
 def _cleanup_temp_files():
-    for name, ds in _file_ds_dict.items():
-        ds.close()
+    for name, ds_file in _file_ds_dict.items():
+        ds_file.close()
         temp_file_path = _TEMP_FILE_DIR / f"{name}.nc"
         temp_file_path.unlink()
     print("Deleted temporary files.")

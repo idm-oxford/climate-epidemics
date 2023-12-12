@@ -5,7 +5,7 @@ importing the model of Kaye et al.
 
 import pathlib
 
-import hvplot.xarray  # noqa
+import hvplot.xarray  # noqa # pylint: disable=unused-import
 import xarray as xr
 
 from climepi.epimod._epimod_base import EpiModel
