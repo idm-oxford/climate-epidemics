@@ -432,16 +432,21 @@ class _Plotter:
                 ds_plot.climepi.plot_map(),
                 center=True,
                 widget_location="bottom",
+                linked_axes=False,
             )
         elif (
             plot_type == "time series"
             and ensemble_mode == "mean and 90% confidence interval"
         ):
             self.plot = pn.panel(
-                ds_plot.climepi.plot_ensemble_ci_time_series(), center=True
+                ds_plot.climepi.plot_ensemble_ci_time_series(),
+                center=True,
+                linked_axes=False,
             )
         elif plot_type == "time series":
-            self.plot = pn.panel(ds_plot.climepi.plot_time_series(), center=True)
+            self.plot = pn.panel(
+                ds_plot.climepi.plot_time_series(), center=True, linked_axes=False
+            )
         else:
             raise ValueError("Unsupported plot options")
 
