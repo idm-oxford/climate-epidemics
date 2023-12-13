@@ -255,8 +255,8 @@ class _Plotter:
 class _PlotController(param.Parameterized):
     """Plot controller class."""
 
-    data_var = param.ObjectSelector(precedence=1)
     plot_type = param.ObjectSelector(precedence=1)
+    data_var = param.ObjectSelector(precedence=1)
     location = param.String(default="Cape Town", precedence=-1)
     temporal_mode = param.ObjectSelector(precedence=1)
     year_range = param.Range(precedence=1)
@@ -285,19 +285,16 @@ class _PlotController(param.Parameterized):
         if ds_in is None:
             self._base_modes = None
             return
-        self._ds_base = ds_in
         self._base_modes = ds_in.climepi.modes
         self._initialize_params()
-        self._update_variable_param_choices()
-        self._update_precedence()
         widgets = {
-            "data_var": {"name": "Data variable"},
             "plot_type": {"name": "Plot type"},
+            "data_var": {"name": "Data variable"},
             "location": {"name": "Location"},
             "temporal_mode": {"name": "Temporal mode"},
             "year_range": {"name": "Year range"},
             "ensemble_mode": {"name": "Ensemble mode"},
-            "realization": {"name": "Realization"},
+            "realization": {"widget_type": pn.widgets.IntSlider, "name": "Realization"},
             "plot_initiator": pn.widgets.Button(name="Generate plot"),
             "plot_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -348,12 +345,19 @@ class _PlotController(param.Parameterized):
             ]
             self.param.realization.default = ds_base.realization.values[0].item()
         # Set parameters to defaults
-        with param.discard_events(self):
-            self.data_var = self.param.data_var.default
-            self.plot_type = self.param.plot_type.default
-            self.location = self.param.location.default
-            self.year_range = self.param.year_range.default
-            self.realization = self.param.realization.default
+        for par in [
+            "plot_type",
+            "data_var",
+            "location",
+            "temporal_mode",
+            "year_range",
+            "ensemble_mode",
+            "realization",
+        ]:
+            setattr(self, par, self.param[par].default)
+        # Update variable parameter choices (triggering updates to precedence and plot
+        # status)
+        self._update_variable_param_choices()
 
     @param.depends("plot_initiator", watch=True)
     def _update_view(self):
@@ -374,21 +378,6 @@ class _PlotController(param.Parameterized):
         except Exception as exc:
             self.plot_status = f"Plot generation failed: {exc}"
             raise
-
-    @param.depends(
-        "data_var",
-        "plot_type",
-        "location",
-        "temporal_mode",
-        "year_range",
-        "ensemble_mode",
-        "realization",
-        watch=True,
-    )
-    def _revert_plot_status(self):
-        # Revert the plot status (but retain plot view).
-        self.plot_status = "Plot not yet generated"
-        self.plot_generated = False
 
     @param.depends("plot_type", watch=True)
     def _update_variable_param_choices(self):
@@ -417,6 +406,7 @@ class _PlotController(param.Parameterized):
             )
         self.param.temporal_mode.objects = temporal_mode_choices
         self.param.temporal_mode.default = temporal_mode_choices[0]
+        self.temporal_mode = self.param.temporal_mode.default
         # Ensemble mode choices
         if self.plot_type == "time series" and base_modes["ensemble"] == "ensemble":
             ensemble_mode_choices = [
@@ -441,24 +431,38 @@ class _PlotController(param.Parameterized):
             )
         self.param.ensemble_mode.objects = ensemble_mode_choices
         self.param.ensemble_mode.default = ensemble_mode_choices[0]
-        with param.discard_events(self):
-            self.temporal_mode = self.param.temporal_mode.default
+        if self.ensemble_mode != self.param.ensemble_mode.default:
             self.ensemble_mode = self.param.ensemble_mode.default
+        else:
+            self.param.trigger(
+                "ensemble_mode"
+            )  # ensures that precedence and plot status are updated
 
-    @param.depends("plot_type", "ensemble_mode", watch=True)
+    @param.depends("ensemble_mode", watch=True)
     def _update_precedence(self):
         if self.plot_type == "time series" and self._base_modes["spatial"] == "global":
             self.param.location.precedence = 1
         else:
             self.param.location.precedence = -1
-            with param.discard_events(self):
-                self.location = self.param.location.default  # could remove this
         if self.ensemble_mode == "single run":
             self.param.realization.precedence = 1
         else:
             self.param.realization.precedence = -1
-            with param.discard_events(self):
-                self.realization = self.param.realization.default  # could remove this
+        self._revert_plot_status()
+
+    @param.depends(
+        "data_var",
+        "location",
+        "temporal_mode",
+        "year_range",
+        "realization",
+        watch=True,
+    )
+    def _revert_plot_status(self):
+        # Revert the plot status (but retain plot view). Some degeneracy here as this
+        # can be called multiple times when changing a single parameter.
+        self.plot_status = "Plot not yet generated"
+        self.plot_generated = False
 
 
 class Controller(param.Parameterized):
