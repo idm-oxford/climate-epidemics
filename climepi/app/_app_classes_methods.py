@@ -140,22 +140,22 @@ class Controller(param.Parameterized):
         }
         self.data_controls = pn.Param(self, widgets=data_widgets, show_name=False)
 
-    @param.depends()
+    # @param.depends()
     def clim_plot_controls(self):
         """The climate data plot controls."""
         return self._clim_plot_controller.controls
 
-    @param.depends()
+    @param.depends("_clim_plot_controller.view_refresher")
     def clim_plot_view(self):
         """The climate data plot."""
         return self._clim_plot_controller.view
 
-    @param.depends()
+    # @param.depends()
     def epi_plot_controls(self):
         """The epidemiological model plot controls."""
         return self._epi_plot_controller.controls
 
-    @param.depends()
+    @param.depends("_epi_plot_controller.view_refresher")
     def epi_plot_view(self):
         """The epidemiological model plot."""
         return self._epi_plot_controller.view
@@ -223,31 +223,22 @@ class _PlotController(param.Parameterized):
     plot_initiator = param.Event(precedence=1)
     plot_generated = param.Boolean(default=False, precedence=-1)
     plot_status = param.String(default="Plot not yet generated", precedence=1)
-    view = param.Parameter()
+    view_refresher = param.Event(precedence=-1)
 
     def __init__(self, ds_in=None, **params):
         super().__init__(**params)
-        self._view = pn.Row()
-        self._controls = pn.Row()
+        self.view = pn.Row()
+        self.controls = pn.Row()
         self._ds_base = None
         self._base_modes = None
         self.initialize(ds_in)
 
-    # @param.depends()
-    def view(self):
-        """Return the plot."""
-        return self._view
-
-    # @param.depends()
-    def controls(self):
-        """Return the controls."""
-        return self._controls
-
     @param.depends()
     def initialize(self, ds_in=None):
         """Initialize the plot controller."""
-        self._view.clear()
-        self._controls.clear()
+        self.view.clear()
+        self.param.trigger("view_refresher")
+        self.controls.clear()
         self._ds_base = ds_in
         if ds_in is None:
             self._base_modes = None
@@ -271,7 +262,7 @@ class _PlotController(param.Parameterized):
                 "name": "",
             },
         }
-        self._controls.append(pn.Param(self, widgets=widgets, show_name=False))
+        self.controls.append(pn.Param(self, widgets=widgets, show_name=False))
 
     @param.depends()
     def _initialize_params(self):
@@ -327,13 +318,15 @@ class _PlotController(param.Parameterized):
         # Update the plot view.
         if self.plot_generated:
             return
-        self._view.clear()  # figure sizing issue if not done before generating new plot
+        self.view.clear()  # figure sizing issue if not done before generating new plot
+        self.param.trigger("view_refresher")
         self.plot_status = "Generating plot..."
         try:
             ds_base = self._ds_base
             plot_modes = self.param.values()
             view = _get_view_func(ds_base, plot_modes)
-            self._view.append(view)
+            self.view.append(view)
+            self.param.trigger("view_refresher")
             self.plot_status = "Plot generated"
             self.plot_generated = True
         except Exception as exc:
