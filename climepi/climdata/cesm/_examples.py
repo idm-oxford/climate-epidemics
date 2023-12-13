@@ -73,7 +73,7 @@ def get_example_dataset(name, data_dir=None):
         'world_2020_2060_2100' (global monthly data for the years 2020, 2060 and 2100),
         'cape_town' (monthly data for Cape Town between 2000 and 2100), and
         'europe_small' (monthly data for Europe between 2020 and 2100, including only
-        the first three of the 100 total ensemble members).
+        the first two of the 100 total ensemble members).
     data_dir : str or pathlib.Path, optional
         Data directory in which to look for the example dataset. If not specified, the
         directory 'data/cesm_examples/{name}' within the same parent directory as the
