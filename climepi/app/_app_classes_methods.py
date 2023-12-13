@@ -59,6 +59,13 @@ def _run_epi_model_func(ds_clim, epi_model_name):
     return ds_months_suitable
 
 
+def _get_view_func(ds_in, plot_modes):
+    plotter = _Plotter(ds_in, plot_modes)
+    plotter.generate_plot()
+    view = plotter.view
+    return view
+
+
 def _compute_to_file_reopen(ds_in, name, dask_scheduler=None):
     temp_file_path = _TEMP_FILE_DIR / f"{name}.nc"
     try:
@@ -133,18 +140,22 @@ class Controller(param.Parameterized):
         }
         self.data_controls = pn.Param(self, widgets=data_widgets, show_name=False)
 
+    @param.depends()
     def clim_plot_controls(self):
         """The climate data plot controls."""
         return self._clim_plot_controller.controls
 
+    @param.depends()
     def clim_plot_view(self):
         """The climate data plot."""
         return self._clim_plot_controller.view
 
+    @param.depends()
     def epi_plot_controls(self):
         """The epidemiological model plot controls."""
         return self._epi_plot_controller.controls
 
+    @param.depends()
     def epi_plot_view(self):
         """The epidemiological model plot."""
         return self._epi_plot_controller.view
@@ -212,29 +223,31 @@ class _PlotController(param.Parameterized):
     plot_initiator = param.Event(precedence=1)
     plot_generated = param.Boolean(default=False, precedence=-1)
     plot_status = param.String(default="Plot not yet generated", precedence=1)
+    view = param.Parameter()
 
     def __init__(self, ds_in=None, **params):
         super().__init__(**params)
         self._view = pn.Row()
         self._controls = pn.Row()
-        self._plotter = None
         self._ds_base = None
         self._base_modes = None
         self.initialize(ds_in)
 
+    # @param.depends()
     def view(self):
         """Return the plot."""
         return self._view
 
+    # @param.depends()
     def controls(self):
         """Return the controls."""
         return self._controls
 
+    @param.depends()
     def initialize(self, ds_in=None):
         """Initialize the plot controller."""
         self._view.clear()
         self._controls.clear()
-        self._plotter = _Plotter(ds_in)
         self._ds_base = ds_in
         if ds_in is None:
             self._base_modes = None
@@ -260,6 +273,7 @@ class _PlotController(param.Parameterized):
         }
         self._controls.append(pn.Param(self, widgets=widgets, show_name=False))
 
+    @param.depends()
     def _initialize_params(self):
         ds_base = self._ds_base
         base_modes = self._base_modes
@@ -300,13 +314,13 @@ class _PlotController(param.Parameterized):
                 ds_base.realization.values[-1].item(),
             ]
             self.param.realization.default = ds_base.realization.values[0].item()
-        # Set parameters to defaults (automatically triggers updates to variable
-        # parameter choices and precedence)
-        self.data_var = self.param.data_var.default
-        self.plot_type = self.param.plot_type.default
-        self.location = self.param.location.default
-        self.year_range = self.param.year_range.default
-        self.realization = self.param.realization.default
+        # Set parameters to defaults
+        with param.discard_events(self):
+            self.data_var = self.param.data_var.default
+            self.plot_type = self.param.plot_type.default
+            self.location = self.param.location.default
+            self.year_range = self.param.year_range.default
+            self.realization = self.param.realization.default
 
     @param.depends("plot_initiator", watch=True)
     def _update_view(self):
@@ -316,9 +330,10 @@ class _PlotController(param.Parameterized):
         self._view.clear()  # figure sizing issue if not done before generating new plot
         self.plot_status = "Generating plot..."
         try:
-            self._plotter.generate_plot(self.param.values())
-            # self._view.clear()
-            self._view.append(self._plotter.plot)
+            ds_base = self._ds_base
+            plot_modes = self.param.values()
+            view = _get_view_func(ds_base, plot_modes)
+            self._view.append(view)
             self.plot_status = "Plot generated"
             self.plot_generated = True
         except Exception as exc:
@@ -367,7 +382,6 @@ class _PlotController(param.Parameterized):
             )
         self.param.temporal_mode.objects = temporal_mode_choices
         self.param.temporal_mode.default = temporal_mode_choices[0]
-        self.temporal_mode = self.param.temporal_mode.default
         # Ensemble mode choices
         if self.plot_type == "time series" and base_modes["ensemble"] == "ensemble":
             ensemble_mode_choices = [
@@ -392,7 +406,9 @@ class _PlotController(param.Parameterized):
             )
         self.param.ensemble_mode.objects = ensemble_mode_choices
         self.param.ensemble_mode.default = ensemble_mode_choices[0]
-        self.ensemble_mode = self.param.ensemble_mode.default
+        with param.discard_events(self):
+            self.temporal_mode = self.param.temporal_mode.default
+            self.ensemble_mode = self.param.ensemble_mode.default
 
     @param.depends("plot_type", "ensemble_mode", watch=True)
     def _update_precedence(self):
@@ -400,35 +416,35 @@ class _PlotController(param.Parameterized):
             self.param.location.precedence = 1
         else:
             self.param.location.precedence = -1
-            self.location = self.param.location.default  # could remove this
+            with param.discard_events(self):
+                self.location = self.param.location.default  # could remove this
         if self.ensemble_mode == "single run":
             self.param.realization.precedence = 1
         else:
             self.param.realization.precedence = -1
-            self.realization = self.param.realization.default  # could remove this
+            with param.discard_events(self):
+                self.realization = self.param.realization.default  # could remove this
 
 
 class _Plotter:
     """Class for generating plots"""
 
-    def __init__(self, ds_in=None):
-        self.plot = None
+    def __init__(self, ds_in, plot_modes):
+        self.view = None
         self._ds_base = ds_in
-        self._base_modes = None
-        if ds_in is not None:
-            self._base_modes = ds_in.climepi.modes
+        self._base_modes = ds_in.climepi.modes
+        self._plot_modes = plot_modes
         self._ds_plot = None
-        self._plot_modes = None
 
-    def generate_plot(self, plot_modes):
+    def generate_plot(self):
         """Generate the plot."""
+        self._get_ds_plot()
+        ds_plot = self._ds_plot
+        plot_modes = self._plot_modes
         plot_type = plot_modes["plot_type"]
         ensemble_mode = plot_modes["ensemble_mode"]
-        self._plot_modes = plot_modes
-        self._update_ds_plot()
-        ds_plot = self._ds_plot
         if plot_type == "map":
-            self.plot = pn.panel(
+            view = pn.panel(
                 ds_plot.climepi.plot_map(),
                 center=True,
                 widget_location="bottom",
@@ -438,19 +454,20 @@ class _Plotter:
             plot_type == "time series"
             and ensemble_mode == "mean and 90% confidence interval"
         ):
-            self.plot = pn.panel(
+            view = pn.panel(
                 ds_plot.climepi.plot_ensemble_ci_time_series(),
                 center=True,
                 linked_axes=False,
             )
         elif plot_type == "time series":
-            self.plot = pn.panel(
+            view = pn.panel(
                 ds_plot.climepi.plot_time_series(), center=True, linked_axes=False
             )
         else:
             raise ValueError("Unsupported plot options")
+        self.view = view
 
-    def _update_ds_plot(self):
+    def _get_ds_plot(self):
         self._ds_plot = self._ds_base
         self._sel_data_var_ds_plot()
         self._spatial_index_ds_plot()
