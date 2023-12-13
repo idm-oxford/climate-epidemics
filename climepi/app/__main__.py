@@ -1,4 +1,4 @@
-"""Entry point for the application. Run with `python -m climepi.app`"""
+"""Entry point for the application. Run with ``python -m climepi.app``"""
 
 from climepi.app import run_app
 
