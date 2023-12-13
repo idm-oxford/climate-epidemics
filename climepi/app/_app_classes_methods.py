@@ -99,115 +99,157 @@ def _cleanup_temp_files():
 # Classes
 
 
-class Controller(param.Parameterized):
-    """Main controller class for the dashboard."""
+class _Plotter:
+    """Class for generating plots"""
 
-    clim_dataset_name = param.ObjectSelector(
-        default=_EXAMPLE_CLIM_DATASET_NAMES[0],
-        objects=_EXAMPLE_CLIM_DATASET_NAMES,
-        precedence=1,
-    )
-    clim_data_load_initiator = param.Event(default=False, precedence=1)
-    clim_data_loaded = param.Boolean(default=False, precedence=-1)
-    clim_data_status = param.String(default="Data not loaded", precedence=1)
-    epi_model_name = param.ObjectSelector(
-        default=_EXAMPLE_EPI_MODEL_NAMES[0],
-        objects=_EXAMPLE_EPI_MODEL_NAMES,
-        precedence=1,
-    )
-    epi_model_run_initiator = param.Event(default=False, precedence=1)
-    epi_model_ran = param.Boolean(default=False, precedence=-1)
-    epi_model_status = param.String(default="Model has not been run", precedence=1)
+    def __init__(self, ds_in, plot_modes):
+        self.view = None
+        self._ds_base = ds_in
+        self._base_modes = ds_in.climepi.modes
+        self._plot_modes = plot_modes
+        self._ds_plot = None
 
-    def __init__(self, **params):
-        super().__init__(**params)
-        self._ds_clim = None
-        self._clim_plot_controller = _PlotController()
-        self._epi_plot_controller = _PlotController()
-        data_widgets = {
-            "clim_dataset_name": {"name": "Climate dataset"},
-            "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
-            "clim_data_status": {
-                "widget_type": pn.widgets.StaticText,
-                "name": "",
-            },
-            "epi_model_name": {"name": "Epidemiological model"},
-            "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
-            "epi_model_status": {
-                "widget_type": pn.widgets.StaticText,
-                "name": "",
-            },
-        }
-        self.data_controls = pn.Param(self, widgets=data_widgets, show_name=False)
+    def generate_plot(self):
+        """Generate the plot."""
+        self._get_ds_plot()
+        ds_plot = self._ds_plot
+        plot_modes = self._plot_modes
+        plot_type = plot_modes["plot_type"]
+        ensemble_mode = plot_modes["ensemble_mode"]
+        if plot_type == "map":
+            view = pn.panel(
+                ds_plot.climepi.plot_map(),
+                center=True,
+                widget_location="bottom",
+                linked_axes=False,
+            )
+        elif (
+            plot_type == "time series"
+            and ensemble_mode == "mean and 90% confidence interval"
+        ):
+            view = pn.panel(
+                ds_plot.climepi.plot_ensemble_ci_time_series(),
+                center=True,
+                linked_axes=False,
+            )
+        elif plot_type == "time series":
+            view = pn.panel(
+                ds_plot.climepi.plot_time_series(), center=True, linked_axes=False
+            )
+        else:
+            raise ValueError("Unsupported plot options")
+        self.view = view
 
-    # @param.depends()
-    def clim_plot_controls(self):
-        """The climate data plot controls."""
-        return self._clim_plot_controller.controls
+    def _get_ds_plot(self):
+        self._ds_plot = self._ds_base
+        self._sel_data_var_ds_plot()
+        self._spatial_index_ds_plot()
+        self._temporal_index_ds_plot()
+        self._ensemble_index_ds_plot()
+        self._temporal_ops_ds_plot()
+        self._ensemble_ops_ds_plot()
 
-    @param.depends("_clim_plot_controller.view_refresher")
-    def clim_plot_view(self):
-        """The climate data plot."""
-        return self._clim_plot_controller.view
+    def _sel_data_var_ds_plot(self):
+        data_var = self._plot_modes["data_var"]
+        ds_plot = self._ds_plot
+        ds_plot = ds_plot.climepi.sel_data_var(data_var)
+        self._ds_plot = ds_plot
 
-    # @param.depends()
-    def epi_plot_controls(self):
-        """The epidemiological model plot controls."""
-        return self._epi_plot_controller.controls
+    def _spatial_index_ds_plot(self):
+        plot_type = self._plot_modes["plot_type"]
+        location = self._plot_modes["location"]
+        spatial_base_mode = self._base_modes["spatial"]
+        ds_plot = self._ds_plot
+        if spatial_base_mode == "single" or plot_type == "map":
+            pass
+        elif spatial_base_mode == "global" and plot_type == "time series":
+            ds_plot = ds_plot.climepi.sel_geopy(location)
+        else:
+            raise ValueError("Unsupported spatial base mode and plot type combination")
+        self._ds_plot = ds_plot
 
-    @param.depends("_epi_plot_controller.view_refresher")
-    def epi_plot_view(self):
-        """The epidemiological model plot."""
-        return self._epi_plot_controller.view
+    def _temporal_index_ds_plot(self):
+        temporal_mode = self._plot_modes["temporal_mode"]
+        year_range = self._plot_modes["year_range"]
+        temporal_base_mode = self._base_modes["temporal"]
+        ds_plot = self._ds_plot
+        if temporal_base_mode not in ["annual", "monthly"]:
+            raise ValueError("Unsupported temporal base mode")
+        if temporal_mode in ["annual", "monthly"]:
+            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
+        elif temporal_mode == "difference between years":
+            if any(year not in ds_plot.time.dt.year.values for year in year_range):
+                raise ValueError(
+                    """Only years in the dataset can be used as a range with the
+                    'difference between years' temporal mode"""
+                )
+            ds_plot = ds_plot.isel(time=ds_plot.time.dt.year.isin(year_range))
+        else:
+            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+        self._ds_plot = ds_plot
 
-    @param.depends("clim_data_load_initiator", watch=True)
-    def _load_clim_data(self):
-        # Load data from the data source.
-        if self.clim_data_loaded:
-            return
-        try:
-            self.clim_data_status = "Loading data..."
-            ds_clim = _load_clim_data_func(self.clim_dataset_name)
-            self._ds_clim = ds_clim
-            self._clim_plot_controller.initialize(ds_clim)
-            self.clim_data_status = "Data loaded"
-            self.clim_data_loaded = True
-            self._epi_plot_controller.initialize()
-            self.epi_model_status = "Model has not been run"
-            self.epi_model_ran = False
-        except Exception as exc:
-            self.clim_data_status = f"Data load failed: {exc}"
-            raise
+    def _ensemble_index_ds_plot(self):
+        ensemble_mode = self._plot_modes["ensemble_mode"]
+        realization = self._plot_modes["realization"]
+        ensemble_base_mode = self._base_modes["ensemble"]
+        ds_plot = self._ds_plot
+        if ensemble_base_mode != "ensemble":
+            raise ValueError("Unsupported ensemble base mode")
+        if ensemble_mode == "single run":
+            ds_plot = ds_plot.sel(realization=realization)
+        elif ensemble_mode in [
+            "mean",
+            "mean and 90% confidence interval",
+            "std",
+            "min",
+            "max",
+        ]:
+            pass
+        else:
+            raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
+        self._ds_plot = ds_plot
 
-    @param.depends("epi_model_run_initiator", watch=True)
-    def _run_epi_model(self):
-        # Setup and run the epidemiological model.
-        if self.epi_model_ran:
-            return
-        if not self.clim_data_loaded:
-            self.epi_model_status = "Need to load climate data"
-            return
-        try:
-            self.epi_model_status = "Running model..."
-            ds_epi = _run_epi_model_func(self._ds_clim, self.epi_model_name)
-            self._epi_plot_controller.initialize(ds_epi)
-            self.epi_model_status = "Model run complete"
-            self.epi_model_ran = True
-        except Exception as exc:
-            self.epi_model_status = f"Model run failed: {exc}"
-            raise
+    def _temporal_ops_ds_plot(self):
+        temporal_mode = self._plot_modes["temporal_mode"]
+        temporal_base_mode = self._base_modes["temporal"]
+        ds_plot = self._ds_plot
+        if temporal_base_mode == "monthly" and temporal_mode == "monthly":
+            pass
+        elif temporal_base_mode == "monthly" and temporal_mode in [
+            "annual",
+            "difference between years",
+        ]:
+            ds_plot = ds_plot.climepi.annual_mean()
+        elif temporal_base_mode == "annual" and temporal_mode in [
+            "annual",
+            "difference between years",
+        ]:
+            pass
+        else:
+            raise ValueError("Unsupported base and plot temporal mode combination")
+        if temporal_mode == "difference between years":
+            data_var = self._plot_modes["data_var"]
+            year_range = self._plot_modes["year_range"]
+            da_start = ds_plot[data_var].sel(time=str(year_range[0])).squeeze()
+            da_end = ds_plot[data_var].sel(time=str(year_range[1])).squeeze()
+            ds_plot[data_var] = da_end - da_start
+        self._ds_plot = ds_plot
 
-    @param.depends("clim_dataset_name", watch=True)
-    def _revert_clim_data_load_status(self):
-        # Revert the climate data load status (but retain data for plotting).
-        self.clim_data_status = "Data not loaded"
-        self.clim_data_loaded = False
-
-    @param.depends("clim_dataset_name", "epi_model_name", watch=True)
-    def _revert_epi_model_run_status(self):
-        # Revert the epi model run status (but retain data for plotting).
-        self.epi_model_status = "Model has not been run"
-        self.epi_model_ran = False
+    def _ensemble_ops_ds_plot(self):
+        ensemble_mode = self._plot_modes["ensemble_mode"]
+        ensemble_base_mode = self._base_modes["ensemble"]
+        ds_plot = self._ds_plot
+        if ensemble_base_mode != "ensemble":
+            raise ValueError("Unsupported ensemble base mode")
+        if ensemble_mode == "single run":
+            pass
+        elif ensemble_mode in ["mean", "std", "min", "max"]:
+            ds_plot = ds_plot.climepi.ensemble_stats().sel(
+                ensemble_statistic=ensemble_mode
+            )
+        elif ensemble_mode == "mean and 90% confidence interval":
+            ds_plot = ds_plot.climepi.ensemble_stats()
+        self._ds_plot = ds_plot
 
 
 class _PlotController(param.Parameterized):
@@ -419,154 +461,116 @@ class _PlotController(param.Parameterized):
                 self.realization = self.param.realization.default  # could remove this
 
 
-class _Plotter:
-    """Class for generating plots"""
+class Controller(param.Parameterized):
+    """Main controller class for the dashboard."""
 
-    def __init__(self, ds_in, plot_modes):
-        self.view = None
-        self._ds_base = ds_in
-        self._base_modes = ds_in.climepi.modes
-        self._plot_modes = plot_modes
-        self._ds_plot = None
+    clim_dataset_name = param.ObjectSelector(
+        default=_EXAMPLE_CLIM_DATASET_NAMES[0],
+        objects=_EXAMPLE_CLIM_DATASET_NAMES,
+        precedence=1,
+    )
+    clim_data_load_initiator = param.Event(default=False, precedence=1)
+    clim_data_loaded = param.Boolean(default=False, precedence=-1)
+    clim_data_status = param.String(default="Data not loaded", precedence=1)
+    epi_model_name = param.ObjectSelector(
+        default=_EXAMPLE_EPI_MODEL_NAMES[0],
+        objects=_EXAMPLE_EPI_MODEL_NAMES,
+        precedence=1,
+    )
+    epi_model_run_initiator = param.Event(default=False, precedence=1)
+    epi_model_ran = param.Boolean(default=False, precedence=-1)
+    epi_model_status = param.String(default="Model has not been run", precedence=1)
+    clim_plot_controller = param.ClassSelector(
+        default=_PlotController(), class_=_PlotController, precedence=-1
+    )
+    epi_plot_controller = param.ClassSelector(
+        default=_PlotController(), class_=_PlotController, precedence=-1
+    )
 
-    def generate_plot(self):
-        """Generate the plot."""
-        self._get_ds_plot()
-        ds_plot = self._ds_plot
-        plot_modes = self._plot_modes
-        plot_type = plot_modes["plot_type"]
-        ensemble_mode = plot_modes["ensemble_mode"]
-        if plot_type == "map":
-            view = pn.panel(
-                ds_plot.climepi.plot_map(),
-                center=True,
-                widget_location="bottom",
-                linked_axes=False,
-            )
-        elif (
-            plot_type == "time series"
-            and ensemble_mode == "mean and 90% confidence interval"
-        ):
-            view = pn.panel(
-                ds_plot.climepi.plot_ensemble_ci_time_series(),
-                center=True,
-                linked_axes=False,
-            )
-        elif plot_type == "time series":
-            view = pn.panel(
-                ds_plot.climepi.plot_time_series(), center=True, linked_axes=False
-            )
-        else:
-            raise ValueError("Unsupported plot options")
-        self.view = view
+    def __init__(self, **params):
+        super().__init__(**params)
+        self._ds_clim = None
+        data_widgets = {
+            "clim_dataset_name": {"name": "Climate dataset"},
+            "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
+            "clim_data_status": {
+                "widget_type": pn.widgets.StaticText,
+                "name": "",
+            },
+            "epi_model_name": {"name": "Epidemiological model"},
+            "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
+            "epi_model_status": {
+                "widget_type": pn.widgets.StaticText,
+                "name": "",
+            },
+        }
+        self.data_controls = pn.Param(self, widgets=data_widgets, show_name=False)
 
-    def _get_ds_plot(self):
-        self._ds_plot = self._ds_base
-        self._sel_data_var_ds_plot()
-        self._spatial_index_ds_plot()
-        self._temporal_index_ds_plot()
-        self._ensemble_index_ds_plot()
-        self._temporal_ops_ds_plot()
-        self._ensemble_ops_ds_plot()
+    # @param.depends()
+    def clim_plot_controls(self):
+        """The climate data plot controls."""
+        return self.clim_plot_controller.controls
 
-    def _sel_data_var_ds_plot(self):
-        data_var = self._plot_modes["data_var"]
-        ds_plot = self._ds_plot
-        ds_plot = ds_plot.climepi.sel_data_var(data_var)
-        self._ds_plot = ds_plot
+    @param.depends("clim_plot_controller.view_refresher")
+    def clim_plot_view(self):
+        """The climate data plot."""
+        return self.clim_plot_controller.view
 
-    def _spatial_index_ds_plot(self):
-        plot_type = self._plot_modes["plot_type"]
-        location = self._plot_modes["location"]
-        spatial_base_mode = self._base_modes["spatial"]
-        ds_plot = self._ds_plot
-        if spatial_base_mode == "single" or plot_type == "map":
-            pass
-        elif spatial_base_mode == "global" and plot_type == "time series":
-            ds_plot = ds_plot.climepi.sel_geopy(location)
-        else:
-            raise ValueError("Unsupported spatial base mode and plot type combination")
-        self._ds_plot = ds_plot
+    # @param.depends()
+    def epi_plot_controls(self):
+        """The epidemiological model plot controls."""
+        return self.epi_plot_controller.controls
 
-    def _temporal_index_ds_plot(self):
-        temporal_mode = self._plot_modes["temporal_mode"]
-        year_range = self._plot_modes["year_range"]
-        temporal_base_mode = self._base_modes["temporal"]
-        ds_plot = self._ds_plot
-        if temporal_base_mode not in ["annual", "monthly"]:
-            raise ValueError("Unsupported temporal base mode")
-        if temporal_mode in ["annual", "monthly"]:
-            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
-        elif temporal_mode == "difference between years":
-            if any(year not in ds_plot.time.dt.year.values for year in year_range):
-                raise ValueError(
-                    """Only years in the dataset can be used as a range with the
-                    'difference between years' temporal mode"""
-                )
-            ds_plot = ds_plot.isel(time=ds_plot.time.dt.year.isin(year_range))
-        else:
-            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
-        self._ds_plot = ds_plot
+    @param.depends("epi_plot_controller.view_refresher")
+    def epi_plot_view(self):
+        """The epidemiological model plot."""
+        return self.epi_plot_controller.view
 
-    def _ensemble_index_ds_plot(self):
-        ensemble_mode = self._plot_modes["ensemble_mode"]
-        realization = self._plot_modes["realization"]
-        ensemble_base_mode = self._base_modes["ensemble"]
-        ds_plot = self._ds_plot
-        if ensemble_base_mode != "ensemble":
-            raise ValueError("Unsupported ensemble base mode")
-        if ensemble_mode == "single run":
-            ds_plot = ds_plot.sel(realization=realization)
-        elif ensemble_mode in [
-            "mean",
-            "mean and 90% confidence interval",
-            "std",
-            "min",
-            "max",
-        ]:
-            pass
-        else:
-            raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
-        self._ds_plot = ds_plot
+    @param.depends("clim_data_load_initiator", watch=True)
+    def _load_clim_data(self):
+        # Load data from the data source.
+        if self.clim_data_loaded:
+            return
+        try:
+            self.clim_data_status = "Loading data..."
+            ds_clim = _load_clim_data_func(self.clim_dataset_name)
+            self._ds_clim = ds_clim
+            self.clim_plot_controller.initialize(ds_clim)
+            self.clim_data_status = "Data loaded"
+            self.clim_data_loaded = True
+            self.epi_plot_controller.initialize()
+            self.epi_model_status = "Model has not been run"
+            self.epi_model_ran = False
+        except Exception as exc:
+            self.clim_data_status = f"Data load failed: {exc}"
+            raise
 
-    def _temporal_ops_ds_plot(self):
-        temporal_mode = self._plot_modes["temporal_mode"]
-        temporal_base_mode = self._base_modes["temporal"]
-        ds_plot = self._ds_plot
-        if temporal_base_mode == "monthly" and temporal_mode == "monthly":
-            pass
-        elif temporal_base_mode == "monthly" and temporal_mode in [
-            "annual",
-            "difference between years",
-        ]:
-            ds_plot = ds_plot.climepi.annual_mean()
-        elif temporal_base_mode == "annual" and temporal_mode in [
-            "annual",
-            "difference between years",
-        ]:
-            pass
-        else:
-            raise ValueError("Unsupported base and plot temporal mode combination")
-        if temporal_mode == "difference between years":
-            data_var = self._plot_modes["data_var"]
-            year_range = self._plot_modes["year_range"]
-            da_start = ds_plot[data_var].sel(time=str(year_range[0])).squeeze()
-            da_end = ds_plot[data_var].sel(time=str(year_range[1])).squeeze()
-            ds_plot[data_var] = da_end - da_start
-        self._ds_plot = ds_plot
+    @param.depends("epi_model_run_initiator", watch=True)
+    def _run_epi_model(self):
+        # Setup and run the epidemiological model.
+        if self.epi_model_ran:
+            return
+        if not self.clim_data_loaded:
+            self.epi_model_status = "Need to load climate data"
+            return
+        try:
+            self.epi_model_status = "Running model..."
+            ds_epi = _run_epi_model_func(self._ds_clim, self.epi_model_name)
+            self.epi_plot_controller.initialize(ds_epi)
+            self.epi_model_status = "Model run complete"
+            self.epi_model_ran = True
+        except Exception as exc:
+            self.epi_model_status = f"Model run failed: {exc}"
+            raise
 
-    def _ensemble_ops_ds_plot(self):
-        ensemble_mode = self._plot_modes["ensemble_mode"]
-        ensemble_base_mode = self._base_modes["ensemble"]
-        ds_plot = self._ds_plot
-        if ensemble_base_mode != "ensemble":
-            raise ValueError("Unsupported ensemble base mode")
-        if ensemble_mode == "single run":
-            pass
-        elif ensemble_mode in ["mean", "std", "min", "max"]:
-            ds_plot = ds_plot.climepi.ensemble_stats().sel(
-                ensemble_statistic=ensemble_mode
-            )
-        elif ensemble_mode == "mean and 90% confidence interval":
-            ds_plot = ds_plot.climepi.ensemble_stats()
-        self._ds_plot = ds_plot
+    @param.depends("clim_dataset_name", watch=True)
+    def _revert_clim_data_load_status(self):
+        # Revert the climate data load status (but retain data for plotting).
+        self.clim_data_status = "Data not loaded"
+        self.clim_data_loaded = False
+
+    @param.depends("clim_dataset_name", "epi_model_name", watch=True)
+    def _revert_epi_model_run_status(self):
+        # Revert the epi model run status (but retain data for plotting).
+        self.epi_model_status = "Model has not been run"
+        self.epi_model_ran = False
