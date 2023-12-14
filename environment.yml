@@ -33,4 +33,5 @@ dependencies:
   - sphinx-book-theme
   - sphinx-autosummary-accessors
   # Example notebooks
+  - ipykernel
   - jupyter_bokeh
