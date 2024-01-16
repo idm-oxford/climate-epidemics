@@ -19,13 +19,13 @@ dependencies:
   - pooch
   - intake-esm
   - s3fs # needed when using intake-esm to access CESM data on AWS server
+  - pip:
+    - isimip-client
   # This package
   - pip:
     - -e .
   # Linting
-  - flake8
-  - flake8-black
-  - flake8-bugbear
+  - ruff
   # Testing
   - pytest
   - pytest-cov
