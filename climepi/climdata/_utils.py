@@ -1,12 +1,6 @@
-"""
-Module for accessing and downloading CESM LENS2 data from the aws server (see
-https://ncar.github.io/cesm2-le-aws/model_documentation.html).
-"""
-
+import itertools
 import pathlib
 
-import dask.diagnostics
-import intake
 import numpy as np
 import pooch
 import xarray as xr
@@ -20,19 +14,18 @@ CACHE_DIR = pooch.os_cache("climepi")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-class CESMDataGetter:
+class ClimateDataGetter:
     """
-    Class for accessing and (optionally) downloading CESM LENS2 data from the aws server
-    (see https://ncar.github.io/cesm2-le-aws/model_documentation.html), and for
-    retrieving downloaded data. The 'get_data' method controls the process of
-    finding, formatting and downloading the data.
+    Class for accessing downloading climate projection data. The 'get_data' method
+    controls the process of finding,  downloading and formatting the data. Intended to
+    be subclassed for specific data sources.
 
     Parameters
     ----------
     subset : dict, optional
         Dictionary of data subsetting options. The following keys/values are available:
             years : list or array-like of int, optional
-                Years for which to retrieve data within the data range (1850-2100). If
+                Years for which to retrieve data within the available data range. If
                 not provided, all years are retrieved.
             realizations : list or array-like of int, optional
                 Realizations for which to retrieve data, out of the available 100
@@ -56,6 +49,12 @@ class CESMDataGetter:
         provided, a directory within the OS cache directory is used.
     """
 
+    datasource_name = None
+    available_years = None
+    available_scenarios = None
+    available_models = None
+    available_realizations = None
+
     def __init__(
         self,
         subset=None,
@@ -63,8 +62,10 @@ class CESMDataGetter:
     ):
         subset_in = subset or {}
         subset = {
-            "years": np.arange(1850, 2101),
-            "realizations": np.arange(100),
+            "years": self.available_years,
+            "scenarios": self.available_scenarios,
+            "models": self.available_models,
+            "realizations": self.available_realizations,
             "loc_str": None,
             "lon_range": None,
             "lat_range": None,
@@ -75,21 +76,8 @@ class CESMDataGetter:
             save_dir = CACHE_DIR
         self._save_dir = save_dir
         self._ds = None
-        self._catalog = None
         self._file_name_dict = None
         self._file_names = None
-
-    @property
-    def catalog(self):
-        """
-        Gets an intake-esm catalog describing the available CESM LENS2 data.
-        """
-        if self._catalog is None:
-            self._catalog = intake.open_esm_datastore(
-                "https://raw.githubusercontent.com/NCAR/cesm2-le-aws"
-                + "/main/intake-catalogs/aws-cesm2-le.json"
-            )
-        return self._catalog
 
     @property
     def file_name_dict(self):
@@ -100,11 +88,13 @@ class CESMDataGetter:
         """
         if self._file_name_dict is None:
             years = self._subset["years"]
+            scenarios = self._subset["scenarios"]
+            models = self._subset["models"]
             realizations = self._subset["realizations"]
             loc_str = self._subset["loc_str"]
             lon_range = self._subset["lon_range"]
             lat_range = self._subset["lat_range"]
-            base_name_str_list = ["cesm"]
+            base_name_str_list = [self.datasource_name]
             if all(np.diff(years) == 1):
                 base_name_str_list.extend([f"{years[0]}", "to", f"{years[-1]}"])
             else:
@@ -121,8 +111,12 @@ class CESMDataGetter:
                         ["lat", f"{lat_range[0]}", "to", f"{lat_range[1]}"]
                     )
             file_name_dict = {}
-            for realization in realizations:
+            for scenario, model, realization in itertools.product(
+                scenarios, models, realizations
+            ):
                 name_str_list = base_name_str_list.copy()
+                name_str_list.extend(["scenario", scenario])
+                name_str_list.extend(["model", model])
                 name_str_list.extend(["realization", f"{realization}.nc"])
                 name_str = "_".join(name_str_list)
                 file_name_dict[realization] = name_str
@@ -139,26 +133,18 @@ class CESMDataGetter:
             self._file_names = list(self.file_name_dict.values())
         return self._file_names
 
-    def get_data(self, download=False):
+    def get_data(self):
         """
         Main method for retrieving data. First tries to open the data locally from
-        the provided 'save_dir' directory. If the data are not found locally, it is
-        opened, subsetted and processed from the remote aws server, and then
-        (optionally) downloaded to the 'save_dir' directory.
-
-        Parameters
-        ----------
-        download : bool, optional
-            Whether to download the data to the 'save_dir' directory if it is not
-            found locally (default is False).
+        the provided 'save_dir' directory. If the dataset is not found locally, it is
+        opened and subsetted within the remote server, and then downloaded, processed
+        and saved to the 'save_dir' directory.
 
         Returns
         -------
         xarray.Dataset
-            Retrieved data. If the data was found locally or downloaded with
-            download=True), a dask-backed dataset opened from the local files is
-            returned. Otherwise, a dask-backed dataset opened from the remote server
-            (lazily subsetted and processed) is returned.
+            Retrieved data (dask-backed dataset opened from the found or downloaded
+            local file)
         """
         try:
             self._open_local_data()
@@ -166,18 +152,20 @@ class CESMDataGetter:
         except FileNotFoundError:
             pass
         print("Opening remote data...")
-        self._open_remote_data()
-        print("\n\nRemote data opened.")
-        self._subset_data()
+        self._find_remote_data()
+        print("\n\nRemote data found.")
+        print("Subsetting data...")
+        self._subset_remote_data()
+        print("Data subsetted.")
+        print("Downloading data...")
+        self._download_remote_data()
+        print("Data downloaded.")
+        self._open_temp_data()
         self._process_data()
-        if download:
-            print("Downloading data...")
-            self._download()
-            print("Data downloaded.")
-            self._save()
-            print(f"Formatted data saved to {self._save_dir}")
-            self._delete_temporary()
-            self._open_local_data()
+        self._save_processed_data()
+        print(f"Formatted data saved to {self._save_dir}")
+        self._delete_temporary()
+        self._open_local_data()
         return self._ds
 
     def _open_local_data(self):
@@ -190,67 +178,17 @@ class CESMDataGetter:
         )
         self._ds = _ds
 
-    def _open_remote_data(self):
-        # Open all monthly data for the required data variables (temperature values
-        # are contained in the 'TREFHT' variable, and precipitation values are
-        # contained in the 'PRECC' and 'PRECL' variables) from the aws server.
-        # Historical and future data, and data for two slightly different forcing
-        # scenarios (cmip6 and smbb), are combined into a single xarray dataset, which
-        # is stored in the _ds attribute.
-        catalog = self.catalog
-        catalog_subset = catalog.search(
-            variable=["TREFHT", "PRECC", "PRECL"], frequency="monthly"
-        )
-        ds_dict_in = catalog_subset.to_dataset_dict(storage_options={"anon": True})
-        ds_cmip6_in = xr.concat(
-            [
-                ds_dict_in["atm.historical.monthly.cmip6"],
-                ds_dict_in["atm.ssp370.monthly.cmip6"],
-            ],
-            dim="time",
-        )
-        ds_smbb_in = xr.concat(
-            [
-                ds_dict_in["atm.historical.monthly.smbb"],
-                ds_dict_in["atm.ssp370.monthly.smbb"],
-            ],
-            dim="time",
-        )
-        ds_in = xr.concat([ds_cmip6_in, ds_smbb_in], dim="member_id")
-        self._ds = ds_in
+    def _find_remote_data(self):
+        raise NotImplementedError
 
-    def _subset_data(self):
-        # Subset the remotely opened dataset to the requested years, realizations and
-        # location(s), and store the subsetted dataset in the _ds attribute.
-        years = self._subset["years"]
-        realizations = self._subset["realizations"]
-        loc_str = self._subset["loc_str"]
-        lon_range = self._subset["lon_range"]
-        lat_range = self._subset["lat_range"]
-        ds_subset = self._ds.copy()
-        ds_subset = ds_subset.isel(member_id=realizations)
-        ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
-        if loc_str is not None:
-            ds_subset.climepi.modes = {"spatial": "global"}
-            ds_subset = ds_subset.climepi.sel_geopy(loc_str)
-        else:
-            if lon_range is not None:
-                # Note the remote data are stored with longitudes in the range 0 to 360.
-                if lon_range[0] < 0 <= lon_range[1]:
-                    ds_subset = xr.concat(
-                        [
-                            ds_subset.sel(lon=slice(0, lon_range[1] % 360)),
-                            ds_subset.sel(lon=slice(lon_range[0] % 360, 360)),
-                        ],
-                        dim="lon",
-                    )
-                else:
-                    ds_subset = ds_subset.sel(
-                        lon=slice(lon_range[0] % 360, lon_range[1] % 360)
-                    )
-            if lat_range is not None:
-                ds_subset = ds_subset.sel(lat=slice(*lat_range))
-        self._ds = ds_subset
+    def _subset_remote_data(self):
+        raise NotImplementedError
+
+    def _download_remote_data(self):
+        raise NotImplementedError
+
+    def _open_temp_data(self):
+        raise NotImplementedError
 
     def _process_data(self):
         # Process the remotely opened dataset, and store the processed dataset in the
@@ -309,22 +247,7 @@ class CESMDataGetter:
         ds_processed = ds_processed.drop(["TREFHT", "PRECC", "PRECL"])
         self._ds = ds_processed
 
-    def _download(self):
-        # Download the remote dataset to a temporary file (printing a progress bar),
-        # and then open the dataset from the temporary file (using the same chunking as
-        # the remote dataset). Note that using a single file (which is later deleted
-        # after saving the data to separate files) streamlines the download process
-        # compared to downloading each realization directly to its own final file,
-        # and may be more efficient, but a single download may not be desirable if
-        # internet connection is unreliable.
-        temporary_save_path = pathlib.Path(CACHE_DIR) / "temporary.nc"
-        delayed_obj = self._ds.to_netcdf(temporary_save_path, compute=False)
-        with dask.diagnostics.ProgressBar():
-            delayed_obj.compute()
-        chunks = self._ds.chunks.mapping
-        self._ds = xr.open_dataset(temporary_save_path, chunks=chunks)
-
-    def _save(self):
+    def _save_processed_data(self):
         # Save the data for each realization to a separate file in the 'save_dir'
         # directory.
         realizations = self._subset["realizations"]
@@ -339,30 +262,7 @@ class CESMDataGetter:
 
     def _delete_temporary(self):
         # Delete the temporary file created when downloading the data (once the data
-        # has been saved to separate files).
-        temporary_save_path == pathlib.Path(CACHE_DIR) / "temporary.nc"
+        # have been saved to separate files).
+        temporary_save_path = pathlib.Path(CACHE_DIR) / "temporary.nc"
         self._ds.close()
         temporary_save_path.unlink()
-
-
-def get_cesm_data(subset=None, save_dir=None, download=False):
-    """
-    Function to retrieve and (optionally) download CESM LENS2 data using the
-    CESMDataGetter class.
-
-    Parameters
-    ----------
-    subset: dict, optional
-        Dictionary of data subsetting options passed to the CESMDataGetter constructor.
-        See the CESMDataGetter class documentation for details.
-    save_dir : str or pathlib.Path, optional
-        Directory to which downloaded data are saved to and accessed from. If not
-        provided, a directory within the OS cache directory is used.
-    download : bool, optional
-        Whether to download the data if it is not found locally (default is False).
-        Details of where downloaded data are saved to and accessed from are given in
-        the CESMDataGetter class documentation.
-    """
-    data_getter = CESMDataGetter(save_dir=save_dir, subset=subset)
-    ds_cesm = data_getter.get_data(download=download)
-    return ds_cesm
