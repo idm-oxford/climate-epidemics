@@ -340,7 +340,7 @@ class CESMDataGetter:
     def _delete_temporary(self):
         # Delete the temporary file created when downloading the data (once the data
         # has been saved to separate files).
-        temporary_save_path = pathlib.Path(CACHE_DIR) / "temporary.nc"
+        temporary_save_path == pathlib.Path(CACHE_DIR) / "temporary.nc"
         self._ds.close()
         temporary_save_path.unlink()
 
