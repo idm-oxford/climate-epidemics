@@ -10,7 +10,7 @@ import numpy as np
 import pooch
 import xcdat
 
-from climepi.climdata import cesm
+from climepi import climdata
 
 # Dictionary of example datasets. Each key gives the example dataset name, and the
 # corresponding value should be a dictionary with the following keys/values:
@@ -22,7 +22,9 @@ from climepi.climdata import cesm
 #                  for xarray datasets (see the climepi accessor documentation for
 #                  details).
 EXAMPLES = {
-    "world_2020_2060_2100": {
+    "lens2_world": {
+        "data_source": "lens2",
+        "frequency": "monthly",
         "subset": {
             "years": [2020, 2060, 2100],
         },
@@ -32,7 +34,9 @@ EXAMPLES = {
             "ensemble": "ensemble",
         },
     },
-    "cape_town": {
+    "lens2_cape_town": {
+        "data_source": "lens2",
+        "frequency": "monthly",
         "subset": {
             "years": np.arange(2000, 2101),
             "loc_str": "Cape Town",
@@ -43,7 +47,9 @@ EXAMPLES = {
             "ensemble": "ensemble",
         },
     },
-    "europe_small": {
+    "lens2_europe_small": {
+        "data_source": "lens2",
+        "frequency": "monthly",
         "subset": {
             "years": [2020, 2100],
             "lat_range": [35, 72],
@@ -88,10 +94,15 @@ def get_example_dataset(name, data_dir=None):
     # Get details of the example dataset.
     example_details = _get_example_details(name)
     data_dir = _get_data_dir(name, data_dir)
-    data_getter = cesm.CESMDataGetter(
-        subset=example_details["subset"], save_dir=data_dir
+    data_source = example_details["data_source"]
+    frequency = example_details["frequency"]
+    subset = example_details["subset"]
+    file_names = climdata.get_climate_data_file_names(
+        data_source=data_source,
+        frequency=frequency,
+        subset=subset,
+        save_dir=data_dir,
     )
-    file_names = data_getter.file_names
     # Create a pooch instance for the example dataset, and try to fetch the files.
     # Currently, the formatted example datasets are not available for direct download,
     # so this will either simply return the local file paths if the dataset exists
@@ -141,9 +152,17 @@ def create_example_dataset(name, data_dir=None):
     # Get details of the example dataset.
     example_details = _get_example_details(name)
     data_dir = _get_data_dir(name, data_dir)
+    data_source = example_details["data_source"]
+    frequency = example_details["frequency"]
     subset = example_details["subset"]
     # Create and download the example dataset.
-    cesm.get_cesm_data(subset=subset, save_dir=data_dir, download=True)
+    climdata.get_climate_data(
+        data_source=data_source,
+        frequency=frequency,
+        subset=subset,
+        save_dir=data_dir,
+        download=True,
+    )
 
 
 def _get_example_details(name):
@@ -163,19 +182,20 @@ def _get_example_details(name):
 def _get_data_dir(name, data_dir):
     # Helper function for getting the directory where the example dataset is to be
     # downloaded/accessed. If no directory is specified, then if a directory named
-    # 'data/cesm_examples/{name}' exists in the same parent directory as the climepi
+    # 'data/examples/{name}' exists in the same parent directory as the climepi
     # package, the example datasets will be downloaded to and accessed from that
     # directory. Otherwise, the datasets will be downloaded to and accessed from the OS
     # cache.
     if data_dir is None:
-        base_dir = pathlib.Path(__file__).parents[3] / "data/cesm_examples"
+        base_dir = pathlib.Path(__file__).parents[2] / "data/examples"
         if not base_dir.exists():
-            base_dir = pooch.os_cache("climepi/cesm_examples")
+            base_dir = pooch.os_cache("climepi/examples")
         data_dir = base_dir / name
     return data_dir
 
 
 if __name__ == "__main__":
-    for example_name in EXAMPLES:
-        create_example_dataset(example_name)
-        # get_example_dataset(example_name)
+    # for example_name in EXAMPLES:
+    for example_name in ["lens2_europe_small"]:
+        # create_example_dataset(example_name)
+        get_example_dataset(example_name)
