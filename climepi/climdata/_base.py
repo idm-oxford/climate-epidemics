@@ -1,17 +1,12 @@
-import itertools
-import pathlib
-
-import numpy as np
-import pooch
-import xarray as xr
-import xcdat
-
 from climepi.climdata._cesm import CESMDataGetter
+from climepi.climdata._isimip import ISIMIPDataGetter
 
 
 def _get_data_getter(data_source, *args, **kwargs):
     if data_source == "lens2":
         data_getter = CESMDataGetter(*args, **kwargs)
+    elif data_source == "isimip":
+        data_getter = ISIMIPDataGetter(*args, **kwargs)
     else:
         raise ValueError(f"Data source '{data_source}' not supported.")
     return data_getter

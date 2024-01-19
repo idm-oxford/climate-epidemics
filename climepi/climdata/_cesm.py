@@ -95,10 +95,10 @@ class CESMDataGetter(ClimateDataGetter):
             delayed_obj.compute()
         self._temp_file_names = [temp_file_name]
 
-    def _open_temp_data(self, chunks=None, preprocess=None):
+    def _open_temp_data(self, chunks=None):
         if chunks is None:
             chunks = self._ds.chunks.mapping
-        super()._open_temp_data(chunks=chunks, preprocess=preprocess)
+        super()._open_temp_data(chunks=chunks)
 
     def _process_data(self):
         # Process the remotely opened dataset, and store the processed dataset in the

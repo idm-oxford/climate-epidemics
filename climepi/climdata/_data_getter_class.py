@@ -57,12 +57,7 @@ class ClimateDataGetter:
     available_models = None
     available_realizations = None
 
-    def __init__(
-        self,
-        frequency="monthly",
-        subset=None,
-        save_dir=None,
-    ):
+    def __init__(self, frequency="monthly", subset=None, save_dir=None):
         subset_in = subset or {}
         subset = {
             "years": self.available_years,
@@ -77,7 +72,7 @@ class ClimateDataGetter:
         self._frequency = frequency
         self._subset = subset
         self._ds = None
-        self._temp_save_dir = pathlib.Path(CACHE_DIR)
+        self._temp_save_dir = pathlib.Path(CACHE_DIR) / "temp"
         self._temp_file_names = None
         if save_dir is None:
             save_dir = CACHE_DIR
@@ -183,7 +178,7 @@ class ClimateDataGetter:
             return self._ds
         except FileNotFoundError:
             pass
-        print("Opening remote data...")
+        print("Getting remote data info...")
         self._find_remote_data()
         print("Remote data found.")
         print("Subsetting data...")
@@ -221,7 +216,7 @@ class ClimateDataGetter:
     def _download_remote_data(self):
         raise NotImplementedError
 
-    def _open_temp_data(self, chunks=None, preprocess=None):
+    def _open_temp_data(self, chunks=None):
         if chunks is None:
             chunks = {}
         temp_save_dir = self._temp_save_dir
@@ -229,7 +224,7 @@ class ClimateDataGetter:
         temp_file_paths = [
             temp_save_dir / temp_file_name for temp_file_name in temp_file_names
         ]
-        self._ds = xr.open_mfdataset(temp_file_paths, chunks={}, preprocess=preprocess)
+        self._ds = xr.open_mfdataset(temp_file_paths, chunks=chunks)
 
     def _process_data(self):
         # Process the remotely opened dataset, and store the processed dataset in the

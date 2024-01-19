@@ -62,6 +62,21 @@ EXAMPLES = {
             "ensemble": "ensemble",
         },
     },
+    "isimip_london_small": {
+        "data_source": "isimip",
+        "frequency": "monthly",
+        "subset": {
+            "years": [2020, 2100],
+            "loc_str": "London",
+            "scenarios": ["ssp126", "ssp245"],
+            "models": ["gfdl-esm4", "ipsl-cm6a-lr"],
+        },
+        "climepi_modes": {
+            "spatial": "single",
+            "temporal": "monthly",
+            "ensemble": "single",
+        },
+    },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
@@ -196,6 +211,6 @@ def _get_data_dir(name, data_dir):
 
 if __name__ == "__main__":
     # for example_name in EXAMPLES:
-    for example_name in ["lens2_europe_small"]:
-        # create_example_dataset(example_name)
-        get_example_dataset(example_name)
+    for example_name in ["isimip_london_small"]:
+        create_example_dataset(example_name)
+        # get_example_dataset(example_name)
