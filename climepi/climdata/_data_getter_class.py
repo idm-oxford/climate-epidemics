@@ -73,10 +73,13 @@ class ClimateDataGetter:
         self._subset = subset
         self._ds = None
         self._temp_save_dir = pathlib.Path(CACHE_DIR) / "temp"
+        self._temp_save_dir.mkdir(parents=True, exist_ok=True)
         self._temp_file_names = None
+        self._ds_temp = None
         if save_dir is None:
             save_dir = CACHE_DIR
         self._save_dir = pathlib.Path(save_dir)
+        self._save_dir.mkdir(parents=True, exist_ok=True)
         self._file_name_dict = None
         self._file_names = None
 
@@ -224,7 +227,8 @@ class ClimateDataGetter:
         temp_file_paths = [
             temp_save_dir / temp_file_name for temp_file_name in temp_file_names
         ]
-        self._ds = xr.open_mfdataset(temp_file_paths, chunks=chunks)
+        self._ds_temp = xr.open_mfdataset(temp_file_paths, chunks=chunks)
+        self._ds = self._ds_temp
 
     def _process_data(self):
         # Process the remotely opened dataset, and store the processed dataset in the
@@ -249,7 +253,6 @@ class ClimateDataGetter:
         models = self._subset["models"]
         realizations = self._subset["realizations"]
         save_dir = self._save_dir
-        save_dir.mkdir(parents=True, exist_ok=True)
         file_name_dict = self._file_name_dict
         ds_all = self._ds
         for scenario, model, realization in itertools.product(
@@ -266,7 +269,7 @@ class ClimateDataGetter:
         # have been saved to separate files).
         temp_save_dir = self._temp_save_dir
         temp_file_names = self._temp_file_names
-        self._ds.close()
+        self._ds_temp.close()
         for temp_file_name in temp_file_names:
             temp_save_path = temp_save_dir / temp_file_name
             temp_save_path.unlink()
