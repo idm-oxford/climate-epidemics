@@ -1,11 +1,17 @@
 import itertools
+import time
 import zipfile
 
 import numpy as np
+import pandas as pd
 import xarray as xr
+import xcdat  # noqa
+from geopy.geocoders import Nominatim
 from isimip_client.client import ISIMIPClient
 
 from climepi.climdata._data_getter_class import ClimateDataGetter
+
+geolocator = Nominatim(user_agent="climepi")
 
 
 class ISIMIPDataGetter(ClimateDataGetter):
@@ -28,56 +34,103 @@ class ISIMIPDataGetter(ClimateDataGetter):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._client = None
-        self._responses = None
+        self._client_results_dict = None
         self._temp_file_scenarios = None
         self._temp_file_models = None
 
     def _find_remote_data(self):
         scenarios = self._subset["scenarios"]
         models = self._subset["models"]
-        client = ISIMIPClient()
-        responses = {
+        client_results_dict = {
             scenario: {model: None for model in models} for scenario in scenarios
         }
         for scenario, model in itertools.product(scenarios, models):
-            responses[scenario][model] = client.datasets(
+            response = ISIMIPClient().files(
                 simulation_round="ISIMIP3b",
                 climate_variable=["tas", "pr"],
                 climate_scenario=scenario,
                 climate_forcing=model,
             )
-        self._client = client
-        self._responses = responses
+            results = response["results"]
+            while response["next"] is not None:
+                response = ISIMIPClient(data_url="").get(response["next"])
+                results.extend(response["results"])
+            client_results_dict[scenario][model] = results
+        self._client_results_dict = client_results_dict
 
     def _subset_remote_data(self):
         # Subset the remotely opened dataset to the requested years, realizations and
         # location(s), and store the subsetted dataset in the _ds attribute.
         scenarios = self._subset["scenarios"]
         models = self._subset["models"]
-        client = self._client
-        responses = self._responses
+        years = self._subset["years"]
+        loc_str = self._subset["loc_str"]
+        lon_range = self._subset["lon_range"]
+        lat_range = self._subset["lat_range"]
+        client_results_dict = self._client_results_dict
+        if loc_str is not None:
+            location = geolocator.geocode(loc_str)
+            lat = location.latitude
+            lon = location.longitude
+            bbox = [lat, lat, lon, lon]
+        else:
+            if lon_range is None:
+                lon_range = [-180, 180]
+            else:
+                # Ensure longitudes are in range -180 to 180
+                lon_range = ((np.array(lon_range) + 180) % 360) - 180
+            if lat_range is None:
+                lat_range = [-90, 90]
+            bbox = [lat_range[0], lat_range[1], lon_range[0], lon_range[1]]
+        # Get paths for files that are within the requested years
+        paths_dict = {
+            scenario: {model: None for model in models} for scenario in scenarios
+        }
         for scenario, model in itertools.product(scenarios, models):
-            response = responses[scenario][model]
-            results = response["results"]
-            # ADD IN CODE TO ONLY KEEP RELEVANT YEARS
-            paths = [file["path"] for result in results for file in result["files"]]
-            response_new = client.cutout(paths, [-40, -40, 170, 170])
-            responses[scenario][model] = response_new
+            results = client_results_dict[scenario][model]
+            paths = [file["path"] for file in results]
+            file_start_years = [file["specifiers"]["start_year"] for file in results]
+            file_end_years = [file["specifiers"]["end_year"] for file in results]
+            paths = [
+                path
+                for path, file_start_year, file_end_year in zip(
+                    paths, file_start_years, file_end_years
+                )
+                if any((file_start_year <= year <= file_end_year for year in years))
+            ]
+            paths_dict[scenario][model] = paths
+        # Request server to subset the data
+        from alive_progress import alive_bar
+
+        subsetting_completed_dict = {
+            scenario: {model: False for model in models} for scenario in scenarios
+        }
+        no_scenario_model_combs = len(scenarios) * len(models)
+        with alive_bar(no_scenario_model_combs) as progress_bar:
+            while progress_bar.current < no_scenario_model_combs:
+                for scenario, model in itertools.product(scenarios, models):
+                    if not subsetting_completed_dict[scenario][model]:
+                        paths = paths_dict[scenario][model]
+                        results_new = ISIMIPClient().cutout(paths, bbox)
+                        if results_new["status"] == "finished":
+                            client_results_dict[scenario][model] = results_new
+                            subsetting_completed_dict[scenario][model] = True
+                            progress_bar()
+                if progress_bar.current < no_scenario_model_combs:
+                    time.sleep(10)
 
     def _download_remote_data(self):
         scenarios = self._subset["scenarios"]
         models = self._subset["models"]
-        client = self._client
-        responses = self._responses
+        client_results_dict = self._client_results_dict
         temp_save_dir = self._temp_save_dir
         temp_file_names = []
         for scenario, model in itertools.product(scenarios, models):
-            response = responses[scenario][model]
-            client.download(
-                response["file_url"], path=temp_save_dir, validate=False, extract=False
+            results = client_results_dict[scenario][model]
+            ISIMIPClient().download(
+                results["file_url"], path=temp_save_dir, validate=False, extract=False
             )
-            zip_path = temp_save_dir / response["file_name"]
+            zip_path = temp_save_dir / results["file_name"]
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 download_file_names_curr = [
                     name for name in zip_ref.namelist() if name[-3:] == ".nc"
@@ -88,10 +141,13 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 temp_save_dir / name for name in download_file_names_curr
             ]
             with xr.open_mfdataset(download_file_paths_curr, chunks="auto") as ds:
-                # NEED TO MAKE DATA VARS HAVE SCENARIO AND MODEL COORDS FOR OPEN TO WORK?
-                ds["scenario"] = scenario
-                ds["model"] = model
-                ds = ds.set_coords(["scenario", "model"])
+                # Preprocess the data to enable concatenation along the 'scenario' and
+                # 'model' dimensions.
+                ds = ds.expand_dims(
+                    {"scenario": [scenario], "model": [model], "realization": [0]}
+                )
+                # Some data have time at beginning, some at middle - set all to middle
+                ds["time"] = ds["time"].dt.floor("D") + pd.Timedelta("12h")
                 temp_file_name_curr = f"{scenario}_{model}.nc"
                 ds.to_netcdf(temp_save_dir / temp_file_name_curr)
             for download_file_path in download_file_paths_curr:
@@ -103,53 +159,17 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # NEED TO INCLUDE YEAR SUBSETTING HERE
         # Process the remotely opened dataset, and store the processed dataset in the
         # _ds attribute.
-        realizations = self._subset["realizations"]
         ds_processed = self._ds.copy()
-        # Index data variables by an integer realization coordinate instead of the
-        # member_id coordinate (which is a string), and add model and scenario
-        # coordinates.
-        ds_processed = ds_processed.swap_dims({"member_id": "realization"})
-        ds_processed["realization"] = realizations
-        ds_processed["scenario"] = self.available_scenarios
-        ds_processed["model"] = self.available_models
-        ds_processed = ds_processed.set_coords(["scenario", "model"])
-        # Convert the calendar from the no-leap calendar to the proleptic_gregorian
-        # calendar (avoids plotting issues).
-        time_bnds_new = xr.concat(
-            [
-                ds_processed.isel(nbnd=nbnd)
-                .convert_calendar("proleptic_gregorian", dim="time_bnds")
-                .time_bnds.swap_dims({"time_bnds": "time"})
-                .expand_dims("nbnd", axis=1)
-                for nbnd in range(2)
-            ],
-            dim="nbnd",
-        )
-        time_bnds_new["time"] = ds_processed["time"]
-        ds_processed["time_bnds"] = time_bnds_new["time_bnds"]
-        time_attrs = ds_processed["time"].attrs
-        time_encoding = {
-            key: ds_processed["time"].encoding[key] for key in ["units", "dtype"]
-        }
-        ds_processed["time"] = ds_processed["time_bnds"].mean(dim="nbnd")
-        ds_processed["time"].attrs = time_attrs
-        ds_processed["time"].encoding = time_encoding
-        # Make time bounds a data variable instead of a coordinate, and format in order
-        # to match the conventions of xcdat.
-        ds_processed = ds_processed.reset_coords("time_bnds")
-        ds_processed["time_bnds"] = ds_processed["time_bnds"].T
-        ds_processed = ds_processed.rename_dims({"nbnd": "bnds"})
+        # Add time bounds using xcdat
+        ds_processed = ds_processed.bounds.add_time_bounds(method="freq", freq="day")
         # Convert temperature from Kelvin to Celsius
-        ds_processed["temperature"] = ds_processed["TREFHT"] - 273.15
+        ds_processed["temperature"] = ds_processed["tas"] - 273.15
         ds_processed["temperature"].attrs.update(long_name="Temperature")
         ds_processed["temperature"].attrs.update(units="°C")
-        # Calculate total precipitation from convective and large-scale precipitation,
-        # and convert from m/s to mm/day.
-        ds_processed["precipitation"] = (
-            ds_processed["PRECC"] + ds_processed["PRECL"]
-        ) * (1000 * 60 * 60 * 24)
+        # Convert precipitation from kg m-2 s-1 (equivalent to mm/s) to mm/day.
+        ds_processed["precipitation"] = ds_processed["pr"] * (60 * 60 * 24)
         ds_processed["precipitation"].attrs.update(long_name="Precipitation")
         ds_processed["precipitation"].attrs.update(units="mm/day")
-        ds_processed = ds_processed.drop(["TREFHT", "PRECC", "PRECL"])
+        ds_processed = ds_processed.drop(["tas", "pr"])
         self._ds = ds_processed
         super()._process_data()
