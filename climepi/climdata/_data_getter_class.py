@@ -23,8 +23,8 @@ class ClimateDataGetter:
     Parameters
     ----------
     frequency : str, optional
-        Frequency of the data to retrieve. Should be one of 'daily' or 'monthly'
-        (default is 'monthly').
+        Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
+        'yearly' (default is 'monthly').
     subset : dict, optional
         Dictionary of data subsetting options. The following keys/values are available:
             years : list or array-like of int, optional
@@ -219,15 +219,14 @@ class ClimateDataGetter:
     def _download_remote_data(self):
         raise NotImplementedError
 
-    def _open_temp_data(self, chunks=None):
-        if chunks is None:
-            chunks = {}
+    def _open_temp_data(self, **kwargs):
+        kwargs = {"chunks": {}, **kwargs}
         temp_save_dir = self._temp_save_dir
         temp_file_names = self._temp_file_names
         temp_file_paths = [
             temp_save_dir / temp_file_name for temp_file_name in temp_file_names
         ]
-        self._ds_temp = xr.open_mfdataset(temp_file_paths, chunks=chunks)
+        self._ds_temp = xr.open_mfdataset(temp_file_paths, **kwargs)
         self._ds = self._ds_temp
 
     def _process_data(self):
