@@ -30,9 +30,9 @@ class ClimEpiDatasetAccessor:
         Gets and sets a dictionary containing properties of the dataset used by climepi.
         The dictionary should contain the following keys and currently supported values:
         modes = {
-            "spatial": "global" or "single",
-            "temporal": "monthly" or "annual",
-            "ensemble": "ensemble", "single_run" or "stats",
+            "spatial": "grid" or "single",
+            "temporal": "monthly" or "yearly",
+            "ensemble": "ensemble", "single" or "stats",
         }
         """
         return self._modes
@@ -42,19 +42,65 @@ class ClimEpiDatasetAccessor:
         # assert isinstance(modes_in, dict)
         # assert all(key in ["spatial", "temporal", "ensemble"] for key in modes_in)
         # assert all(key in modes_in for key in ["spatial", "temporal", "ensemble"])
-        # assert modes_in["spatial"] in ["global"]
-        # assert modes_in["temporal"] in ["monthly", "annual"]
-        # assert modes_in["ensemble"] in ["ensemble", "single_run", "stats"]
+        # assert modes_in["spatial"] in ["grid"]
+        # assert modes_in["temporal"] in ["monthly", "yearly"]
+        # assert modes_in["ensemble"] in ["ensemble", "single", "stats"]
         self._modes = modes_in
 
-    def annual_mean(self, data_var=None, **kwargs):
+    def temporal_group_average(self, data_var=None, frequency="yearly", **kwargs):
         """
-        Computes the annual mean of a data variable. Wraps xcdat temporal.group_average.
+        Computes the group average of a data variable. Wraps xcdat
+        temporal.group_average.
 
         Parameters
         ----------
         data_var : str or list, optional
-            Name(s) of the data variable(s) to compute the annual mean for. If not
+            Name(s) of the data variable(s) to compute the group average for. If not
+            provided, all non-bound data variables will be used.
+        frequency : str, optional
+            Frequency to compute the group average for (options are "yearly", "monthly"
+            or "daily").
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to xcdat temporal.group_average.
+
+        Returns
+        -------
+        xarray.Dataset
+            A new dataset containing the group average of the selected data
+            variable(s) at the specified frequency.
+        """
+        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        xcdat_freq_map = {"yearly": "year", "monthly": "month", "daily": "day"}
+        xcdat_freq = xcdat_freq_map[frequency]
+        if isinstance(data_var, list):
+            ds_m_list = [
+                self.temporal_group_average(data_var_curr, frequency)
+                for data_var_curr in data_var
+            ]
+            ds_m = xr.merge(ds_m_list)
+        elif np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(
+            self._obj[data_var].dtype, np.integer
+        ):
+            # Workaround for bug in xcdat temporal.group_average using integer or
+            # boolean data types
+            ds_copy = self._obj.copy()
+            ds_copy[data_var] = ds_copy[data_var].astype("float64")
+            ds_m = ds_copy.climepi.temporal_group_average(data_var, frequency)
+        else:
+            ds_m = self._obj.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
+            ds_m = ds_m.bounds.add_time_bounds(method="freq", freq=xcdat_freq)
+            ds_m = xcdat.center_times(ds_m)
+        ds_m.climepi.modes = dict(self.modes, temporal=frequency)
+        return ds_m
+
+    def yearly_average(self, data_var=None, **kwargs):
+        """
+        Computes the yearly mean of a data variable. Thin wrapper around group_average.
+
+        Parameters
+        ----------
+        data_var : str or list, optional
+            Name(s) of the data variable(s) to compute the yearly mean for. If not
             provided, all non-bound data variables will be used.
         **kwargs : dict, optional
             Additional keyword arguments to pass to xcdat temporal.group_average.
@@ -62,25 +108,34 @@ class ClimEpiDatasetAccessor:
         Returns
         -------
         xarray.Dataset
-            A new dataset containing the annual mean of the selected data
+            A new dataset containing the yearly mean of the selected data
             variable(s).
         """
-        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
-        if isinstance(data_var, list):
-            ds_m_list = [self.annual_mean(data_var_curr) for data_var_curr in data_var]
-            ds_m = xr.merge(ds_m_list)
-        elif np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(
-            self._obj[data_var].dtype, np.integer
-        ):
-            # Workaround for bug in xcdat group_average using integer or
-            # boolean data types
-            ds_copy = self._obj.copy()
-            ds_copy[data_var] = ds_copy[data_var].astype("float64")
-            ds_m = ds_copy.climepi.annual_mean(data_var)
-        else:
-            ds_m = self._obj.temporal.group_average(data_var, freq="year", **kwargs)
-        ds_m.climepi.modes = dict(self.modes, temporal="annual")
-        return ds_m
+        return self.temporal_group_average(
+            data_var=data_var, frequency="yearly", **kwargs
+        )
+
+    def monthly_average(self, data_var=None, **kwargs):
+        """
+        Computes the monthly mean of a data variable. Thin wrapper around group_average.
+
+        Parameters
+        ----------
+        data_var : str or list, optional
+            Name(s) of the data variable(s) to compute the monthly mean for. If not
+            provided, all non-bound data variables will be used.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to xcdat temporal.group_average.
+
+        Returns
+        -------
+        xarray.Dataset
+            A new dataset containing the monthly mean of the selected data
+            variable(s).
+        """
+        return self.temporal_group_average(
+            data_var=data_var, frequency="monthly", **kwargs
+        )
 
     def ensemble_mean(self, data_var=None):
         """
@@ -381,10 +436,10 @@ class ClimEpiDatasetAccessor:
         xarray.Dataset
             A new dataset containing the data for the specified location.
         """
-        if not self._obj.climepi.modes["spatial"] == "global":
+        if not self._obj.climepi.modes["spatial"] == "grid":
             raise ValueError(
                 """The sel_geopy method can only be used on datasets with climepi
-                spatial mode "global"."""
+                spatial mode "grid"."""
             )
         location = geolocator.geocode(loc_str, **kwargs)
         lat = location.latitude
