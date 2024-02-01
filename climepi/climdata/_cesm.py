@@ -3,6 +3,7 @@ Module for accessing and downloading CESM LENS2 data from the aws server (see
 https://ncar.github.io/cesm2-le-aws/model_documentation.html).
 """
 
+import climepi  # noqa
 import dask.diagnostics
 import intake
 import numpy as np
@@ -20,6 +21,8 @@ class CESMDataGetter(ClimateDataGetter):
 
     def _find_remote_data(self):
         frequency = self._frequency
+        if frequency == "yearly":
+            frequency = "monthly"
         catalog = intake.open_esm_datastore(
             "https://raw.githubusercontent.com/NCAR/cesm2-le-aws"
             + "/main/intake-catalogs/aws-cesm2-le.json"
@@ -95,49 +98,30 @@ class CESMDataGetter(ClimateDataGetter):
             delayed_obj.compute()
         self._temp_file_names = [temp_file_name]
 
-    def _open_temp_data(self, chunks=None):
-        if chunks is None:
-            chunks = self._ds.chunks.mapping
-        super()._open_temp_data(chunks=chunks)
+    def _open_temp_data(self, **kwargs):
+        kwargs = {"chunks": self._ds.chunks.mapping, **kwargs}
+        super()._open_temp_data(**kwargs)
 
     def _process_data(self):
         # Process the remotely opened dataset, and store the processed dataset in the
         # _ds attribute.
         realizations = self._subset["realizations"]
+        frequency = self._frequency
         ds_processed = self._ds.copy()
         # Index data variables by an integer realization coordinate instead of the
         # member_id coordinate (which is a string), and add model and scenario
         # coordinates.
         ds_processed = ds_processed.swap_dims({"member_id": "realization"})
         ds_processed["realization"] = realizations
-        ds_processed["scenario"] = self.available_scenarios
-        ds_processed["model"] = self.available_models
-        ds_processed = ds_processed.set_coords(["scenario", "model"])
-        # Convert the calendar from the no-leap calendar to the proleptic_gregorian
-        # calendar (avoids plotting issues).
-        time_bnds_new = xr.concat(
-            [
-                ds_processed.isel(nbnd=nbnd)
-                .convert_calendar("proleptic_gregorian", dim="time_bnds")
-                .time_bnds.swap_dims({"time_bnds": "time"})
-                .expand_dims("nbnd", axis=1)
-                for nbnd in range(2)
-            ],
-            dim="nbnd",
+        # ds_processed["scenario"] = self.available_scenarios
+        # ds_processed["model"] = self.available_models
+        # ds_processed = ds_processed.set_coords(["scenario", "model"])
+        ds_processed = ds_processed.expand_dims(
+            {"scenario": self.available_scenarios, "model": self.available_models}
         )
-        time_bnds_new["time"] = ds_processed["time"]
-        ds_processed["time_bnds"] = time_bnds_new["time_bnds"]
-        time_attrs = ds_processed["time"].attrs
-        time_encoding = {
-            key: ds_processed["time"].encoding[key] for key in ["units", "dtype"]
-        }
-        ds_processed["time"] = ds_processed["time_bnds"].mean(dim="nbnd")
-        ds_processed["time"].attrs = time_attrs
-        ds_processed["time"].encoding = time_encoding
         # Make time bounds a data variable instead of a coordinate, and format in order
         # to match the conventions of xcdat.
         ds_processed = ds_processed.reset_coords("time_bnds")
-        ds_processed["time_bnds"] = ds_processed["time_bnds"].T
         ds_processed = ds_processed.rename_dims({"nbnd": "bnds"})
         # Convert temperature from Kelvin to Celsius
         ds_processed["temperature"] = ds_processed["TREFHT"] - 273.15
@@ -151,5 +135,8 @@ class CESMDataGetter(ClimateDataGetter):
         ds_processed["precipitation"].attrs.update(long_name="Precipitation")
         ds_processed["precipitation"].attrs.update(units="mm/day")
         ds_processed = ds_processed.drop(["TREFHT", "PRECC", "PRECL"])
+        # Take yearly averages if requested.
+        if frequency == "yearly":
+            ds_processed = ds_processed.climepi.yearly_average()
         self._ds = ds_processed
         super()._process_data()
