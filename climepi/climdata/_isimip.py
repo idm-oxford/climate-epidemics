@@ -1,4 +1,5 @@
 import pathlib
+import time
 import zipfile
 
 import numpy as np
@@ -88,33 +89,57 @@ class ISIMIPDataGetter(ClimateDataGetter):
             if any((file_start_year <= year <= file_end_year for year in years))
         ]
         # Request server to subset the data
-        client_results_new = ISIMIPClient().cutout(client_file_paths, bbox, poll=10)
+        paths_by_cutout_request = [
+            client_file_paths[i : i + 500]
+            for i in range(0, len(client_file_paths), 500)
+        ]
+        subsetting_completed = False
+        while not subsetting_completed:
+            client_results_new = [
+                ISIMIPClient().cutout(paths, bbox) for paths in paths_by_cutout_request
+            ]
+            job_ids = [results["id"] for results in client_results_new]
+            job_statuses = [results["status"] for results in client_results_new]
+            print(
+                *[
+                    f"Job {job_id} {job_status}"
+                    for job_id, job_status in zip(job_ids, job_statuses)
+                ],
+                sep="\n",
+            )
+            if all(job_status == "completed" for job_status in job_statuses):
+                subsetting_completed = True
+            else:
+                time.sleep(10)
         self._client_results = client_results_new
 
     def _download_remote_data(self):
         client_results = self._client_results
         temp_save_dir = self._temp_save_dir
         temp_file_names = []
-        # ISIMIPClient().download(
-        #     client_results["file_url"],
-        #     path=temp_save_dir,
-        #     validate=False,
-        #     extract=False,
-        # )
-        zip_path = pooch.retrieve(
-            client_results["file_url"],
-            known_hash=None,
-            fname=client_results["file_name"],
-            path=temp_save_dir,
-            progressbar=True,
-        )
-        # zip_path = temp_save_dir / client_results["file_name"]
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            temp_file_names = [
-                name for name in zip_ref.namelist() if name[-3:] == ".nc"
-            ]
-            zip_ref.extractall(path=temp_save_dir, members=temp_file_names)
-        pathlib.Path(zip_path).unlink()
+        for results in client_results:
+            file_url = results["file_url"]
+            try:
+                download_file_name = results["file_name"]
+            except KeyError:
+                download_file_name = results["name"]
+            download_path_curr = pooch.retrieve(
+                file_url,
+                known_hash=None,
+                fname=download_file_name,
+                path=temp_save_dir,
+                progressbar=True,
+            )
+            if download_path_curr.suffix == ".zip":
+                with zipfile.ZipFile(download_path_curr, "r") as zip_ref:
+                    temp_file_names_curr = [
+                        name for name in zip_ref.namelist() if name[-3:] == ".nc"
+                    ]
+                    zip_ref.extractall(path=temp_save_dir, members=temp_file_names_curr)
+                pathlib.Path(download_path_curr).unlink()
+                temp_file_names.extend(temp_file_names_curr)
+            else:
+                temp_file_names.append(download_file_name)
         self._temp_file_names = temp_file_names
 
     def _open_temp_data(self, **kwargs):
