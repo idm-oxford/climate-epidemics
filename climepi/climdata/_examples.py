@@ -66,10 +66,21 @@ EXAMPLES = {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
-            "years": np.arange(2000, 2101),
             "loc_str": "London",
             "scenarios": ["ssp126", "ssp245"],
             "models": ["gfdl-esm4", "ipsl-cm6a-lr"],
+        },
+        "climepi_modes": {
+            "spatial": "single",
+            "temporal": "monthly",
+            "ensemble": "single",
+        },
+    },
+    "isimip_london": {
+        "data_source": "isimip",
+        "frequency": "monthly",
+        "subset": {
+            "loc_str": "London",
         },
         "climepi_modes": {
             "spatial": "single",
@@ -211,6 +222,6 @@ def _get_data_dir(name, data_dir):
 
 if __name__ == "__main__":
     # for example_name in EXAMPLES:
-    for example_name in ["lens2_europe_small", "isimip_london_small"]:
+    for example_name in ["lens2_europe_small", "isimip_london_small", "isimip_london"]:
         create_example_dataset(example_name)
         get_example_dataset(example_name)
