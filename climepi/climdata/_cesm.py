@@ -13,13 +13,30 @@ from climepi.climdata._data_getter_class import ClimateDataGetter
 
 
 class CESMDataGetter(ClimateDataGetter):
+
+    """
+    Class for accessing and downloading CESM2 LENS data from the aws server
+    (https://registry.opendata.aws/ncar-cesm2-lens/). Available years that can be
+    specified in the `subset` argument of the class constructor range from 1850 to 2100,
+    and 100 realizations (here labelled as 0 to 99) are available for a single scenario
+    ("ssp370") and model ("cesm2"). The remotely stored data can be lazily opened as an
+    xarray dataset and processed without downloading (`download=False` option in the
+    `get_data` method).
+
+    See the base class (`climepi.climdata._data_getter_class.ClimateDataGetter`) for
+    further details.
+    """
+
     data_source = "lens2"
+    remote_open_possible = True
     available_years = np.arange(1850, 2101)
     available_scenarios = ["ssp370"]
     available_models = ["cesm2"]
     available_realizations = np.arange(100)
 
     def _find_remote_data(self):
+        # Use intake to find and (lazily) open the remote data, then combine into a
+        # single dataset and store in the _ds attribute.
         frequency = self._frequency
         if frequency == "yearly":
             frequency = "monthly"
@@ -83,13 +100,8 @@ class CESMDataGetter(ClimateDataGetter):
         self._ds = ds_subset
 
     def _download_remote_data(self):
-        # Download the remote dataset to a temporary file (printing a progress bar),
-        # and then open the dataset from the temporary file (using the same chunking as
-        # the remote dataset). Note that using a single file (which is later deleted
-        # after saving the data to separate files) streamlines the download process
-        # compared to downloading each realization directly to its own final file,
-        # and may be more efficient, but a single download may not be desirable if
-        # internet connection is unreliable.
+        # Download the remote dataset to a temporary file (printing a progress bar), and
+        # store the file name in the _temp_file_names attribute.
         temp_save_dir = self._temp_save_dir
         temp_file_name = "temporary.nc"
         temp_save_path = temp_save_dir / temp_file_name
@@ -99,12 +111,15 @@ class CESMDataGetter(ClimateDataGetter):
         self._temp_file_names = [temp_file_name]
 
     def _open_temp_data(self, **kwargs):
+        # Open the temporary dataset, and store the opened dataset in the _ds attribute.
+        # Extends the parent method by using the chunks attribute of the original remote
+        # dataset (unless overridden by the user in the kwargs argument).
         kwargs = {"chunks": self._ds.chunks.mapping, **kwargs}
         super()._open_temp_data(**kwargs)
 
     def _process_data(self):
-        # Process the remotely opened dataset, and store the processed dataset in the
-        # _ds attribute.
+        # Extends the parent method to add renaming, unit conversion and (depending on
+        # the requested data frequency) temporal averaging.
         realizations = self._subset["realizations"]
         frequency = self._frequency
         ds_processed = self._ds.copy()
@@ -113,9 +128,6 @@ class CESMDataGetter(ClimateDataGetter):
         # coordinates.
         ds_processed = ds_processed.swap_dims({"member_id": "realization"})
         ds_processed["realization"] = realizations
-        # ds_processed["scenario"] = self.available_scenarios
-        # ds_processed["model"] = self.available_models
-        # ds_processed = ds_processed.set_coords(["scenario", "model"])
         ds_processed = ds_processed.expand_dims(
             {"scenario": self.available_scenarios, "model": self.available_models}
         )
@@ -123,7 +135,7 @@ class CESMDataGetter(ClimateDataGetter):
         # to match the conventions of xcdat.
         ds_processed = ds_processed.reset_coords("time_bnds")
         ds_processed = ds_processed.rename_dims({"nbnd": "bnds"})
-        # Convert temperature from Kelvin to Celsius
+        # Convert temperature from Kelvin to Celsius.
         ds_processed["temperature"] = ds_processed["TREFHT"] - 273.15
         ds_processed["temperature"].attrs.update(long_name="Temperature")
         ds_processed["temperature"].attrs.update(units="°C")
@@ -135,7 +147,7 @@ class CESMDataGetter(ClimateDataGetter):
         ds_processed["precipitation"].attrs.update(long_name="Precipitation")
         ds_processed["precipitation"].attrs.update(units="mm/day")
         ds_processed = ds_processed.drop(["TREFHT", "PRECC", "PRECL"])
-        # Take yearly averages if requested.
+        # Take yearly averages if yearly data requested.
         if frequency == "yearly":
             ds_processed = ds_processed.climepi.yearly_average()
         self._ds = ds_processed

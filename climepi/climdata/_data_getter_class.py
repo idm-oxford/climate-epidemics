@@ -16,9 +16,28 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 class ClimateDataGetter:
     """
-    Class for accessing downloading climate projection data. The 'get_data' method
+    Class for accessing and downloading climate projection data. The 'get_data' method
     controls the process of finding,  downloading and formatting the data. Intended to
-    be subclassed for specific data sources.
+    be subclassed for specific data sources. Subclasses should define the below class
+    attributes, as well as overriding and/or extending the methods as necessary.
+
+    Class attributes
+    ----------------
+    data_source: str
+        Name of the data source (e.g. 'lens2', 'isimip').
+    remote_open_possible: bool
+        Whether it is possible to lazily open the remote data as an xarray dataset (i.e.
+        without first downloading the data), e.g. if the data are stored in a cloud-based
+        file system.
+    available_years: list or array-like of int
+        Available years for which data can be retrieved.
+    available_scenarios: list or array-like of str
+        Available scenarios for which data can be retrieved.
+    available_models: list or array-like of str
+        Available models for which data can be retrieved.
+    available_realizations: list or array-like of int
+        Available realizations for which data can be retrieved (labelled as integers
+        from 0).
 
     Parameters
     ----------
@@ -30,6 +49,12 @@ class ClimateDataGetter:
             years : list or array-like of int, optional
                 Years for which to retrieve data within the available data range. If
                 not provided, all years are retrieved.
+            scenarios : list or array-like of str, optional
+                Scenarios for which to retrieve data. If not provided, all available
+                scenarios are retrieved.
+            models : list or array-like of str, optional
+                Models for which to retrieve data. If not provided, all available models
+                are retrieved.
             realizations : list or array-like of int, optional
                 Realizations for which to retrieve data. If not provided, all available
                 realizations are retrieved.
@@ -52,6 +77,7 @@ class ClimateDataGetter:
     """
 
     data_source = None
+    remote_open_possible = False
     available_years = None
     available_scenarios = None
     available_models = None
@@ -86,9 +112,10 @@ class ClimateDataGetter:
     @property
     def file_name_dict(self):
         """
-        Gets a dictionary mapping each included realization to a file name for saving
-        and retrieving the data for that realization (without the directory path).
-        The file names are determined based on the provided data subsetting options.
+        Gets a dictionary mapping each scenario/model/realization combination to a file
+        name for saving and retrieving the corresponding data (without the directory
+        path). The file names are determined based on the provided data subsetting
+        options.
         """
         if self._file_name_dict is None:
             years = self._subset["years"]
@@ -101,8 +128,18 @@ class ClimateDataGetter:
             base_name_str_list = [self.data_source, self._frequency]
             if all(np.diff(years) == 1):
                 base_name_str_list.extend([f"{years[0]}", "to", f"{years[-1]}"])
+            elif np.size(years) <= 10:
+                base_name_str_list.extend([f"{year}" for year in years])
+            elif all(np.diff(np.diff(years)) == 0):
+                base_name_str_list.extend(
+                    [f"{years[0]}", "by", f"{np.diff(years)[0]}", "to", f"{years[-1]}"]
+                )
             else:
                 base_name_str_list.extend([f"{year}" for year in years])
+                print(
+                    "Warning: requesting a large number of non-uniform years may lead",
+                    "to invalid long file names.",
+                )
             if loc_str is not None:
                 base_name_str_list.append(loc_str.replace(" ", "_"))
             else:
@@ -135,7 +172,7 @@ class ClimateDataGetter:
     def file_names(self):
         """
         Gets a list of file names for saving and retrieving the data for the included
-        realizations (see 'file_name_dict' property).
+        scenario/model/realization combinations (see 'file_name_dict' property).
         """
         if self._file_names is None:
             scenarios = self._subset["scenarios"]
@@ -153,37 +190,37 @@ class ClimateDataGetter:
     def get_data(self, download=True):
         """
         Main method for retrieving data. First tries to open the data locally from
-        the provided 'save_dir' directory. If the dataset is not found locally, it is
-        opened and subsetted within the remote server, (optionally) downloaded,
+        the provided 'save_dir' directory. If not found locally, the data are searched
+        for and subsetted within the remote server, downloaded to a temporary file
+        (optionally, if it is possible to lazily open the remote dataset), and then
         processed and (if downloaded) saved to the 'save_dir' directory.
-
-        Main method for retrieving data. First tries to open the data locally from
-        the provided 'save_dir' directory. If the data are not found locally, it is
-        opened, subsetted and processed from the remote aws server, and then
-        (optionally) downloaded to the 'save_dir' directory.
 
         Parameters
         ----------
         download : bool, optional
             Whether to download the data to the 'save_dir' directory if not found
             locally (default is True). If False and the data are not found locally,
-            the data are only lazily opened and processed from the remote server
-            (provided this is possible).
+            the remotely held data are only lazily opened and processed (provided this
+            is possible).
 
         Returns
         -------
         xarray.Dataset
-            Retrieved data (dask-backed dataset opened from the found or downloaded
-            local file)
+            Processed data (lazily opened from either local or remote files)
         """
         try:
             self._open_local_data()
             return self._ds
         except FileNotFoundError:
             pass
-        print("Getting remote data info...")
+        if not self.remote_open_possible and not download:
+            raise ValueError(
+                "It is not possible to lazily load the remote data. Set download=True",
+                "to download the data.",
+            )
+        print("Finding data files on server...")
         self._find_remote_data()
-        print("Remote data found.")
+        print("Data found.")
         print("Subsetting data...")
         self._subset_remote_data()
         print("Data subsetted.")
@@ -211,15 +248,27 @@ class ClimateDataGetter:
         self._ds = _ds
 
     def _find_remote_data(self):
+        # Method for finding the data on the remote server to be implemented in
+        # subclasses. The expected behaviour depends on the data source.
         raise NotImplementedError
 
     def _subset_remote_data(self):
+        # Method for subsetting the remotely held data to be implemented in subclasses.
+        # The expected behaviour depends on the data source.
         raise NotImplementedError
 
     def _download_remote_data(self):
+        # Method for downloading the remotely held data to be implemented in subclasses.
+        # Should download the data to temporary netCDF file(s) and store the file
+        # name(s) in the _temp_file_names attribute.
         raise NotImplementedError
 
     def _open_temp_data(self, **kwargs):
+        # Open the downloaded data from the temporary file(s), and store the dataset in
+        # both the _ds attribute and the _ds_temp attribute (the latter is used for
+        # closing the temporary file(s) before they are deleted). The 'kwargs' argument
+        # is included to allow for different options to be passed to
+        # xarray.open_mfdataset by subclasses which extend this method.
         kwargs = {"chunks": {}, **kwargs}
         temp_save_dir = self._temp_save_dir
         temp_file_names = self._temp_file_names
@@ -231,10 +280,10 @@ class ClimateDataGetter:
 
     def _process_data(self):
         # Process the remotely opened dataset, and store the processed dataset in the
-        # _ds attribute.
+        # _ds attribute. Processing common to all data sources is implemented here;
+        # this method can be extended (or overridden) by subclasses to include data
+        # source-specific processing.
         ds_processed = self._ds.copy()
-        # Process the remotely opened dataset, and store the processed dataset in the
-        # _ds attribute.
         # Convert the longitude coordinate to the range -180 to 180 (MAY REMOVE IN
         # FUTURE)
         if ds_processed.lon.size > 1:
@@ -246,8 +295,8 @@ class ClimateDataGetter:
         self._ds = ds_processed
 
     def _save_processed_data(self):
-        # Save the data for each realization to a separate file in the 'save_dir'
-        # directory.
+        # Save the data for each scenario/model/realization combination to a separate
+        # file in the 'save_dir' directory.
         scenarios = self._subset["scenarios"]
         models = self._subset["models"]
         realizations = self._subset["realizations"]
@@ -265,7 +314,7 @@ class ClimateDataGetter:
 
     def _delete_temporary(self):
         # Delete the temporary file(s) created when downloading the data (once the data
-        # have been saved to separate files).
+        # have been processed and saved to final files).
         temp_save_dir = self._temp_save_dir
         temp_file_names = self._temp_file_names
         self._ds_temp.close()
