@@ -38,6 +38,10 @@ class ClimateDataGetter:
     available_realizations: list or array-like of int
         Available realizations for which data can be retrieved (labelled as integers
         from 0).
+    lon_res: float
+        Longitude resolution of the data (degrees).
+    lat_res: float
+        Latitude resolution of the data (degrees).
 
     Parameters
     ----------
@@ -82,6 +86,8 @@ class ClimateDataGetter:
     available_scenarios = None
     available_models = None
     available_realizations = None
+    lon_res = None
+    lat_res = None
 
     def __init__(self, frequency="monthly", subset=None, save_dir=None):
         subset_in = subset or {}
@@ -290,7 +296,23 @@ class ClimateDataGetter:
             ds_processed = xcdat.swap_lon_axis(ds_processed, to=(-180, 180))
         else:
             ds_processed["lon"] = ((ds_processed["lon"] + 180) % 360) - 180
-        # Add latitude and longitude bounds.
+        # Add latitude and longitude bounds (use provided resolution if available, else
+        # use the xcdat `add_missing_bounds` method to infer bounds from the coordinate
+        # values (which is not possible for single-value coordinates).
+        lon_res = self.lon_res
+        if "lon_bnds" not in ds_processed and lon_res is not None:
+            ds_processed["lon_bnds"] = xr.concat(
+                [ds_processed.lon - lon_res / 2, ds_processed.lon + lon_res / 2],
+                dim="bnds",
+            ).T
+            ds_processed["lon"].attrs["bounds"] = "lon_bnds"
+        lat_res = self.lat_res
+        if "lat_bnds" not in ds_processed and lat_res is not None:
+            ds_processed["lat_bnds"] = xr.concat(
+                [ds_processed.lat - lat_res / 2, ds_processed.lat + lat_res / 2],
+                dim="bnds",
+            ).T
+            ds_processed["lat"].attrs["bounds"] = "lat_bnds"
         ds_processed = ds_processed.bounds.add_missing_bounds(axes=["X", "Y"])
         self._ds = ds_processed
 

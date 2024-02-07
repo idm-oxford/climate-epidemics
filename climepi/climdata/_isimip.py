@@ -48,6 +48,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
         "miroc6",
     ]
     available_realizations = [0]
+    lon_res = 0.5
+    lat_res = 0.5
 
     def __init__(self, *args, **kwargs):
         # Extends the base class constructor to include the _client_results attribute,
@@ -137,6 +139,14 @@ class ISIMIPDataGetter(ClimateDataGetter):
         self._client_results = client_results_new
 
     def _download_remote_data(self):
+        # Download the remote data to temporary files using (printing a progress bar),
+        # and store the file names in the _temp_file_names attribute. Note that this
+        # method currently supports downloading both .nc files (as obtained when
+        # initially querying the ISIMIP repository) and .zip files (as obtained when
+        # requesting server-side subsetting of the data) - in principle, this would
+        # allow data to be downloaded without server-side subsetting (and subsequently
+        # subsetted locally), but this functionality may not be needed (and is not
+        # currently implemented).
         client_results = self._client_results
         temp_save_dir = self._temp_save_dir
         temp_file_names = []
@@ -166,6 +176,10 @@ class ISIMIPDataGetter(ClimateDataGetter):
         self._temp_file_names = temp_file_names
 
     def _open_temp_data(self, **kwargs):
+        # Extends the parent method by defining a custom preprocess function to enable
+        # the data to be opened as a single dataset, concantenating along new 'scenario'
+        # and 'model' dimensions.
+
         def _preprocess(ds):
             file_name = ds.encoding["source"].split("/")[-1]
             # Preprocess the data to enable concatenation along the 'scenario' and
@@ -193,8 +207,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
         super()._open_temp_data(**kwargs)
 
     def _process_data(self):
-        # Process the remotely opened dataset, and store the processed dataset in the
-        # _ds attribute.
+        # Extends the parent method to add temporal subsetting, renaming, unit conversion
+        # and (depending on the requested data frequency) temporal averaging.
         ds_processed = self._ds.copy()
         frequency = self._frequency
         years = self._subset["years"]

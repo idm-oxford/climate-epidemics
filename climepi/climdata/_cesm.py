@@ -33,6 +33,8 @@ class CESMDataGetter(ClimateDataGetter):
     available_scenarios = ["ssp370"]
     available_models = ["cesm2"]
     available_realizations = np.arange(100)
+    lon_res = 1.25
+    lat_res = 360 / 382
 
     def _find_remote_data(self):
         # Use intake to find and (lazily) open the remote data, then combine into a
