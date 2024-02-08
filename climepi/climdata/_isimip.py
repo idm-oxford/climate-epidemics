@@ -8,10 +8,20 @@ import pooch
 import xcdat  # noqa
 from geopy.geocoders import Nominatim
 from isimip_client.client import ISIMIPClient
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 from climepi.climdata._data_getter_class import ClimateDataGetter
 
 geolocator = Nominatim(user_agent="climepi")
+
+FILES_API_URL = "https://files.isimip.org/api/v1"
+requests_session = Session()
+requests_session.mount(
+    FILES_API_URL,
+    HTTPAdapter(max_retries=Retry(total=5, allowed_methods={"GET", "POST"})),
+)
 
 
 class ISIMIPDataGetter(ClimateDataGetter):
@@ -73,7 +83,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
         )
         client_results = response["results"]
         while response["next"] is not None:
-            response = ISIMIPClient(data_url="").get(response["next"])
+            response = requests_session.get(response["next"]).json()
             client_results.extend(response["results"])
         # Filter the results to only include files that are within the requested years
         # Get paths for files that are within the requested years
@@ -121,7 +131,11 @@ class ISIMIPDataGetter(ClimateDataGetter):
         subsetting_completed = False
         while not subsetting_completed:
             client_results_new = [
-                ISIMIPClient().cutout(paths, bbox) for paths in paths_by_cutout_request
+                requests_session.post(
+                    FILES_API_URL,
+                    json={"task": "cutout_bbox", "paths": paths, "bbox": bbox},
+                ).json()
+                for paths in paths_by_cutout_request
             ]
             job_ids = [results["id"] for results in client_results_new]
             job_statuses = [results["status"] for results in client_results_new]
