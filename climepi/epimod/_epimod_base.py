@@ -113,10 +113,10 @@ class EpiModDatasetAccessor:
                 from a climate dataset, first run the suitability model and then apply
                 this method to the output dataset."""
             ) from exc
-        ds_suitability_mean = ds_suitability.climepi.annual_mean(weighted=False)
-        ds_months_suitable = 12 * ds_suitability_mean.rename(
-            {"suitability": "months_suitable"}
-        )
+        ds_suitability_mean = ds_suitability.climepi.yearly_average(weighted=False)
+        ds_months_suitable = ds_suitability_mean.assign(
+            months_suitable=12 * ds_suitability_mean["suitability"]
+        ).drop_vars("suitability")
         ds_months_suitable.months_suitable.attrs.update(units="months")
         ds_months_suitable.climepi.modes = ds_suitability_mean.climepi.modes
         return ds_months_suitable
