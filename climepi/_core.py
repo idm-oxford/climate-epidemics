@@ -4,6 +4,7 @@ ClimEpiDatasetAccessor class for xarray datasets.
 import geoviews.feature as gf
 import hvplot.xarray  # noqa # pylint: disable=unused-import
 import numpy as np
+import scipy.stats
 import xarray as xr
 import xcdat  # noqa # pylint: disable=unused-import
 import xclim.ensembles
@@ -186,6 +187,10 @@ class ClimEpiDatasetAccessor:
         if values is None:
             values = [5, 50, 95]
         data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        if isinstance(data_var, list) and len(data_var) == 1:
+            # xclim.ensembles.ensemble_percentiles doesn't seem to work with a list of
+            # length 1
+            data_var = data_var[0]
         ds_p = xr.Dataset(attrs=self._obj.attrs)
         ds_p[data_var] = xclim.ensembles.ensemble_percentiles(
             self._obj[data_var], values, split=False, **kwargs
@@ -266,14 +271,90 @@ class ClimEpiDatasetAccessor:
             selected data variable(s).
         """
         data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        if isinstance(data_var, list) and len(data_var) == 1:
+            # Problem squaring a dataset with a single data variable (this ensures a
+            # DataArray is squared instead)
+            data_var = data_var[0]
         ds_msmm = self._obj.climepi.ensemble_mean_std_max_min(data_var, **kwargs)
+        ds_v = ds_msmm.sel(ensemble_statistic="std").copy()
+        ds_v[data_var] = np.square(ds_v[data_var]).expand_dims(
+            dim={"ensemble_statistic": ["var"]}
+        )
         ds_mci = self._obj.climepi.ensemble_percentiles(
             data_var, [50 - conf_level / 2, 50, 50 + conf_level / 2], **kwargs
         )
         ds_mci = ds_mci.rename({"percentile": "ensemble_statistic"}).assign_coords(
             ensemble_statistic=["lower", "median", "upper"]
         )
-        ds_stat = xr.concat([ds_msmm, ds_mci], dim="ensemble_statistic")
+        ds_stat = xr.concat(
+            [ds_msmm, ds_v, ds_mci], dim="ensemble_statistic", data_vars="minimal"
+        )
+        ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
+        return ds_stat
+
+    def estimate_ensemble_stats(self, data_var=None, conf_level=90):
+        """
+        Estimates ensemble statistics for a data variable by fitting a polynomial to
+        a time series for a single ensemble member.
+
+        Parameters
+        ----------
+        data_var : str or list, optional
+            Name(s) of the data variable(s) to estimate the ensemble statistics for.
+            If not provided, all non-bound data variables will be used.
+        conf_level : float, optional
+            Confidence level for computing ensemble percentiles.
+
+        Returns
+        -------
+        xarray.Dataset
+            A new dataset containing the estimated ensemble statistics for the
+            selected data variable(s).
+        """
+        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        if isinstance(data_var, str):
+            data_var_list = [data_var]
+        else:
+            data_var_list = data_var
+        if "realization" in self._obj.sizes and len(self._obj.realization) > 1:
+            raise ValueError(
+                """The estimate_ensemble_stats method is only implemented for datasets
+                with a single ensemble member. Use the ensemble_stats method instead."""
+            )
+        # Estimate ensemble mean by fitting a polynomial to each time series.
+        fitted_polys = (
+            self._obj[data_var_list]
+            .squeeze("realization", drop=True)
+            .polyfit(dim="time", deg=4, full=True)
+        )
+        poly_coeff_data_var_list = [x + "_polyfit_coefficients" for x in data_var_list]
+        ds_m = xr.polyval(
+            coord=self._obj.time,
+            coeffs=fitted_polys[poly_coeff_data_var_list],
+        ).rename(dict(zip(poly_coeff_data_var_list, data_var_list)))
+        # Estimate ensemble variance/standard deviation using residuals from polynomial
+        # fits (with an implicit assumption that the variance is constant in time).
+        # Note that the calls to broadcast_like ensure broadcasting along the time
+        # dimension (this should be equivalent to adding coords="minimal" when
+        # concatenating the datasets, but is done explicitly here for clarity).
+        poly_residual_data_var_list = [x + "_polyfit_residuals" for x in data_var_list]
+        ds_v = (fitted_polys[poly_residual_data_var_list] / len(self._obj.time)).rename(
+            dict(zip(poly_residual_data_var_list, data_var_list))
+        )
+        ds_s = np.sqrt(ds_v)
+        ds_v = ds_v.broadcast_like(ds_m)
+        ds_s = ds_s.broadcast_like(ds_m)
+        # Estimate confidence intervals
+        z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
+        ds_l = ds_m - z * ds_s
+        ds_u = ds_m + z * ds_s
+        # Combine into a single dataset
+        ds_stat = xr.concat([ds_m, ds_v, ds_s, ds_l, ds_u], dim="ensemble_statistic")
+        ds_stat = ds_stat.assign_coords(
+            ensemble_statistic=["mean", "var", "std", "lower", "upper"]
+        )
+        ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
+        ds_stat.climepi.copy_bnds_from(self._obj)
         ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
         return ds_stat
 
