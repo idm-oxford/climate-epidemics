@@ -2,6 +2,7 @@
 ClimEpiDatasetAccessor class for xarray datasets.
 """
 import geoviews.feature as gf
+import holoviews as hv
 import hvplot.xarray  # noqa # pylint: disable=unused-import
 import numpy as np
 import scipy.stats
@@ -458,7 +459,7 @@ class ClimEpiDatasetAccessor:
             The resulting plot object.
         """
         data_var = self._auto_select_data_var(data_var)
-        ds_raw = self._obj.sel_data_var(data_var)
+        ds_raw = self.sel_data_var(data_var)
         plot_obj_list = []
         # Make "scenario", "model" and "realization" dimensions of the data variable if
         # they don't or are (singleton) non-dimension coordinates (reduces number of
@@ -468,20 +469,24 @@ class ClimEpiDatasetAccessor:
                 ds_raw[data_var] = ds_raw[data_var].expand_dims(dim)
         # Get ensemble statistics, baseline estimate, and if necessary a decomposition
         # of the variance and z value for approximate confidence intervals
-        multiple_realizations = len(ds_raw.realization) > 1
-        if multiple_realizations or estimate_internal_variability:
-            ds_stat = ds_raw.climepi.ensemble_stats(data_var, conf_level)
-            ds_baseline = ds_stat.sel(ensemble_stat="mean", drop=True).mean(
-                dim=["scenario", "model"]
-            )
-        else:
-            ds_baseline = ds_stat.sel(ensemble_stat="mean", drop=True)
+        ds_stat = ds_raw.climepi.ensemble_stats(
+            data_var, conf_level, estimate_internal_variability
+        )
+        ds_baseline = ds_stat.sel(ensemble_stat="mean", drop=True).mean(
+            dim=["scenario", "model"]
+        )
         ds_var_decomp = ds_raw.climepi.var_decomp(
             data_var, estimate_internal_variability
         )
         z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
+        # Plot the baseline estimate
+        kwargs_hv_baseline = {"x": "time", "label": "Mean"}
+        kwargs_hv_baseline.update(kwargs)
+        plot_obj_baseline = ds_baseline.hvplot.line(**kwargs_hv_baseline)
+        plot_obj_list.append(plot_obj_baseline)
         # Plot internal variability if there are multiple realizations or if internal
         # variability is to be estimated
+        multiple_realizations = len(ds_raw.realization) > 1
         if estimate_internal_variability or multiple_realizations:
             if len(ds_raw.scenario) == 1 and len(ds_raw.model) == 1:
                 ds_ci_internal = xr.Dataset(
@@ -489,7 +494,7 @@ class ClimEpiDatasetAccessor:
                         "lower": ds_stat.squeeze(["model", "scenario"], drop=True).sel(
                             ensemble_stat="lower"
                         ),
-                        "high": ds_stat.squeeze(["model", "scenario"], drop=True).sel(
+                        "upper": ds_stat.squeeze(["model", "scenario"], drop=True).sel(
                             ensemble_stat="upper"
                         ),
                     }
@@ -551,6 +556,46 @@ class ClimEpiDatasetAccessor:
             kwargs_hv_model.update(kwargs)
             plot_obj_model = ds_ci_internal_model.hvplot.area(**kwargs_hv_model)
             plot_obj_list.append(plot_obj_model)
+        # Plot scenario variability if there are multiple scenarios
+        if len(ds_raw.scenario) > 1:
+            if len(ds_raw.model) == 1 and not (
+                multiple_realizations or estimate_internal_variability
+            ):
+                ds_ci_internal_model_scenario = xr.Dataset(
+                    {
+                        "lower": ds_raw.squeeze(
+                            ["model", "realization"], drop=True
+                        ).quantile(0.5 - conf_level / 200, dim="scenario"),
+                        "high": ds_raw.squeeze(
+                            ["model", "realization"], drop=True
+                        ).quantile(0.5 + conf_level / 200, dim="scenario"),
+                    }
+                )
+            else:
+                ds_std_internal_model_scenario = np.sqrt(
+                    ds_var_decomp.sum(dim="var_type")
+                )
+                ds_ci_internal_model_scenario = xr.Dataset(
+                    {
+                        "lower": ds_baseline - z * ds_std_internal_model_scenario,
+                        "upper": ds_baseline + z * ds_std_internal_model_scenario,
+                    }
+                )
+            kwargs_hv_scenario = {
+                "x": "time",
+                "y": "lower",
+                "y2": "upper",
+                "alpha": 0.2,
+                "label": "Scenario",
+            }
+            kwargs_hv_scenario.update(kwargs)
+            plot_obj_scenario = ds_ci_internal_model_scenario.hvplot.area(
+                **kwargs_hv_scenario
+            )
+            plot_obj_list.append(plot_obj_scenario)
+        # Combine the plots
+        plot_obj = hv.Overlay(plot_obj_list.reverse())
+        return plot_obj
 
     def plot_ensemble_ci_time_series(
         self, data_var=None, central="mean", conf_level=None, **kwargs
