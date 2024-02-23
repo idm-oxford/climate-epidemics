@@ -138,122 +138,14 @@ class ClimEpiDatasetAccessor:
             data_var=data_var, frequency="monthly", **kwargs
         )
 
-    def ensemble_mean(self, data_var=None):
+    def ensemble_stats(
+        self,
+        data_var=None,
+        conf_level=90,
+        estimate_internal_variability=True,
+    ):
         """
-        Computes the ensemble mean of a data variable.
-
-        Parameters
-        ----------
-        data_var : str or list, optional
-            Name(s) of the data variable(s) to compute the ensemble mean for. If not
-            provided, all non-bound data variables will be used.
-
-        Returns
-        -------
-        xarray.Dataset
-            A new dataset containing the ensemble mean of the selected data
-            variable(s).
-        """
-        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
-        ds_m = xr.Dataset(attrs=self._obj.attrs)
-        ds_m[data_var] = self._obj[data_var].mean(dim="realization")
-        ds_m.climepi.copy_var_attrs_from(self._obj, var=data_var)
-        ds_m.climepi.copy_bnds_from(self._obj)
-        ds_m.climepi.modes = dict(self.modes, ensemble="stats")
-        return ds_m
-
-    def ensemble_percentiles(self, data_var=None, values=None, **kwargs):
-        """
-        Computes ensemble percentiles of a data variable. Wraps
-        xclim.ensembles.ensemble_percentiles.
-
-        Parameters
-        ----------
-        data_var : str or list, optional
-            Name(s) of the data variable(s) to compute the ensemble percentiles for.
-            If not provided, all non-bound data variables will be used.
-        values : list of float, optional
-            Percentiles to compute. Defaults to [5, 50, 95] if not provided.
-        **kwargs : dict, optional
-            Additional keyword arguments to pass to
-            xclim.ensembles.ensemble_percentiles.
-
-        Returns
-        -------
-        xarray.Dataset
-            A new dataset containing the ensemble percentiles of the selected
-            data variable(s).
-        """
-        if values is None:
-            values = [5, 50, 95]
-        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
-        if isinstance(data_var, list) and len(data_var) == 1:
-            # xclim.ensembles.ensemble_percentiles doesn't seem to work with a list of
-            # length 1
-            data_var = data_var[0]
-        ds_p = xr.Dataset(attrs=self._obj.attrs)
-        ds_p[data_var] = xclim.ensembles.ensemble_percentiles(
-            self._obj[data_var], values, split=False, **kwargs
-        ).rename({"percentiles": "percentile"})
-        ds_p.climepi.copy_var_attrs_from(self._obj, var=data_var)
-        ds_p.climepi.copy_bnds_from(self._obj)
-        ds_p.climepi.modes = dict(self.modes, ensemble="stats")
-        return ds_p
-
-    def ensemble_mean_std_max_min(self, data_var=None, **kwargs):
-        """
-        Computes the ensemble mean, standard deviation, maximum, and minimum of
-        a data variable. Wraps xclim.ensembles.ensemble_mean_std_max_min.
-
-        Parameters
-        ----------
-        data_var : str or list, optional
-            Name(s) of the data variable(s) to compute the ensemble statistics for.
-            If not provided, all non-bound data variables will be used.
-        **kwargs : dict, optional
-            Additional keyword arguments to pass to
-            xclim.ensembles.ensemble_mean_std_max_min.
-
-        Returns
-        -------
-        xarray.Dataset
-            A new dataset containing the computed ensemble statistics for the
-            selected data variable(s).
-        """
-        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
-        if isinstance(data_var, list):
-            ds_stat_list = [
-                self.ensemble_mean_std_max_min(data_var_curr, **kwargs)
-                for data_var_curr in data_var
-            ]
-            ds_stat = xr.merge(ds_stat_list)
-        else:
-            ds_stat_xclim = xclim.ensembles.ensemble_mean_std_max_min(
-                self._obj[data_var].to_dataset(), **kwargs
-            )
-            stat_list = ["mean", "std", "max", "min"]
-            stat_list_xclim = [
-                data_var + "_" + stat_list[i] for i in range(len(stat_list))
-            ]
-            stat_list_xclim[1] += "ev"
-            ds_stat = xr.Dataset(attrs=self._obj.attrs)
-            da_stat_xclim_list = [
-                ds_stat_xclim[stat_list_xclim[i]]
-                .rename(data_var)
-                .expand_dims(dim={"ensemble_statistic": [stat_list[i]]}, axis=-1)
-                for i in range(len(stat_list))
-            ]
-            ds_stat[data_var] = xr.concat(da_stat_xclim_list, dim="ensemble_statistic")
-            ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
-            ds_stat.climepi.copy_bnds_from(self._obj)
-        ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
-        return ds_stat
-
-    def ensemble_stats(self, data_var=None, conf_level=90, **kwargs):
-        """
-        Computes a range of ensemble statistics for a data variable. If only a single
-        realization is present for each model and scenario, estimate_ensemble_stats is
-        used to estimate the ensemble statistics.
+        Computes a range of ensemble statistics for a data variable.
 
         Parameters
         ----------
@@ -262,9 +154,10 @@ class ClimEpiDatasetAccessor:
             If not provided, all non-bound data variables will be used.
         conf_level : float, optional
             Confidence level for computing ensemble percentiles.
-        **kwargs : dict, optional
-            Additional keyword arguments to pass to
-            xclim.ensembles.ensemble_percentiles.
+        estimate_internal_variability : bool, optional
+            Whether to estimate internal variability using the estimate_ensemble_stats
+            method if only a single realization is available for each model and scenario
+            (ignored if multiple realizations are available). Default is True.
 
         Returns
         -------
@@ -273,28 +166,37 @@ class ClimEpiDatasetAccessor:
             selected data variable(s).
         """
         data_var = self._auto_select_data_var(data_var, allow_multiple=True)
-        if "realization" not in self._obj.dims and len(self._obj.realization) == 1:
+        if estimate_internal_variability and not (
+            "realization" in self._obj.dims and len(self._obj.realization) > 1
+        ):
             ds_stat = self.estimate_ensemble_stats(data_var, conf_level)
             return ds_stat
-        if isinstance(data_var, list) and len(data_var) == 1:
-            # Problem squaring a dataset with a single data variable (this ensures a
-            # DataArray is squared instead)
-            data_var = data_var[0]
-        ds_msmm = self.ensemble_mean_std_max_min(data_var, **kwargs)
-        ds_v = ds_msmm.sel(ensemble_statistic="std").copy()
-        ds_v[data_var] = np.square(ds_v[data_var]).expand_dims(
-            dim={"ensemble_statistic": ["var"]}
+        ds_raw = self._obj[data_var]  # drops bounds for now (re-add at end)
+        if "realization" not in self._obj.dims:
+            ds_raw = ds_raw.expand_dims(dim="realization")
+        ds_mean = ds_raw.mean(dim="realization").expand_dims(
+            dim={"ensemble_stat": ["mean"]}, axis=-1
         )
-        ds_mci = self.ensemble_percentiles(
-            data_var, [50 - conf_level / 2, 50, 50 + conf_level / 2], **kwargs
+        ds_std = ds_raw.std(dim="realization").expand_dims(
+            dim={"ensemble_stat": ["std"]}, axis=-1
         )
-        ds_mci = ds_mci.rename({"percentile": "ensemble_statistic"}).assign_coords(
-            ensemble_statistic=["lower", "median", "upper"]
+        ds_var = ds_raw.var(dim="realization").expand_dims(
+            dim={"ensemble_stat": ["var"]}, axis=-1
         )
+        ds_quantile = ds_raw.quantile(
+            [0, 0.5 - conf_level / 200, 0.5, 0.5 + conf_level / 200, 1],
+            dim="realization",
+        ).rename({"quantile": "ensemble_stat"})
+        ds_quantile["ensemble_stat"] = ["min", "lower", "median", "upper", "max"]
         ds_stat = xr.concat(
-            [ds_msmm, ds_v, ds_mci], dim="ensemble_statistic", data_vars="minimal"
+            [ds_mean, ds_std, ds_var, ds_quantile],
+            dim="ensemble_stat",
+            coords="minimal",
         )
+        if isinstance(ds_stat, xr.DataArray):
+            ds_stat = ds_stat.to_dataset(name=data_var)
         ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
+        ds_stat.attrs = self._obj.attrs
         ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
         ds_stat.climepi.copy_bnds_from(self._obj)
         return ds_stat
@@ -337,7 +239,7 @@ class ClimEpiDatasetAccessor:
             ds_raw = ds_raw.drop("realization")
         fitted_polys = ds_raw.polyfit(dim="time", deg=4, full=True)
         poly_coeff_data_var_list = [x + "_polyfit_coefficients" for x in data_var_list]
-        ds_m = xr.polyval(
+        ds_mean = xr.polyval(
             coord=ds_raw.time,
             coeffs=fitted_polys[poly_coeff_data_var_list],
         ).rename(dict(zip(poly_coeff_data_var_list, data_var_list)))
@@ -347,22 +249,20 @@ class ClimEpiDatasetAccessor:
         # dimension (this should be equivalent to adding coords="minimal" when
         # concatenating the datasets, but is done explicitly here for clarity).
         poly_residual_data_var_list = [x + "_polyfit_residuals" for x in data_var_list]
-        ds_v = (fitted_polys[poly_residual_data_var_list] / len(ds_raw.time)).rename(
+        ds_var = (fitted_polys[poly_residual_data_var_list] / len(ds_raw.time)).rename(
             dict(zip(poly_residual_data_var_list, data_var_list))
         )
-        ds_s = np.sqrt(ds_v)
-        ds_v = ds_v.broadcast_like(ds_m)
-        ds_s = ds_s.broadcast_like(ds_m)
+        ds_std = np.sqrt(ds_var)
+        ds_var = ds_var.broadcast_like(ds_mean)
+        ds_std = ds_std.broadcast_like(ds_mean)
         # Estimate confidence intervals
         z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
-        ds_l = ds_m - z * ds_s
-        ds_u = ds_m + z * ds_s
+        ds_lower = ds_mean - z * ds_std
+        ds_upper = ds_mean + z * ds_std
         # Combine into a single dataset
         ds_stat = xr.concat(
-            [ds_m, ds_v, ds_s, ds_l, ds_u],
-            dim=xr.Variable(
-                "ensemble_statistic", ["mean", "var", "std", "lower", "upper"]
-            ),
+            [ds_mean, ds_var, ds_std, ds_lower, ds_upper],
+            dim=xr.Variable("ensemble_stat", ["mean", "var", "std", "lower", "upper"]),
             coords="minimal",
         )
         ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
@@ -370,7 +270,9 @@ class ClimEpiDatasetAccessor:
         ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
         return ds_stat
 
-    def var_decomp(self, data_var=None, fraction=True):
+    def var_decomp(
+        self, data_var=None, fraction=True, estimate_internal_variability=True
+    ):
         """
         Decomposes the variance of a data variable into internal, model and scenario
         uncertainty at each time point.
@@ -382,6 +284,10 @@ class ClimEpiDatasetAccessor:
         fraction : bool, optional
             Whether to calculate the variance contributions as fractions of the total
             variance at each time, or the raw variances. Default is True.
+        estimate_internal_variability : bool, optional
+            Whether to estimate internal variability if only a single realization is
+            available for each model and scenario (ignored if multiple realizations
+            are available). Default is True.
 
         Returns
         -------
@@ -390,17 +296,19 @@ class ClimEpiDatasetAccessor:
             variable(s).
         """
         data_var = self._auto_select_data_var(data_var, allow_multiple=True)
-        ds_stat = self.ensemble_stats(data_var)
-        ds_var_internal = ds_stat.sel(ensemble_statistic="var", drop=True).mean(
+        ds_stat = self.ensemble_stats(
+            data_var, estimate_internal_variability=estimate_internal_variability
+        )
+        ds_var_internal = ds_stat.sel(ensemble_stat="var", drop=True).mean(
             dim=["scenario", "model"]
         )
         ds_var_model = (
-            ds_stat.sel(ensemble_statistic="mean", drop=True)
+            ds_stat.sel(ensemble_stat="mean", drop=True)
             .var(dim="model")
             .mean(dim="scenario")
         )
         ds_var_scenario = (
-            ds_stat.sel(ensemble_statistic="mean", drop=True)
+            ds_stat.sel(ensemble_stat="mean", drop=True)
             .mean(dim="model")
             .var(dim="scenario")
         )
@@ -479,7 +387,9 @@ class ClimEpiDatasetAccessor:
             plot_obj *= gf.ocean.options(fill_color="white")
         return plot_obj
 
-    def plot_var_decomp(self, data_var=None, fraction=True, **kwargs):
+    def plot_var_decomp(
+        self, data_var=None, fraction=True, estimate_internal_variability=True, **kwargs
+    ):
         """
         Plots the contributions of internal, model and scenario uncertainty to the total
         variance of a data variable over time. Wraps hvplot.area.
@@ -491,6 +401,10 @@ class ClimEpiDatasetAccessor:
         fraction : bool, optional
             Whether to plot the variance contributions as fractions of the total
             variance at each time, or the raw variances. Default is True.
+        estimate_internal_variability : bool, optional
+            Whether to estimate internal variability if only a single realization is
+            available for each model and scenario (ignored if multiple realizations
+            are available). Default is True.
         **kwargs : dict, optional
             Additional keyword arguments to pass to hvplot.area.
 
@@ -500,7 +414,9 @@ class ClimEpiDatasetAccessor:
             The resulting plot object.
         """
         data_var = self._auto_select_data_var(data_var)
-        ds_var_decomp = self.var_decomp(data_var, fraction)
+        ds_var_decomp = self.var_decomp(
+            data_var, fraction, estimate_internal_variability
+        )
         ds_plot = xr.Dataset(
             {
                 "scenario": ds_var_decomp[data_var].sel(var_type="scenario", drop=True),
@@ -555,13 +471,15 @@ class ClimEpiDatasetAccessor:
         multiple_realizations = len(ds_raw.realization) > 1
         if multiple_realizations or estimate_internal_variability:
             ds_stat = ds_raw.climepi.ensemble_stats(data_var, conf_level)
-            ds_baseline = ds_stat.sel(ensemble_statistic="mean", drop=True).mean(
+            ds_baseline = ds_stat.sel(ensemble_stat="mean", drop=True).mean(
                 dim=["scenario", "model"]
             )
-            ds_var_decomp = ds_raw.climepi.var_decomp(data_var)
-            z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
         else:
-            ds_baseline = ds_stat.sel(ensemble_statistic="mean", drop=True)
+            ds_baseline = ds_stat.sel(ensemble_stat="mean", drop=True)
+        ds_var_decomp = ds_raw.climepi.var_decomp(
+            data_var, estimate_internal_variability
+        )
+        z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
         # Plot internal variability if there are multiple realizations or if internal
         # variability is to be estimated
         if estimate_internal_variability or multiple_realizations:
@@ -569,10 +487,10 @@ class ClimEpiDatasetAccessor:
                 ds_ci_internal = xr.Dataset(
                     {
                         "lower": ds_stat.squeeze(["model", "scenario"], drop=True).sel(
-                            ensemble_statistic="lower"
+                            ensemble_stat="lower"
                         ),
                         "high": ds_stat.squeeze(["model", "scenario"], drop=True).sel(
-                            ensemble_statistic="upper"
+                            ensemble_stat="upper"
                         ),
                     }
                 )
@@ -671,8 +589,8 @@ class ClimEpiDatasetAccessor:
             ds_stat = self.ensemble_stats(data_var, conf_level)
             return ds_stat.climepi.plot_ensemble_ci_time_series(data_var, **kwargs)
         ds_ci = xr.Dataset(attrs=self._obj.attrs)
-        ds_ci["lower"] = self._obj[data_var].sel(ensemble_statistic="lower")
-        ds_ci["upper"] = self._obj[data_var].sel(ensemble_statistic="upper")
+        ds_ci["lower"] = self._obj[data_var].sel(ensemble_stat="lower")
+        ds_ci["upper"] = self._obj[data_var].sel(ensemble_stat="upper")
         kwargs_hv_ci = {
             "x": "time",
             "y": "lower",
@@ -683,7 +601,7 @@ class ClimEpiDatasetAccessor:
         plot_ci = ds_ci.hvplot.area(**kwargs_hv_ci)
         if central is None:
             return plot_ci
-        da_central = self._obj[data_var].sel(ensemble_statistic=central)
+        da_central = self._obj[data_var].sel(ensemble_stat=central)
         kwargs_hv_central = {"x": "time"}
         kwargs_hv_central.update(kwargs)
         plot_central = da_central.hvplot.line(**kwargs_hv_central)
