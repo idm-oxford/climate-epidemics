@@ -10,6 +10,7 @@ import xarray as xr
 import xcdat  # noqa # pylint: disable=unused-import
 import xclim.ensembles
 from geopy.geocoders import Nominatim
+from xarray.plot.utils import label_from_attrs
 
 geolocator = Nominatim(user_agent="climepi")
 
@@ -170,7 +171,7 @@ class ClimEpiDatasetAccessor:
         if estimate_internal_variability and not (
             "realization" in self._obj.dims and len(self._obj.realization) > 1
         ):
-            ds_stat = self.estimate_ensemble_stats(data_var, conf_level)
+            ds_stat = self.estimate_ensemble_stats(data_var, conf_level=conf_level)
             return ds_stat
         ds_raw = self._obj[data_var]  # drops bounds for now (re-add at end)
         if "realization" not in self._obj.dims:
@@ -184,10 +185,14 @@ class ClimEpiDatasetAccessor:
         ds_var = ds_raw.var(dim="realization").expand_dims(
             dim={"ensemble_stat": ["var"]}, axis=-1
         )
-        ds_quantile = ds_raw.quantile(
-            [0, 0.5 - conf_level / 200, 0.5, 0.5 + conf_level / 200, 1],
-            dim="realization",
-        ).rename({"quantile": "ensemble_stat"})
+        ds_quantile = (
+            ds_raw.chunk({"realization": -1})
+            .quantile(
+                [0, 0.5 - conf_level / 200, 0.5, 0.5 + conf_level / 200, 1],
+                dim="realization",
+            )
+            .rename({"quantile": "ensemble_stat"})
+        )
         ds_quantile["ensemble_stat"] = ["min", "lower", "median", "upper", "max"]
         ds_stat = xr.concat(
             [ds_mean, ds_std, ds_var, ds_quantile],
@@ -266,13 +271,14 @@ class ClimEpiDatasetAccessor:
             dim=xr.Variable("ensemble_stat", ["mean", "var", "std", "lower", "upper"]),
             coords="minimal",
         )
+        ds_stat.attrs = self._obj.attrs
         ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
         ds_stat.climepi.copy_bnds_from(self._obj)
         ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
         return ds_stat
 
     def var_decomp(
-        self, data_var=None, fraction=True, estimate_internal_variability=True
+        self, data_var=None, fraction=False, estimate_internal_variability=True
     ):
         """
         Decomposes the variance of a data variable into internal, model and scenario
@@ -284,7 +290,7 @@ class ClimEpiDatasetAccessor:
             Name of the data variable(s) to decompose.
         fraction : bool, optional
             Whether to calculate the variance contributions as fractions of the total
-            variance at each time, or the raw variances. Default is True.
+            variance at each time, rather than the raw variances. Default is False.
         estimate_internal_variability : bool, optional
             Whether to estimate internal variability if only a single realization is
             available for each model and scenario (ignored if multiple realizations
@@ -297,9 +303,21 @@ class ClimEpiDatasetAccessor:
             variable(s).
         """
         data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        if isinstance(data_var, str):
+            data_var_list = [data_var]
+        else:
+            data_var_list = data_var
+        # Calculate or estimate ensemble statistics characterizing internal variability
         ds_stat = self.ensemble_stats(
             data_var, estimate_internal_variability=estimate_internal_variability
-        )
+        )[data_var_list]
+        # Make "scenario" and "model" dimensions of ds_stat if they are not present
+        # or are (singleton) non-dimension coordinates (reduces number of cases to
+        # handle)
+        for dim in ["scenario", "model"]:
+            if dim not in ds_stat.dims:
+                ds_stat = ds_stat.expand_dims(dim)
+        # Calculate the internal, model and scenario contributions to the variance
         ds_var_internal = ds_stat.sel(ensemble_stat="var", drop=True).mean(
             dim=["scenario", "model"]
         )
@@ -318,9 +336,33 @@ class ClimEpiDatasetAccessor:
             dim=xr.Variable("var_type", ["internal", "model", "scenario"]),
             coords="minimal",
         )
+        # Express contributions as a fraction of the total variance if required
         if fraction:
             ds_var_decomp = ds_var_decomp / ds_var_decomp.sum(dim="var_type")
+        # Copy and update attributes and bounds
         ds_var_decomp.climepi.copy_bnds_from(self._obj)
+        ds_var_decomp.attrs = self._obj.attrs
+        if fraction:
+            for data_var_curr in data_var_list:
+                ds_var_decomp[data_var_curr].attrs["long_name"] = "Fraction of variance"
+        else:
+            ds_var_decomp.climepi.copy_var_attrs_from(self._obj, var=data_var)
+            for data_var_curr in data_var_list:
+                if "units" in ds_var_decomp[data_var_curr].attrs:
+                    units_in = ds_var_decomp[data_var_curr].attrs["units"]
+                    if any(x in units_in for x in ["/", " ", "^"]):
+                        units_in = "(" + units_in + ")"
+                    ds_var_decomp[data_var_curr].attrs["units"] = units_in + "²"
+                if "long_name" in ds_var_decomp[data_var_curr].attrs:
+                    long_name_in = ds_var_decomp[data_var_curr].attrs["long_name"]
+                    long_name_in = long_name_in[0].lower() + long_name_in[1:]
+                    ds_var_decomp[data_var_curr].attrs["long_name"] = (
+                        "Variance of " + long_name_in
+                    )
+                else:
+                    ds_var_decomp[data_var_curr].attrs["long_name"] = (
+                        "Variance of " + data_var_curr
+                    )
         return ds_var_decomp
 
     def plot_time_series(self, data_var=None, **kwargs):
@@ -389,7 +431,11 @@ class ClimEpiDatasetAccessor:
         return plot_obj
 
     def plot_var_decomp(
-        self, data_var=None, fraction=True, estimate_internal_variability=True, **kwargs
+        self,
+        data_var=None,
+        fraction=False,
+        estimate_internal_variability=True,
+        **kwargs,
     ):
         """
         Plots the contributions of internal, model and scenario uncertainty to the total
@@ -401,7 +447,7 @@ class ClimEpiDatasetAccessor:
             Name of the data variable to plot.
         fraction : bool, optional
             Whether to plot the variance contributions as fractions of the total
-            variance at each time, or the raw variances. Default is True.
+            variance at each time, rather than the raw variances. Default is False.
         estimate_internal_variability : bool, optional
             Whether to estimate internal variability if only a single realization is
             available for each model and scenario (ignored if multiple realizations
@@ -416,21 +462,27 @@ class ClimEpiDatasetAccessor:
         """
         data_var = self._auto_select_data_var(data_var)
         ds_var_decomp = self.var_decomp(
-            data_var, fraction, estimate_internal_variability
+            data_var,
+            fraction=fraction,
+            estimate_internal_variability=estimate_internal_variability,
         )
         ds_plot = xr.Dataset(
             {
-                "scenario": ds_var_decomp[data_var].sel(var_type="scenario", drop=True),
-                "model": ds_var_decomp[data_var].sel(var_type="model", drop=True),
-                "internal": ds_var_decomp[data_var].sel(var_type="internal", drop=True),
-            }
+                "Scenario": ds_var_decomp[data_var].sel(var_type="scenario", drop=True),
+                "Model": ds_var_decomp[data_var].sel(var_type="model", drop=True),
+                "Internal": ds_var_decomp[data_var].sel(var_type="internal", drop=True),
+            },
         )
-        plot_obj = ds_plot.hvplot.area(
-            x="time",
-            y=["scenario", "model", "internal"],
-            group_label="Uncertainty type",
-            ylabel="Fraction of total variance" if fraction else "Variance",
-        )
+        kwargs_hv = {
+            "x": "time",
+            "y": ["Scenario", "Model", "Internal"],
+            "ylabel": label_from_attrs(ds_plot["Scenario"])
+            .replace("[", "(")
+            .replace("]", ")"),
+            "group_label": "Uncertainty type",
+        }
+        kwargs_hv.update(kwargs)
+        plot_obj = ds_plot.hvplot.area(**kwargs_hv)
         return plot_obj
 
     def plot_ci_plume(
@@ -459,133 +511,153 @@ class ClimEpiDatasetAccessor:
             The resulting plot object.
         """
         data_var = self._auto_select_data_var(data_var)
-        ds_raw = self.sel_data_var(data_var)
+        if isinstance(data_var, list):
+            # Avoid bug with np.sqrt for an xarray Dataset with a single data variable
+            # (this ensures DataArrays are used instead when necessary)
+            data_var = data_var[0]
+        da_raw = self._obj[data_var]
         plot_obj_list = []
         # Make "scenario", "model" and "realization" dimensions of the data variable if
-        # they don't or are (singleton) non-dimension coordinates (reduces number of
-        # cases to handle)
+        # they are not present or are (singleton) non-dimension coordinates (reduces
+        # number of cases to handle)
         for dim in ["scenario", "model", "realization"]:
-            if dim not in ds_raw.dims:
-                ds_raw[data_var] = ds_raw[data_var].expand_dims(dim)
+            if dim not in da_raw.dims:
+                da_raw = da_raw.expand_dims(dim)
         # Get ensemble statistics, baseline estimate, and if necessary a decomposition
         # of the variance and z value for approximate confidence intervals
-        ds_stat = ds_raw.climepi.ensemble_stats(
-            data_var, conf_level, estimate_internal_variability
+        da_stat = da_raw.to_dataset().climepi.ensemble_stats(
+            data_var,
+            conf_level=conf_level,
+            estimate_internal_variability=estimate_internal_variability,
+        )[data_var]
+        da_baseline = da_stat.sel(ensemble_stat="mean", drop=True).mean(
+            dim=["scenario", "model"], keep_attrs=True
         )
-        ds_baseline = ds_stat.sel(ensemble_stat="mean", drop=True).mean(
-            dim=["scenario", "model"]
-        )
-        ds_var_decomp = ds_raw.climepi.var_decomp(
-            data_var, estimate_internal_variability
-        )
+        da_var_decomp = self.var_decomp(
+            data_var,
+            fraction=False,
+            estimate_internal_variability=estimate_internal_variability,
+        )[data_var]
         z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
         # Plot the baseline estimate
-        kwargs_hv_baseline = {"x": "time", "label": "Mean"}
+        kwargs_hv_baseline = {"x": "time", "label": "Baseline", "color": "black"}
         kwargs_hv_baseline.update(kwargs)
-        plot_obj_baseline = ds_baseline.hvplot.line(**kwargs_hv_baseline)
+        plot_obj_baseline = da_baseline.hvplot.line(**kwargs_hv_baseline)
         plot_obj_list.append(plot_obj_baseline)
         # Plot internal variability if there are multiple realizations or if internal
         # variability is to be estimated
-        multiple_realizations = len(ds_raw.realization) > 1
+        multiple_realizations = len(da_raw.realization) > 1
         if estimate_internal_variability or multiple_realizations:
-            if len(ds_raw.scenario) == 1 and len(ds_raw.model) == 1:
+            if len(da_raw.scenario) == 1 and len(da_raw.model) == 1:
                 ds_ci_internal = xr.Dataset(
                     {
-                        "lower": ds_stat.squeeze(["model", "scenario"], drop=True).sel(
-                            ensemble_stat="lower"
+                        "lower": da_stat.squeeze(["model", "scenario"], drop=True).sel(
+                            ensemble_stat="lower", drop=True
                         ),
-                        "upper": ds_stat.squeeze(["model", "scenario"], drop=True).sel(
-                            ensemble_stat="upper"
+                        "upper": da_stat.squeeze(["model", "scenario"], drop=True).sel(
+                            ensemble_stat="upper", drop=True
                         ),
                     }
                 )
             else:
-                ds_std_internal = np.sqrt(
-                    ds_var_decomp.sel(var_type="internal", drop=True)
+                da_std_internal = np.sqrt(
+                    da_var_decomp.sel(var_type="internal", drop=True)
                 )
                 ds_ci_internal = xr.Dataset(
                     {
-                        "lower": ds_baseline - z * ds_std_internal,
-                        "upper": ds_baseline + z * ds_std_internal,
+                        "lower": da_baseline - z * da_std_internal,
+                        "upper": da_baseline + z * da_std_internal,
                     }
                 )
+            ds_ci_internal["lower"].attrs = da_baseline.attrs
+            ds_ci_internal["upper"].attrs = da_baseline.attrs
             kwargs_hv_internal = {
                 "x": "time",
                 "y": "lower",
                 "y2": "upper",
-                "alpha": 0.2,
+                "alpha": 1,
                 "label": "Internal",
             }
             kwargs_hv_internal.update(kwargs)
             plot_obj_internal = ds_ci_internal.hvplot.area(**kwargs_hv_internal)
             plot_obj_list.append(plot_obj_internal)
         # Plot model variability if there are multiple models
-        if len(ds_raw.model) > 1:
-            if len(ds_raw.scenario) == 1 and not (
+        if len(da_raw.model) > 1:
+            if len(da_raw.scenario) == 1 and not (
                 multiple_realizations or estimate_internal_variability
             ):
+                da_raw_rechunked = da_raw.squeeze(
+                    ["scenario", "realization"], drop=True
+                ).chunk({"model": -1})
                 ds_ci_internal_model = xr.Dataset(
                     {
-                        "lower": ds_raw.squeeze(
-                            ["scenario", "realization"], drop=True
-                        ).quantile(0.5 - conf_level / 200, dim="model"),
-                        "high": ds_raw.squeeze(
-                            ["scenario", "realization"], drop=True
-                        ).quantile(0.5 + conf_level / 200, dim="model"),
+                        "lower": da_raw_rechunked.quantile(
+                            0.5 - conf_level / 200, dim="model"
+                        ).drop("quantile"),
+                        "upper": da_raw_rechunked.quantile(
+                            0.5 + conf_level / 200, dim="model"
+                        ).drop("quantile"),
                     }
                 )
             else:
-                ds_std_internal_model = np.sqrt(
-                    ds_var_decomp.sel(var_type=["internal", "model"]).sum(
+                da_std_internal_model = np.sqrt(
+                    da_var_decomp.sel(var_type=["internal", "model"]).sum(
                         dim="var_type"
                     )
                 )
                 ds_ci_internal_model = xr.Dataset(
                     {
-                        "lower": ds_baseline - z * ds_std_internal_model,
-                        "upper": ds_baseline + z * ds_std_internal_model,
+                        "lower": da_baseline - z * da_std_internal_model,
+                        "upper": da_baseline + z * da_std_internal_model,
                     }
                 )
+            ds_ci_internal_model["lower"].attrs = da_baseline.attrs
+            ds_ci_internal_model["upper"].attrs = da_baseline.attrs
             kwargs_hv_model = {
                 "x": "time",
                 "y": "lower",
                 "y2": "upper",
-                "alpha": 0.2,
+                "alpha": 1,
                 "label": "Model",
             }
             kwargs_hv_model.update(kwargs)
             plot_obj_model = ds_ci_internal_model.hvplot.area(**kwargs_hv_model)
             plot_obj_list.append(plot_obj_model)
         # Plot scenario variability if there are multiple scenarios
-        if len(ds_raw.scenario) > 1:
-            if len(ds_raw.model) == 1 and not (
+        if len(da_raw.scenario) > 1:
+            if len(da_raw.model) == 1 and not (
                 multiple_realizations or estimate_internal_variability
             ):
+                da_raw_rechunked = da_raw.squeeze(
+                    ["model", "realization"], drop=True
+                ).chunk({"scenario": -1})
                 ds_ci_internal_model_scenario = xr.Dataset(
                     {
-                        "lower": ds_raw.squeeze(
-                            ["model", "realization"], drop=True
-                        ).quantile(0.5 - conf_level / 200, dim="scenario"),
-                        "high": ds_raw.squeeze(
-                            ["model", "realization"], drop=True
-                        ).quantile(0.5 + conf_level / 200, dim="scenario"),
+                        "lower": da_raw_rechunked.quantile(
+                            0.5 - conf_level / 200, dim="scenario"
+                        ).drop("quantile"),
+                        "upper": da_raw_rechunked.quantile(
+                            0.5 + conf_level / 200, dim="scenario"
+                        ).drop("quantile"),
                     }
                 )
             else:
-                ds_std_internal_model_scenario = np.sqrt(
-                    ds_var_decomp.sum(dim="var_type")
+                da_std_internal_model_scenario = np.sqrt(
+                    da_var_decomp.sum(dim="var_type")
                 )
                 ds_ci_internal_model_scenario = xr.Dataset(
                     {
-                        "lower": ds_baseline - z * ds_std_internal_model_scenario,
-                        "upper": ds_baseline + z * ds_std_internal_model_scenario,
+                        "lower": da_baseline - z * da_std_internal_model_scenario,
+                        "upper": da_baseline + z * da_std_internal_model_scenario,
                     }
                 )
+            ds_ci_internal_model_scenario["lower"].attrs = da_baseline.attrs
+            ds_ci_internal_model_scenario["upper"].attrs = da_baseline.attrs
             kwargs_hv_scenario = {
                 "x": "time",
                 "y": "lower",
                 "y2": "upper",
-                "alpha": 0.2,
+                "alpha": 1,
                 "label": "Scenario",
             }
             kwargs_hv_scenario.update(kwargs)
@@ -594,7 +666,8 @@ class ClimEpiDatasetAccessor:
             )
             plot_obj_list.append(plot_obj_scenario)
         # Combine the plots
-        plot_obj = hv.Overlay(plot_obj_list.reverse())
+        plot_obj_list.reverse()
+        plot_obj = hv.Overlay(plot_obj_list)
         return plot_obj
 
     def plot_ensemble_ci_time_series(
@@ -631,7 +704,7 @@ class ClimEpiDatasetAccessor:
         """
         data_var = self._auto_select_data_var(data_var)
         if "realization" in self._obj.sizes:
-            ds_stat = self.ensemble_stats(data_var, conf_level)
+            ds_stat = self.ensemble_stats(data_var, conf_level=conf_level)
             return ds_stat.climepi.plot_ensemble_ci_time_series(data_var, **kwargs)
         ds_ci = xr.Dataset(attrs=self._obj.attrs)
         ds_ci["lower"] = self._obj[data_var].sel(ensemble_stat="lower")
