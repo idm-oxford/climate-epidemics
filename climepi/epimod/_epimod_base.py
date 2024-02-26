@@ -117,6 +117,8 @@ class EpiModDatasetAccessor:
         ds_months_suitable = ds_suitability_mean.assign(
             months_suitable=12 * ds_suitability_mean["suitability"]
         ).drop_vars("suitability")
-        ds_months_suitable.months_suitable.attrs.update(units="months")
+        ds_months_suitable.months_suitable.attrs.update(
+            units="months", long_name="Months suitable"
+        )
         ds_months_suitable.climepi.modes = ds_suitability_mean.climepi.modes
         return ds_months_suitable
