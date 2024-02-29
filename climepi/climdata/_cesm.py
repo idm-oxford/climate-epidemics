@@ -80,7 +80,6 @@ class CESMDataGetter(ClimateDataGetter):
         ds_subset = ds_subset.isel(member_id=realizations)
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
         if loc_str is not None:
-            ds_subset.climepi.modes = {"spatial": "global"}
             ds_subset = ds_subset.climepi.sel_geopy(loc_str)
         else:
             if lon_range is not None:

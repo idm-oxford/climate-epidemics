@@ -36,7 +36,6 @@ class EpiModel:
         ds_epi = xr.Dataset(attrs=ds_clim.attrs)
         ds_epi[da_epi.name] = da_epi
         ds_epi.climepi.copy_bnds_from(ds_clim)
-        ds_epi.climepi.modes = ds_clim.climepi.modes.copy()
 
         return ds_epi
 
@@ -103,8 +102,6 @@ class EpiModDatasetAccessor:
         xarray.Dataset:
             Dataset with a single non-bounds variable "months_suitable".
         """
-        if self._obj.climepi.modes["temporal"] != "monthly":
-            raise ValueError("Suitability data must be monthly.")
         try:
             ds_suitability = self._obj.climepi.sel_data_var("suitability")
         except KeyError as exc:
@@ -120,5 +117,4 @@ class EpiModDatasetAccessor:
         ds_months_suitable.months_suitable.attrs.update(
             units="months", long_name="Months suitable"
         )
-        ds_months_suitable.climepi.modes = ds_suitability_mean.climepi.modes
         return ds_months_suitable

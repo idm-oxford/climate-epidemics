@@ -18,20 +18,12 @@ from climepi import climdata
 #   subset: Dictionary of options for subsetting the CESM dataset to pass to
 #           CESMDataGetter as keyword arguments (see
 #           climepi.climdata.cesm.CESMDataGetter for details).
-#   climepi_modes: Dictionary defining the "modes" property of the climepi accessor
-#                  for xarray datasets (see the climepi accessor documentation for
-#                  details).
 EXAMPLES = {
     "lens2_world": {
         "data_source": "lens2",
         "frequency": "monthly",
         "subset": {
             "years": [2020, 2060, 2100],
-        },
-        "climepi_modes": {
-            "spatial": "grid",
-            "temporal": "monthly",
-            "ensemble": "ensemble",
         },
     },
     "lens2_cape_town": {
@@ -40,11 +32,6 @@ EXAMPLES = {
         "subset": {
             "years": np.arange(2000, 2101),
             "loc_str": "Cape Town",
-        },
-        "climepi_modes": {
-            "spatial": "single",
-            "temporal": "monthly",
-            "ensemble": "ensemble",
         },
     },
     "lens2_europe_small": {
@@ -56,11 +43,6 @@ EXAMPLES = {
             "lon_range": [-25, 65],
             "realizations": np.arange(2),
         },
-        "climepi_modes": {
-            "spatial": "grid",
-            "temporal": "monthly",
-            "ensemble": "ensemble",
-        },
     },
     "isimip_london_small": {
         "data_source": "isimip",
@@ -70,22 +52,12 @@ EXAMPLES = {
             "scenarios": ["ssp126", "ssp245"],
             "models": ["gfdl-esm4", "ipsl-cm6a-lr"],
         },
-        "climepi_modes": {
-            "spatial": "single",
-            "temporal": "monthly",
-            "ensemble": "single",
-        },
     },
     "isimip_london": {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
             "loc_str": "London",
-        },
-        "climepi_modes": {
-            "spatial": "single",
-            "temporal": "monthly",
-            "ensemble": "single",
         },
     },
 }
@@ -147,9 +119,8 @@ def get_example_dataset(name, data_dir=None):
             + " available to download directly. Use 'create_example_data' to create"
             + " and download the formatted dataset from CESM output data."
         ) from exc
-    # Load the dataset and set the 'modes' property of the climepi accessor.
+    # Load the dataset
     ds_example = xcdat.open_mfdataset(paths, chunks={})
-    ds_example.climepi.modes = example_details["climepi_modes"]
     return ds_example
 
 
@@ -221,7 +192,6 @@ def _get_data_dir(name, data_dir):
 
 
 if __name__ == "__main__":
-    # for example_name in EXAMPLES:
-    for example_name in ["lens2_europe_small", "isimip_london_small", "isimip_london"]:
+    for example_name in EXAMPLES:
         create_example_dataset(example_name)
         get_example_dataset(example_name)

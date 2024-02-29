@@ -25,30 +25,6 @@ class ClimEpiDatasetAccessor:
 
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
-        self._modes = {}
-
-    @property
-    def modes(self):
-        """
-        Gets and sets a dictionary containing properties of the dataset used by climepi.
-        The dictionary should contain the following keys and currently supported values:
-        modes = {
-            "spatial": "grid" or "single",
-            "temporal": "monthly" or "yearly",
-            "ensemble": "ensemble", "single" or "stats",
-        }
-        """
-        return self._modes
-
-    @modes.setter
-    def modes(self, modes_in):
-        # assert isinstance(modes_in, dict)
-        # assert all(key in ["spatial", "temporal", "ensemble"] for key in modes_in)
-        # assert all(key in modes_in for key in ["spatial", "temporal", "ensemble"])
-        # assert modes_in["spatial"] in ["grid"]
-        # assert modes_in["temporal"] in ["monthly", "yearly"]
-        # assert modes_in["ensemble"] in ["ensemble", "single", "stats"]
-        self._modes = modes_in
 
     def temporal_group_average(self, data_var=None, frequency="yearly", **kwargs):
         """
@@ -93,7 +69,6 @@ class ClimEpiDatasetAccessor:
             ds_m = self._obj.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
             ds_m = ds_m.bounds.add_time_bounds(method="freq", freq=xcdat_freq)
             ds_m = xcdat.center_times(ds_m)
-        ds_m.climepi.modes = dict(self.modes, temporal=frequency)
         return ds_m
 
     def yearly_average(self, data_var=None, **kwargs):
@@ -207,7 +182,6 @@ class ClimEpiDatasetAccessor:
         )
         if isinstance(ds_stat, xr.DataArray):
             ds_stat = ds_stat.to_dataset(name=data_var)
-        ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
         ds_stat.attrs = self._obj.attrs
         ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
         ds_stat.climepi.copy_bnds_from(self._obj)
@@ -282,7 +256,6 @@ class ClimEpiDatasetAccessor:
         ds_stat.attrs = self._obj.attrs
         ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
         ds_stat.climepi.copy_bnds_from(self._obj)
-        ds_stat.climepi.modes = dict(self.modes, ensemble="stats")
         return ds_stat
 
     def var_decomp(
@@ -778,7 +751,6 @@ class ClimEpiDatasetAccessor:
         ds_new = xr.Dataset(attrs=self._obj.attrs)
         ds_new[data_var] = self._obj[data_var]
         ds_new.climepi.copy_bnds_from(self._obj)
-        ds_new.climepi.modes = self.modes
         return ds_new
 
     def sel_geopy(self, loc_str, **kwargs):
@@ -797,10 +769,10 @@ class ClimEpiDatasetAccessor:
         xarray.Dataset
             A new dataset containing the data for the specified location.
         """
-        if not self.modes["spatial"] == "grid":
-            raise ValueError(
-                """The sel_geopy method can only be used on datasets with climepi
-                spatial mode "grid"."""
+        if len(self._obj.lon) == 1 or len(self._obj.lat) == 1:
+            print(
+                "Warning: Trying to select a location from a dataset with only one",
+                "longitude and/or latitude co-ordinate.",
             )
         location = geolocator.geocode(loc_str, **kwargs)
         lat = location.latitude
@@ -810,7 +782,6 @@ class ClimEpiDatasetAccessor:
             # [0, 360] (slightly crude)
             lon = lon % 360
         ds_new = self._obj.sel(lat=lat, lon=lon, method="nearest")
-        ds_new.climepi.modes = dict(self.modes, spatial="single")
         return ds_new
 
     def copy_var_attrs_from(self, ds_from, var):
