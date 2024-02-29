@@ -67,7 +67,13 @@ class ClimEpiDatasetAccessor:
         else:
             ds_m = self._obj.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
             ds_m = ds_m.bounds.add_time_bounds(method="freq", freq=xcdat_freq)
-            ds_m = xcdat.center_times(ds_m)
+            # Workaround for bug in xcdat.center_times when longitude and/or latitude
+            # are non-dimension singleton coordinates (otherwise, longitude and/or
+            # latitude are incorrectly treated as time coordinates, leading to an error
+            # being raised)
+            centered_times = xcdat.center_times(ds_m[["time", "time_bnds"]])
+            ds_m["time"] = centered_times.time
+            ds_m["time_bnds"] = centered_times.time_bnds
         return ds_m
 
     def yearly_average(self, data_var=None, **kwargs):
