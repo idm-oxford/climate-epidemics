@@ -149,6 +149,10 @@ class CESMDataGetter(ClimateDataGetter):
         ds_processed["precipitation"].attrs.update(long_name="Precipitation")
         ds_processed["precipitation"].attrs.update(units="mm/day")
         ds_processed = ds_processed.drop(["TREFHT", "PRECC", "PRECL"])
+        # Use capital letters for variable long names (for consistent plotting).
+        ds_processed["time"].attrs.update(long_name="Time")
+        ds_processed["lon"].attrs.update(long_name="Longitude")
+        ds_processed["lat"].attrs.update(long_name="Latitude")
         # Take yearly averages if yearly data requested.
         if frequency == "yearly":
             ds_processed = ds_processed.climepi.yearly_average()

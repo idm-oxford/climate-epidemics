@@ -232,6 +232,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
         ds_processed = ds_processed.isel(time=ds_processed.time.dt.year.isin(years))
         # Add time bounds using xcdat
         ds_processed = ds_processed.bounds.add_time_bounds(method="freq", freq="day")
+        # Use capital letter for long name of time variable (for consistent plotting).
+        ds_processed["time"].attrs.update(long_name="Time")
         # Convert temperature from Kelvin to Celsius
         ds_processed["temperature"] = ds_processed["tas"] - 273.15
         ds_processed["temperature"].attrs.update(long_name="Temperature")

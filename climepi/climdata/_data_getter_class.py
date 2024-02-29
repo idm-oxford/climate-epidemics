@@ -295,7 +295,9 @@ class ClimateDataGetter:
         if ds_processed.lon.size > 1:
             ds_processed = xcdat.swap_lon_axis(ds_processed, to=(-180, 180))
         else:
+            lon_attrs = ds_processed.lon.attrs
             ds_processed["lon"] = ((ds_processed["lon"] + 180) % 360) - 180
+            ds_processed["lon"].attrs = lon_attrs
         # Add latitude and longitude bounds (use provided resolution if available, else
         # use the xcdat `add_missing_bounds` method to infer bounds from the coordinate
         # values (which is not possible for single-value coordinates).
@@ -305,15 +307,18 @@ class ClimateDataGetter:
                 [ds_processed.lon - lon_res / 2, ds_processed.lon + lon_res / 2],
                 dim="bnds",
             ).T
-            ds_processed["lon"].attrs["bounds"] = "lon_bnds"
+            ds_processed["lon"].attrs.update(bounds="lon_bnds")
         lat_res = self.lat_res
         if "lat_bnds" not in ds_processed and lat_res is not None:
             ds_processed["lat_bnds"] = xr.concat(
                 [ds_processed.lat - lat_res / 2, ds_processed.lat + lat_res / 2],
                 dim="bnds",
             ).T
-            ds_processed["lat"].attrs["bounds"] = "lat_bnds"
+            ds_processed["lat"].attrs.update(bounds="lat_bnds")
         ds_processed = ds_processed.bounds.add_missing_bounds(axes=["X", "Y"])
+        # Use degree symbol for units of latitude and longitude (for nicer plotting)
+        ds_processed["lon"].attrs.update(units="°E")
+        ds_processed["lat"].attrs.update(units="°N")
         self._ds = ds_processed
 
     def _save_processed_data(self):
