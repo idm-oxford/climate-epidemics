@@ -473,7 +473,7 @@ class ClimEpiDatasetAccessor:
                 "Internal": ds_var_decomp[data_var].sel(var_type="internal", drop=True),
             },
         )
-        kwargs_hv = {
+        kwargs_hvplot = {
             "x": "time",
             "y": ["Scenario", "Model", "Internal"],
             "ylabel": label_from_attrs(ds_plot["Scenario"])
@@ -481,12 +481,17 @@ class ClimEpiDatasetAccessor:
             .replace("]", ")"),
             "group_label": "Uncertainty type",
         }
-        kwargs_hv.update(kwargs)
-        plot_obj = ds_plot.hvplot.area(**kwargs_hv)
+        kwargs_hvplot.update(kwargs)
+        plot_obj = ds_plot.hvplot.area(**kwargs_hvplot)
         return plot_obj
 
     def plot_ci_plume(
-        self, data_var=None, conf_level=90, estimate_internal_variability=True, **kwargs
+        self,
+        data_var=None,
+        conf_level=90,
+        estimate_internal_variability=True,
+        kwargs_baseline=None,
+        **kwargs_area,
     ):
         """
         Generates a plume plot showing contributions of internal, model and scenario
@@ -502,21 +507,36 @@ class ClimEpiDatasetAccessor:
         estimate_internal_variability : bool, optional
             Whether to estimate internal variability if only a single ensemble member is
             available for each model and realization. Default is True.
-        kwargs : dict, optional
-            Additional keyword arguments to pass to hvplot.area.
+        kwargs_baseline : dict, optional
+            Additional keyword arguments to pass to hvplot.line for the baseline
+            estimate.
+        **kwargs_area : dict, optional
+            Additional keyword arguments to pass to hvplot.area for the all confidence
+            interval plots.
 
         Returns
         -------
         hvplot object
             The resulting plot object.
         """
+
+        kwargs_baseline_in = {} if kwargs_baseline is None else kwargs_baseline
+        kwargs_area_in = {} if kwargs_area is None else kwargs_area
+        kwargs_baseline = {
+            **{"x": "time", "label": "Baseline", "color": "black"},
+            **kwargs_baseline_in,
+        }
+        colors = hv.Cycle().values
+        kwargs_area = {**{"x": "time", "alpha": 0.6}, **kwargs_area_in}
+        kwargs_internal = {"label": "Internal", "color": colors[2], **kwargs_area}
+        kwargs_model = {"label": "Model", "color": colors[1], **kwargs_area}
+        kwargs_scenario = {"label": "Scenario", "color": colors[0], **kwargs_area}
         data_var = self._auto_select_data_var(data_var)
         if isinstance(data_var, list):
             # Avoid bug with np.sqrt for an xarray Dataset with a single data variable
             # (this ensures DataArrays are used instead when necessary)
             data_var = data_var[0]
         da_raw = self._obj[data_var]
-        plot_obj_list = []
         # Make "scenario", "model" and "realization" dimensions of the data variable if
         # they are not present or are (singleton) non-dimension coordinates (reduces
         # number of cases to handle)
@@ -539,134 +559,118 @@ class ClimEpiDatasetAccessor:
             estimate_internal_variability=estimate_internal_variability,
         )[data_var]
         z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
-        # Plot the baseline estimate
-        kwargs_hv_baseline = {"x": "time", "label": "Baseline", "color": "black"}
-        kwargs_hv_baseline.update(kwargs)
-        plot_obj_baseline = da_baseline.hvplot.line(**kwargs_hv_baseline)
-        plot_obj_list.append(plot_obj_baseline)
-        # Plot internal variability if there are multiple realizations or if internal
-        # variability is to be estimated
+        # Create a dataset for the confidence interval plots
+        ds_plume = xr.Dataset()
         multiple_realizations = len(da_raw.realization) > 1
         if estimate_internal_variability or multiple_realizations:
+            # Obtain confidence interval contribution from internal variability if there are
+            # multiple realizations or if internal variability is to be estimated
             if len(da_raw.scenario) == 1 and len(da_raw.model) == 1:
-                ds_ci_internal = xr.Dataset(
-                    {
-                        "lower": da_stat.squeeze(["model", "scenario"], drop=True).sel(
-                            ensemble_stat="lower", drop=True
-                        ),
-                        "upper": da_stat.squeeze(["model", "scenario"], drop=True).sel(
-                            ensemble_stat="upper", drop=True
-                        ),
-                    }
-                )
+                ds_plume["internal_lower"] = da_stat.squeeze(
+                    ["model", "scenario"], drop=True
+                ).sel(ensemble_stat="lower", drop=True)
+                ds_plume["internal_upper"] = da_stat.squeeze(
+                    ["model", "scenario"], drop=True
+                ).sel(ensemble_stat="upper", drop=True)
             else:
                 da_std_internal = np.sqrt(
                     da_var_decomp.sel(var_type="internal", drop=True)
                 )
-                ds_ci_internal = xr.Dataset(
-                    {
-                        "lower": da_baseline - z * da_std_internal,
-                        "upper": da_baseline + z * da_std_internal,
-                    }
-                )
-            ds_ci_internal["lower"].attrs = da_baseline.attrs
-            ds_ci_internal["upper"].attrs = da_baseline.attrs
-            kwargs_hv_internal = {
-                "x": "time",
-                "y": "lower",
-                "y2": "upper",
-                "alpha": 1,
-                "label": "Internal",
-            }
-            kwargs_hv_internal.update(kwargs)
-            plot_obj_internal = ds_ci_internal.hvplot.area(**kwargs_hv_internal)
-            plot_obj_list.append(plot_obj_internal)
-        # Plot model variability if there are multiple models
+                ds_plume["internal_lower"] = da_baseline - z * da_std_internal
+                ds_plume["internal_upper"] = da_baseline + z * da_std_internal
+            ds_plume["internal_lower"].attrs = da_baseline.attrs
+            ds_plume["internal_lower"].attrs = da_baseline.attrs
+        else:
+            ds_plume["internal_lower"] = da_baseline
+            ds_plume["internal_upper"] = da_baseline
         if len(da_raw.model) > 1:
+            # Plot model variability if there are multiple models
             if len(da_raw.scenario) == 1 and not (
                 multiple_realizations or estimate_internal_variability
             ):
                 da_raw_rechunked = da_raw.squeeze(
                     ["scenario", "realization"], drop=True
                 ).chunk({"model": -1})
-                ds_ci_internal_model = xr.Dataset(
-                    {
-                        "lower": da_raw_rechunked.quantile(
-                            0.5 - conf_level / 200, dim="model"
-                        ).drop("quantile"),
-                        "upper": da_raw_rechunked.quantile(
-                            0.5 + conf_level / 200, dim="model"
-                        ).drop("quantile"),
-                    }
-                )
+                ds_plume["model_lower"] = da_raw_rechunked.quantile(
+                    0.5 - conf_level / 200, dim="model"
+                ).drop("quantile")
+                ds_plume["model_upper"] = da_raw_rechunked.quantile(
+                    0.5 + conf_level / 200, dim="model"
+                ).drop("quantile")
             else:
                 da_std_internal_model = np.sqrt(
                     da_var_decomp.sel(var_type=["internal", "model"]).sum(
                         dim="var_type"
                     )
                 )
-                ds_ci_internal_model = xr.Dataset(
-                    {
-                        "lower": da_baseline - z * da_std_internal_model,
-                        "upper": da_baseline + z * da_std_internal_model,
-                    }
-                )
-            ds_ci_internal_model["lower"].attrs = da_baseline.attrs
-            ds_ci_internal_model["upper"].attrs = da_baseline.attrs
-            kwargs_hv_model = {
-                "x": "time",
-                "y": "lower",
-                "y2": "upper",
-                "alpha": 1,
-                "label": "Model",
-            }
-            kwargs_hv_model.update(kwargs)
-            plot_obj_model = ds_ci_internal_model.hvplot.area(**kwargs_hv_model)
-            plot_obj_list.append(plot_obj_model)
-        # Plot scenario variability if there are multiple scenarios
+                ds_plume["model_lower"] = da_baseline - z * da_std_internal_model
+                ds_plume["model_upper"] = da_baseline + z * da_std_internal_model
+            ds_plume["model_lower"].attrs = da_baseline.attrs
+            ds_plume["model_lower"].attrs = da_baseline.attrs
+        else:
+            ds_plume["model_lower"] = ds_plume["internal_lower"]
+            ds_plume["model_upper"] = ds_plume["internal_upper"]
         if len(da_raw.scenario) > 1:
+            # Plot scenario variability if there are multiple scenarios
             if len(da_raw.model) == 1 and not (
                 multiple_realizations or estimate_internal_variability
             ):
                 da_raw_rechunked = da_raw.squeeze(
                     ["model", "realization"], drop=True
                 ).chunk({"scenario": -1})
-                ds_ci_internal_model_scenario = xr.Dataset(
-                    {
-                        "lower": da_raw_rechunked.quantile(
-                            0.5 - conf_level / 200, dim="scenario"
-                        ).drop("quantile"),
-                        "upper": da_raw_rechunked.quantile(
-                            0.5 + conf_level / 200, dim="scenario"
-                        ).drop("quantile"),
-                    }
-                )
+                ds_plume["scenario_lower"] = da_raw_rechunked.quantile(
+                    0.5 - conf_level / 200, dim="scenario"
+                ).drop("quantile")
+                ds_plume["scenario_upper"] = da_raw_rechunked.quantile(
+                    0.5 + conf_level / 200, dim="scenario"
+                ).drop("quantile")
             else:
                 da_std_internal_model_scenario = np.sqrt(
                     da_var_decomp.sum(dim="var_type")
                 )
-                ds_ci_internal_model_scenario = xr.Dataset(
-                    {
-                        "lower": da_baseline - z * da_std_internal_model_scenario,
-                        "upper": da_baseline + z * da_std_internal_model_scenario,
-                    }
+                ds_plume["scenario_lower"] = (
+                    da_baseline - z * da_std_internal_model_scenario
                 )
-            ds_ci_internal_model_scenario["lower"].attrs = da_baseline.attrs
-            ds_ci_internal_model_scenario["upper"].attrs = da_baseline.attrs
-            kwargs_hv_scenario = {
-                "x": "time",
-                "y": "lower",
-                "y2": "upper",
-                "alpha": 1,
-                "label": "Scenario",
-            }
-            kwargs_hv_scenario.update(kwargs)
-            plot_obj_scenario = ds_ci_internal_model_scenario.hvplot.area(
-                **kwargs_hv_scenario
+                ds_plume["scenario_upper"] = (
+                    da_baseline + z * da_std_internal_model_scenario
+                )
+            ds_plume["scenario_lower"].attrs = da_baseline.attrs
+            ds_plume["scenario_lower"].attrs = da_baseline.attrs
+        # Plot confidence intervals
+        plot_obj_list = []
+        if len(da_raw.scenario) > 1:
+            plot_obj_scenario_lower = ds_plume[
+                ["scenario_lower", "model_lower"]
+            ].hvplot.area(y="scenario_lower", y2="model_lower", **kwargs_scenario)
+            plot_obj_scenario_upper = ds_plume[
+                ["model_upper", "scenario_upper"]
+            ].hvplot.area(
+                y="model_upper",
+                y2="scenario_upper",
+                **{**kwargs_scenario, **{"label": None}},
             )
-            plot_obj_list.append(plot_obj_scenario)
+            plot_obj_list.extend([plot_obj_scenario_lower, plot_obj_scenario_upper])
+        if len(da_raw.model) > 1:
+            plot_obj_model_lower = ds_plume[
+                ["model_lower", "internal_lower"]
+            ].hvplot.area(y="model_lower", y2="internal_lower", **kwargs_model)
+            plot_obj_model_upper = ds_plume[
+                ["internal_upper", "model_upper"]
+            ].hvplot.area(
+                y="internal_upper",
+                y2="model_upper",
+                **{**kwargs_model, **{"label": None}},
+            )
+            plot_obj_list.extend([plot_obj_model_lower, plot_obj_model_upper])
+        if estimate_internal_variability or multiple_realizations:
+            plot_obj_internal = ds_plume[
+                ["internal_lower", "internal_upper"]
+            ].hvplot.area(y="internal_lower", y2="internal_upper", **kwargs_internal)
+            plot_obj_list.append(plot_obj_internal)
+        # Plot the baseline estimate
+        plot_obj_baseline = da_baseline.hvplot.line(**kwargs_baseline)
+        plot_obj_list.append(plot_obj_baseline)
         # Combine the plots
-        plot_obj_list.reverse()
         plot_obj = hv.Overlay(plot_obj_list)
         return plot_obj
 
