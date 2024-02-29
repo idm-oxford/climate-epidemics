@@ -30,13 +30,15 @@ class ISIMIPDataGetter(ClimateDataGetter):
     Class for accessing and downloading ISIMIP data from the ISIMIP repository
     (https://www.isimip.org/outputdata/isimip-repository/). Available
     years that can be specified in the `subset` argument of the class constructor range
-    from 2015 to 2101, and a single realization (here labelled as 0) is available for
-    a variety of emissions scenarios ("ssp126", "ssp245", "ssp370", and "ssp585") and
-    models ("gfdl-esm4", "ipsl-cm6a-lr", "mpi-esm1-2-hr", "mri-esm2-0", "ukesm1-0-ll",
-    "canesm5", "cnrm-cm6-1", "cnrm-esm2-1", "ec-earth3", and "miroc6"); note that the
-    "ssp245" scenario is only available for some models. The data must be downloaded
-    (i.e., `download=True` option in the `get_data` method) before it can be opened and
-    processed.
+    from 2015 to 2100, and a single realization (here labelled as 0) is available for
+    a variety of emissions scenarios ("ssp126", "ssp370", and "ssp585") and models
+    ("gfdl-esm4", "ipsl-cm6a-lr", "mpi-esm1-2-hr", "mri-esm2-0", "ukesm1-0-ll",
+    "canesm5", "cnrm-cm6-1", "cnrm-esm2-1", "ec-earth3", and "miroc6"); note that data
+    for an additional scenario ("ssp245") can also be requested, but are not retrieved
+    by default because these data are only available for the first five of the ten
+    listed models. The data must be downloaded before opening and processing (i.e.,
+    the `download` option in the `get_data` method must be set to `True` (the default
+    value), or an error will be raised).
 
     See the base class (`climepi.climdata._data_getter_class.ClimateDataGetter`) for
     further details.
@@ -44,7 +46,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
 
     data_source = "isimip"
     available_years = np.arange(2015, 2101)
-    available_scenarios = ["ssp126", "ssp245", "ssp370", "ssp585"]
+    available_scenarios = ["ssp126", "ssp370", "ssp585"]
     available_models = [
         "gfdl-esm4",
         "ipsl-cm6a-lr",
