@@ -152,6 +152,10 @@ class CESMDataGetter(ClimateDataGetter):
         ds_processed["time"].attrs.update(long_name="Time")
         ds_processed["lon"].attrs.update(long_name="Longitude")
         ds_processed["lat"].attrs.update(long_name="Latitude")
+        # Add axis labels to attributes of the time, longitude and latitude coordinates.
+        ds_processed["time"].attrs.update(axis="T")
+        ds_processed["lon"].attrs.update(axis="X")
+        ds_processed["lat"].attrs.update(axis="Y")
         # Take yearly averages if yearly data requested.
         if frequency == "yearly":
             ds_processed = ds_processed.climepi.yearly_average()
