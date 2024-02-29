@@ -44,6 +44,13 @@ EXAMPLES = {
             "realizations": np.arange(2),
         },
     },
+    "isimip_london": {
+        "data_source": "isimip",
+        "frequency": "monthly",
+        "subset": {
+            "loc_str": "London",
+        },
+    },
     "isimip_london_small": {
         "data_source": "isimip",
         "frequency": "monthly",
@@ -51,13 +58,6 @@ EXAMPLES = {
             "loc_str": "London",
             "scenarios": ["ssp126", "ssp245"],
             "models": ["gfdl-esm4", "ipsl-cm6a-lr"],
-        },
-    },
-    "isimip_london": {
-        "data_source": "isimip",
-        "frequency": "monthly",
-        "subset": {
-            "loc_str": "London",
         },
     },
 }
