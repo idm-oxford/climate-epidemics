@@ -8,7 +8,6 @@ import numpy as np
 import scipy.stats
 import xarray as xr
 import xcdat  # noqa # pylint: disable=unused-import
-import xclim.ensembles
 from geopy.geocoders import Nominatim
 from xarray.plot.utils import label_from_attrs
 

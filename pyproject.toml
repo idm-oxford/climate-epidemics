@@ -21,7 +21,6 @@ classifiers = [
 ]
 dependencies = [
   "xcdat<0.6.1",
-  "xclim>=0.45",
   "bottleneck",
   "flox",
   "geopy",
