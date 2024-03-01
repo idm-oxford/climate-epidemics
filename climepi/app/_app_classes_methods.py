@@ -9,16 +9,17 @@ import numpy as np
 import panel as pn
 import param
 import xarray as xr
+from xcdat.temporal import _infer_freq
 
 import climepi  # noqa # pylint: disable=unused-import
 from climepi import climdata, epimod
 
 # Constants
 
-_EXAMPLE_CLIM_DATASET_NAMES = climdata.cesm.EXAMPLE_NAMES
+_EXAMPLE_CLIM_DATASET_NAMES = climdata.EXAMPLE_NAMES
 _EXAMPLE_CLIM_DATASET_NAMES.append("The googly")
 _EXAMPLE_CLIM_DATASET_GETTER_DICT = {
-    name: functools.partial(climdata.cesm.get_example_dataset, name=name)
+    name: functools.partial(climdata.get_example_dataset, name=name)
     for name in _EXAMPLE_CLIM_DATASET_NAMES
 }
 
@@ -59,8 +60,34 @@ def _run_epi_model_func(ds_clim, epi_model_name):
     return ds_months_suitable
 
 
-def _get_view_func(ds_in, plot_modes):
-    plotter = _Plotter(ds_in, plot_modes)
+def _get_scope_dict(ds_in):
+    temporal_scope_xcdat = _infer_freq(ds_in.time)
+    xcdat_freq_map = {"year": "yearly", "month": "monthly", "day": "daily"}
+    temporal_scope = xcdat_freq_map[temporal_scope_xcdat]
+    spatial_scope = "single" if len(ds_in.lon) == 1 and len(ds_in.lat) == 1 else "grid"
+    ensemble_scope = (
+        "multiple"
+        if "realization" in ds_in.dims and len(ds_in.realization) > 1
+        else "single"
+    )
+    scenario_scope = (
+        "multiple" if "scenario" in ds_in.dims and len(ds_in.scenario) > 1 else "single"
+    )
+    model_scope = (
+        "multiple" if "model" in ds_in.dims and len(ds_in.model) > 1 else "single"
+    )
+    scope_dict = {
+        "temporal": temporal_scope,
+        "spatial": spatial_scope,
+        "ensemble": ensemble_scope,
+        "scenario": scenario_scope,
+        "model": model_scope,
+    }
+    return scope_dict
+
+
+def _get_view_func(ds_in, plot_settings):
+    plotter = _Plotter(ds_in, plot_settings)
     plotter.generate_plot()
     view = plotter.view
     return view
@@ -77,13 +104,11 @@ def _compute_to_file_reopen(ds_in, name, dask_scheduler=None):
     except FileNotFoundError:
         pass
     chunks = ds_in.chunks.mapping
-    climepi_modes = ds_in.climepi.modes
     delayed_obj = ds_in.to_netcdf(temp_file_path, compute=False)
     with dask.diagnostics.ProgressBar():
         delayed_obj.compute(scheduler=dask_scheduler)
     _file_ds_dict[name] = xr.open_dataset(temp_file_path, chunks=chunks)
     ds_out = _file_ds_dict[name].copy()
-    ds_out.climepi.modes = climepi_modes
     return ds_out
 
 
@@ -102,42 +127,35 @@ def _cleanup_temp_files():
 class _Plotter:
     """Class for generating plots"""
 
-    def __init__(self, ds_in, plot_modes):
+    def __init__(self, ds_in, plot_settings):
         self.view = None
         self._ds_base = ds_in
-        self._base_modes = ds_in.climepi.modes
-        self._plot_modes = plot_modes
+        self._scope_dict_base = _get_scope_dict(ds_in)
+        self._plot_settings = plot_settings
         self._ds_plot = None
 
     def generate_plot(self):
         """Generate the plot."""
         self._get_ds_plot()
         ds_plot = self._ds_plot
-        plot_modes = self._plot_modes
-        plot_type = plot_modes["plot_type"]
-        ensemble_mode = plot_modes["ensemble_mode"]
+        plot_settings = self._plot_settings
+        plot_type = plot_settings["plot_type"]
         if plot_type == "map":
-            view = pn.panel(
-                ds_plot.climepi.plot_map(),
-                center=True,
-                widget_location="bottom",
-                linked_axes=False,
-            )
-        elif (
-            plot_type == "time series"
-            and ensemble_mode == "mean and 90% confidence interval"
-        ):
-            view = pn.panel(
-                ds_plot.climepi.plot_ensemble_ci_time_series(),
-                center=True,
-                linked_axes=False,
-            )
+            plot = ds_plot.climepi.plot_map()
         elif plot_type == "time series":
-            view = pn.panel(
-                ds_plot.climepi.plot_time_series(), center=True, linked_axes=False
-            )
+            p1 = ds_plot.climepi.plot_ci_plume()
+            p2 = ds_plot.climepi.plot_time_series()
+            plot = p1 * p2
+        elif plot_type == "variance decomposition":
+            plot = ds_plot.climepi.plot_var_decomp()
         else:
             raise ValueError("Unsupported plot options")
+        view = pn.panel(
+            plot,
+            center=True,
+            widget_location="bottom",
+            linked_axes=False,
+        )
         self.view = view
 
     def _get_ds_plot(self):
@@ -146,109 +164,104 @@ class _Plotter:
         self._spatial_index_ds_plot()
         self._temporal_index_ds_plot()
         self._ensemble_index_ds_plot()
+        self._model_index_ds_plot()
+        self._scenario_index_ds_plot()
         self._temporal_ops_ds_plot()
         self._ensemble_ops_ds_plot()
 
     def _sel_data_var_ds_plot(self):
-        data_var = self._plot_modes["data_var"]
+        data_var = self._plot_settings["data_var"]
         ds_plot = self._ds_plot
         ds_plot = ds_plot.climepi.sel_data_var(data_var)
         self._ds_plot = ds_plot
 
     def _spatial_index_ds_plot(self):
-        plot_type = self._plot_modes["plot_type"]
-        location = self._plot_modes["location"]
-        spatial_base_mode = self._base_modes["spatial"]
+        plot_type = self._plot_settings["plot_type"]
+        location = self._plot_settings["location"]
+        spatial_scope_base = self._scope_dict_base["spatial"]
         ds_plot = self._ds_plot
-        if spatial_base_mode == "single" or plot_type == "map":
+        if spatial_scope_base == "single" or plot_type == "map":
             pass
-        elif spatial_base_mode == "global" and plot_type == "time series":
+        elif spatial_scope_base == "grid" and plot_type in [
+            "time series",
+            "variance decomposition",
+        ]:
             ds_plot = ds_plot.climepi.sel_geopy(location)
         else:
-            raise ValueError("Unsupported spatial base mode and plot type combination")
+            raise ValueError("Unsupported spatial base scope and plot type combination")
         self._ds_plot = ds_plot
 
     def _temporal_index_ds_plot(self):
-        temporal_mode = self._plot_modes["temporal_mode"]
-        year_range = self._plot_modes["year_range"]
-        temporal_base_mode = self._base_modes["temporal"]
+        temporal_scope = self._plot_settings["temporal_scope"]
+        year_range = self._plot_settings["year_range"]
         ds_plot = self._ds_plot
-        if temporal_base_mode not in ["annual", "monthly"]:
-            raise ValueError("Unsupported temporal base mode")
-        if temporal_mode in ["annual", "monthly"]:
-            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
-        elif temporal_mode == "difference between years":
+        if temporal_scope == "difference between years":
             if any(year not in ds_plot.time.dt.year.values for year in year_range):
                 raise ValueError(
                     """Only years in the dataset can be used as a range with the
-                    'difference between years' temporal mode"""
+                    'difference between years' temporal scope."""
                 )
             ds_plot = ds_plot.isel(time=ds_plot.time.dt.year.isin(year_range))
         else:
-            raise ValueError(f"Unknown temporal mode: {temporal_mode}")
+            ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
         self._ds_plot = ds_plot
 
     def _ensemble_index_ds_plot(self):
-        ensemble_mode = self._plot_modes["ensemble_mode"]
-        realization = self._plot_modes["realization"]
-        ensemble_base_mode = self._base_modes["ensemble"]
+        realization = self._plot_settings["realization"]
+        ensemble_scope_base = self._scope_dict_base["ensemble"]
         ds_plot = self._ds_plot
-        if ensemble_base_mode != "ensemble":
-            raise ValueError("Unsupported ensemble base mode")
-        if ensemble_mode == "single run":
+        if ensemble_scope_base == "multiple" and realization != "all":
             ds_plot = ds_plot.sel(realization=realization)
-        elif ensemble_mode in [
-            "mean",
-            "mean and 90% confidence interval",
-            "std",
-            "min",
-            "max",
-        ]:
-            pass
-        else:
-            raise ValueError(f"Unknown ensemble mode: {ensemble_mode}")
+        self._ds_plot = ds_plot
+
+    def _model_index_ds_plot(self):
+        model = self._plot_settings["model"]
+        model_scope_base = self._scope_dict_base["model"]
+        ds_plot = self._ds_plot
+        if model_scope_base == "multiple" and model != "all":
+            ds_plot = ds_plot.sel(model=model)
+        self._ds_plot = ds_plot
+
+    def _scenario_index_ds_plot(self):
+        scenario = self._plot_settings["scenario"]
+        scenario_scope_base = self._scope_dict_base["scenario"]
+        ds_plot = self._ds_plot
+        if scenario_scope_base == "multiple" and scenario != "all":
+            ds_plot = ds_plot.sel(scenario=scenario)
         self._ds_plot = ds_plot
 
     def _temporal_ops_ds_plot(self):
-        temporal_mode = self._plot_modes["temporal_mode"]
-        temporal_base_mode = self._base_modes["temporal"]
+        temporal_scope = self._plot_settings["temporal_scope"]
+        temporal_scope_base = self._scope_dict_base["temporal"]
         ds_plot = self._ds_plot
-        if temporal_base_mode == "monthly" and temporal_mode == "monthly":
-            pass
-        elif temporal_base_mode == "monthly" and temporal_mode in [
-            "annual",
-            "difference between years",
-        ]:
-            ds_plot = ds_plot.climepi.annual_mean()
-        elif temporal_base_mode == "annual" and temporal_mode in [
-            "annual",
-            "difference between years",
-        ]:
-            pass
-        else:
-            raise ValueError("Unsupported base and plot temporal mode combination")
-        if temporal_mode == "difference between years":
-            data_var = self._plot_modes["data_var"]
-            year_range = self._plot_modes["year_range"]
-            da_start = ds_plot[data_var].sel(time=str(year_range[0])).squeeze()
-            da_end = ds_plot[data_var].sel(time=str(year_range[1])).squeeze()
-            ds_plot[data_var] = da_end - da_start
+        if temporal_scope not in ["difference between years", temporal_scope_base] or (
+            temporal_scope == "difference between years"
+            and temporal_scope_base != "yearly"
+        ):
+            ds_plot = ds_plot.climepi.temporal_group_average(frequency=temporal_scope)
+        if temporal_scope == "difference between years":
+            year_range = self._plot_settings["year_range"]
+            ds_plot = ds_plot.sel(time=str(year_range[0])) - ds_plot.sel(
+                time=str(year_range[1])
+            )
+            if "time_bnds" in ds_plot:
+                ds_plot = ds_plot.drop_vars("time_bnds")
         self._ds_plot = ds_plot
 
     def _ensemble_ops_ds_plot(self):
-        ensemble_mode = self._plot_modes["ensemble_mode"]
-        ensemble_base_mode = self._base_modes["ensemble"]
+        plot_type = self._plot_settings["plot_type"]
+        ensemble_stat = self._plot_settings["ensemble_stat"]
         ds_plot = self._ds_plot
-        if ensemble_base_mode != "ensemble":
-            raise ValueError("Unsupported ensemble base mode")
-        if ensemble_mode == "single run":
-            pass
-        elif ensemble_mode in ["mean", "std", "min", "max"]:
-            ds_plot = ds_plot.climepi.ensemble_stats().sel(
-                ensemble_statistic=ensemble_mode
-            )
-        elif ensemble_mode == "mean and 90% confidence interval":
-            ds_plot = ds_plot.climepi.ensemble_stats()
+        if plot_type == "map" and ensemble_stat in [
+            "mean",
+            "std",
+            "var",
+            "min",
+            "max",
+            "lower",
+            "upper",
+        ]:
+            ds_plot = ds_plot.climepi.ensemble_stats().sel(ensemble_stat=ensemble_stat)
         self._ds_plot = ds_plot
 
 
@@ -257,11 +270,13 @@ class _PlotController(param.Parameterized):
 
     plot_type = param.ObjectSelector(precedence=1)
     data_var = param.ObjectSelector(precedence=1)
-    location = param.String(default="Cape Town", precedence=-1)
-    temporal_mode = param.ObjectSelector(precedence=1)
+    location = param.String(default="London", precedence=-1)
+    temporal_scope = param.ObjectSelector(precedence=1)
     year_range = param.Range(precedence=1)
-    ensemble_mode = param.ObjectSelector(precedence=1)
-    realization = param.Integer(precedence=-1)
+    scenario = param.ObjectSelector(precedence=1)
+    model = param.ObjectSelector(precedence=1)
+    realization = param.ObjectSelector(precedence=1)
+    ensemble_stat = param.ObjectSelector(precedence=1)
     plot_initiator = param.Event(precedence=1)
     plot_generated = param.Boolean(default=False, precedence=-1)
     plot_status = param.String(default="Plot not yet generated", precedence=1)
@@ -272,7 +287,7 @@ class _PlotController(param.Parameterized):
         self.view = pn.Row()
         self.controls = pn.Row()
         self._ds_base = None
-        self._base_modes = None
+        self._scope_dict_base = None
         self.initialize(ds_in)
 
     @param.depends()
@@ -283,18 +298,22 @@ class _PlotController(param.Parameterized):
         self.controls.clear()
         self._ds_base = ds_in
         if ds_in is None:
-            self._base_modes = None
+            self._scope_dict_base = None
             return
-        self._base_modes = ds_in.climepi.modes
+        self._scope_dict_base = _get_scope_dict(ds_in)
         self._initialize_params()
         widgets = {
             "plot_type": {"name": "Plot type"},
             "data_var": {"name": "Data variable"},
             "location": {"name": "Location"},
-            "temporal_mode": {"name": "Temporal mode"},
+            "temporal_scope": {"name": "Temporal"},
             "year_range": {"name": "Year range"},
-            "ensemble_mode": {"name": "Ensemble mode"},
-            "realization": {"widget_type": pn.widgets.IntSlider, "name": "Realization"},
+            "scenario": {"name": "Scenario"},
+            "model": {"name": "Model"},
+            "realization": {"name": "Realization"},
+            "ensemble_stat": {
+                "name": "Ensemble statistic (estimated if only one realization)"
+            },
             "plot_initiator": pn.widgets.Button(name="Generate plot"),
             "plot_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -306,22 +325,32 @@ class _PlotController(param.Parameterized):
     @param.depends()
     def _initialize_params(self):
         ds_base = self._ds_base
-        base_modes = self._base_modes
+        scope_dict_base = self._scope_dict_base
         # Data variable choices
         data_var_choices = ds_base.climepi.get_non_bnd_data_vars()
         self.param.data_var.objects = data_var_choices
         self.param.data_var.default = data_var_choices[0]
         # Plot type choices
-        if base_modes["spatial"] == "global":
-            plot_type_choices = ["time series", "map"]
-        elif base_modes["spatial"] == "single":
-            plot_type_choices = ["time series"]
-        else:
-            raise NotImplementedError(
-                "Only global and single spatial modes are currently supported"
-            )
+        if scope_dict_base["spatial"] == "grid":
+            plot_type_choices = ["time series", "map", "variance decomposition"]
+        elif scope_dict_base["spatial"] == "single":
+            plot_type_choices = ["time series", "variance decomposition"]
         self.param.plot_type.objects = plot_type_choices
         self.param.plot_type.default = plot_type_choices[0]
+        # Temporal scope choices
+        if scope_dict_base["temporal"] == "yearly":
+            temporal_scope_choices = ["yearly", "difference between years"]
+        elif scope_dict_base["temporal"] == "monthly":
+            temporal_scope_choices = ["monthly", "yearly", "difference between years"]
+        elif scope_dict_base["temporal"] == "daily":
+            temporal_scope_choices = [
+                "daily",
+                "monthly",
+                "yearly",
+                "difference between years",
+            ]
+        self.param.temporal_scope.objects = temporal_scope_choices
+        self.param.temporal_scope.default = temporal_scope_choices[0]
         # Year range choices
         data_years = np.unique(ds_base.time.dt.year.values)
         self.param.year_range.bounds = (
@@ -337,27 +366,55 @@ class _PlotController(param.Parameterized):
             self.param.year_range.step = data_year_diffs[0]
         else:
             self.param.year_range.step = 1
-        # Ensemble member choices
-        if base_modes["ensemble"] == "ensemble":
-            self.param.realization.bounds = [
-                ds_base.realization.values[0].item(),
-                ds_base.realization.values[-1].item(),
-            ]
-            self.param.realization.default = ds_base.realization.values[0].item()
+        # Scenario choices
+        if scope_dict_base["scenario"] == "multiple":
+            scenario_choices = ["all", *ds_base.scenario.values.tolist()]
+            self.param.scenario.objects = scenario_choices
+            self.param.scenario.default = scenario_choices[0]
+        elif scope_dict_base["scenario"] == "single":
+            self.param.scenario.precedence = -1
+        # Model choices
+        if scope_dict_base["model"] == "multiple":
+            model_choices = ["all", *ds_base.model.values.tolist()]
+            self.param.model.objects = model_choices
+            self.param.model.default = model_choices[0]
+        elif scope_dict_base["model"] == "single":
+            self.param.model.precedence = -1
+        # Realization choices
+        if scope_dict_base["ensemble"] == "multiple":
+            realization_choices = ["all", *ds_base.realization.values.tolist()]
+            self.param.realization.objects = realization_choices
+            self.param.realization.default = realization_choices[0]
+        elif scope_dict_base["ensemble"] == "single":
+            self.param.realization.precedence = -1
+        # Ensemble stat choices
+        ensemble_stat_choices = [
+            "individual realization(s)",
+            "mean",
+            "std",
+            "var",
+            "min",
+            "max",
+            "lower",
+            "upper",
+        ]
+        self.param.ensemble_stat.objects = ensemble_stat_choices
+        self.param.ensemble_stat.default = ensemble_stat_choices[0]
         # Set parameters to defaults
         for par in [
             "plot_type",
             "data_var",
             "location",
-            "temporal_mode",
+            "temporal_scope",
             "year_range",
-            "ensemble_mode",
+            "scenario",
+            "model",
             "realization",
+            "ensemble_stat",
         ]:
             setattr(self, par, self.param[par].default)
-        # Update variable parameter choices (triggering updates to precedence and plot
-        # status)
-        self._update_variable_param_choices()
+        # Update precedence (in turn triggering update to plot status)
+        self._update_precedence()
 
     @param.depends("plot_initiator", watch=True)
     def _update_view(self):
@@ -369,8 +426,8 @@ class _PlotController(param.Parameterized):
         self.plot_status = "Generating plot..."
         try:
             ds_base = self._ds_base
-            plot_modes = self.param.values()
-            view = _get_view_func(ds_base, plot_modes)
+            plot_settings = self.param.values()
+            view = _get_view_func(ds_base, plot_settings)
             self.view.append(view)
             self.param.trigger("view_refresher")
             self.plot_status = "Plot generated"
@@ -380,82 +437,29 @@ class _PlotController(param.Parameterized):
             raise
 
     @param.depends("plot_type", watch=True)
-    def _update_variable_param_choices(self):
-        base_modes = self._base_modes
-        # Temporal mode choices
-        if self.plot_type == "time series" and base_modes["temporal"] == "monthly":
-            temporal_mode_choices = [
-                "annual",
-                "monthly",
-            ]
-        elif self.plot_type == "time series" and base_modes["temporal"] == "annual":
-            temporal_mode_choices = [
-                "annual",
-            ]
-        elif self.plot_type == "map" and base_modes["temporal"] in [
-            "monthly",
-            "annual",
-        ]:
-            temporal_mode_choices = [
-                "annual",
-                "difference between years",
-            ]
-        else:
-            raise NotImplementedError(
-                "Only monthly and annual temporal modes are currently supported"
-            )
-        self.param.temporal_mode.objects = temporal_mode_choices
-        self.param.temporal_mode.default = temporal_mode_choices[0]
-        self.temporal_mode = self.param.temporal_mode.default
-        # Ensemble mode choices
-        if self.plot_type == "time series" and base_modes["ensemble"] == "ensemble":
-            ensemble_mode_choices = [
-                "mean",
-                "mean and 90% confidence interval",
-                "std",
-                "min",
-                "max",
-                "single run",
-            ]
-        elif self.plot_type == "map" and base_modes["ensemble"] == "ensemble":
-            ensemble_mode_choices = [
-                "mean",
-                "std",
-                "min",
-                "max",
-                "single run",
-            ]
-        else:
-            raise NotImplementedError(
-                "Only 'ensemble' base mode is currently supported"
-            )
-        self.param.ensemble_mode.objects = ensemble_mode_choices
-        self.param.ensemble_mode.default = ensemble_mode_choices[0]
-        if self.ensemble_mode != self.param.ensemble_mode.default:
-            self.ensemble_mode = self.param.ensemble_mode.default
-        else:
-            self.param.trigger(
-                "ensemble_mode"
-            )  # ensures that precedence and plot status are updated
-
-    @param.depends("ensemble_mode", watch=True)
     def _update_precedence(self):
-        if self.plot_type == "time series" and self._base_modes["spatial"] == "global":
+        if (
+            self.plot_type == "time series"
+            and self._scope_dict_base["spatial"] == "grid"
+        ):
             self.param.location.precedence = 1
         else:
             self.param.location.precedence = -1
-        if self.ensemble_mode == "single run":
-            self.param.realization.precedence = 1
+        if self.plot_type == "map":
+            self.param.ensemble_stat.precedence = 1
         else:
-            self.param.realization.precedence = -1
+            self.param.ensemble_stat.precedence = -1
         self._revert_plot_status()
 
     @param.depends(
         "data_var",
         "location",
-        "temporal_mode",
+        "temporal_scope",
         "year_range",
+        "scenario",
+        "model",
         "realization",
+        "ensemble_stat",
         watch=True,
     )
     def _revert_plot_status(self):
