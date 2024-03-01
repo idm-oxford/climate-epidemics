@@ -32,7 +32,7 @@ def _get_app():
 
 def run_app():
     """
-    Method to run the climepi ``Panel`` app locally in a browser.
+    Method to run the climepi `Panel` app locally in a browser.
 
     Parameters:
     -----------
