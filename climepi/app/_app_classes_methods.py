@@ -144,7 +144,7 @@ class _Plotter:
             plot = ds_plot.climepi.plot_map()
         elif plot_type == "time series":
             p1 = ds_plot.climepi.plot_ci_plume()
-            p2 = ds_plot.climepi.plot_time_series()
+            p2 = ds_plot.climepi.plot_time_series(label="Individual realization")
             plot = p1 * p2
         elif plot_type == "variance decomposition":
             plot = ds_plot.climepi.plot_var_decomp()
@@ -234,18 +234,17 @@ class _Plotter:
         temporal_scope = self._plot_settings["temporal_scope"]
         temporal_scope_base = self._scope_dict_base["temporal"]
         ds_plot = self._ds_plot
-        if temporal_scope not in ["difference between years", temporal_scope_base] or (
-            temporal_scope == "difference between years"
-            and temporal_scope_base != "yearly"
-        ):
+        if temporal_scope not in ["difference between years", temporal_scope_base]:
             ds_plot = ds_plot.climepi.temporal_group_average(frequency=temporal_scope)
         if temporal_scope == "difference between years":
-            year_range = self._plot_settings["year_range"]
-            ds_plot = ds_plot.sel(time=str(year_range[0])) - ds_plot.sel(
-                time=str(year_range[1])
-            )
+            if temporal_scope_base != "yearly":
+                ds_plot = ds_plot.climepi.yearly_average()
             if "time_bnds" in ds_plot:
-                ds_plot = ds_plot.drop_vars("time_bnds")
+                ds_plot = ds_plot.drop("time_bnds")
+            year_range = self._plot_settings["year_range"]
+            ds_plot = ds_plot.sel(time=str(year_range[1])).squeeze(
+                "time", drop=True
+            ) - ds_plot.sel(time=str(year_range[0])).squeeze("time", drop=True)
         self._ds_plot = ds_plot
 
     def _ensemble_ops_ds_plot(self):
@@ -339,16 +338,11 @@ class _PlotController(param.Parameterized):
         self.param.plot_type.default = plot_type_choices[0]
         # Temporal scope choices
         if scope_dict_base["temporal"] == "yearly":
-            temporal_scope_choices = ["yearly", "difference between years"]
+            temporal_scope_choices = ["yearly"]
         elif scope_dict_base["temporal"] == "monthly":
-            temporal_scope_choices = ["monthly", "yearly", "difference between years"]
+            temporal_scope_choices = ["yearly", "monthly"]
         elif scope_dict_base["temporal"] == "daily":
-            temporal_scope_choices = [
-                "daily",
-                "monthly",
-                "yearly",
-                "difference between years",
-            ]
+            temporal_scope_choices = ["yearly", "monthly", "daily"]
         self.param.temporal_scope.objects = temporal_scope_choices
         self.param.temporal_scope.default = temporal_scope_choices[0]
         # Year range choices
@@ -371,6 +365,7 @@ class _PlotController(param.Parameterized):
             scenario_choices = ["all", *ds_base.scenario.values.tolist()]
             self.param.scenario.objects = scenario_choices
             self.param.scenario.default = scenario_choices[0]
+            self.param.scenario.precedence = 1
         elif scope_dict_base["scenario"] == "single":
             self.param.scenario.precedence = -1
         # Model choices
@@ -378,6 +373,7 @@ class _PlotController(param.Parameterized):
             model_choices = ["all", *ds_base.model.values.tolist()]
             self.param.model.objects = model_choices
             self.param.model.default = model_choices[0]
+            self.param.model.precedence = 1
         elif scope_dict_base["model"] == "single":
             self.param.model.precedence = -1
         # Realization choices
@@ -385,6 +381,7 @@ class _PlotController(param.Parameterized):
             realization_choices = ["all", *ds_base.realization.values.tolist()]
             self.param.realization.objects = realization_choices
             self.param.realization.default = realization_choices[0]
+            self.param.realization.precedence = 1
         elif scope_dict_base["ensemble"] == "single":
             self.param.realization.precedence = -1
         # Ensemble stat choices
@@ -413,7 +410,8 @@ class _PlotController(param.Parameterized):
             "ensemble_stat",
         ]:
             setattr(self, par, self.param[par].default)
-        # Update precedence (in turn triggering update to plot status)
+        # Update variable parameter choices and precedence
+        self._update_variable_param_choices()
         self._update_precedence()
 
     @param.depends("plot_initiator", watch=True)
@@ -435,6 +433,22 @@ class _PlotController(param.Parameterized):
         except Exception as exc:
             self.plot_status = f"Plot generation failed: {exc}"
             raise
+
+    @param.depends("plot_type", watch=True)
+    def _update_variable_param_choices(self):
+        # Add difference between years to temporal scope if plot type is map, and
+        # remove it if it is not.
+        if (
+            self.plot_type == "map"
+            and "difference between years" not in self.param.temporal_scope.objects
+        ):
+            self.param.temporal_scope.objects.append("difference between years")
+        elif (
+            self.plot_type != "map"
+            and "difference between years" in self.param.temporal_scope.objects
+        ):
+            self.param.temporal_scope.objects.remove("difference between years")
+            self.temporal_scope = self.param.temporal_scope.default
 
     @param.depends("plot_type", watch=True)
     def _update_precedence(self):
