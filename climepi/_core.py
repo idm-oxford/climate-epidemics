@@ -415,10 +415,6 @@ class ClimEpiDatasetAccessor:
             "coastline": True,
             "dynamic": False,
         }
-        if "time" in da_plot.sizes:
-            kwargs_hvplot["groupby"] = "time"
-        else:
-            kwargs_hvplot["groupby"] = None
         kwargs_hvplot.update(kwargs)
         plot_obj = da_plot.hvplot.quadmesh(**kwargs_hvplot)
         if not include_ocean:
@@ -527,14 +523,22 @@ class ClimEpiDatasetAccessor:
         kwargs_baseline_in = {} if kwargs_baseline is None else kwargs_baseline
         kwargs_area_in = {} if kwargs_area is None else kwargs_area
         kwargs_baseline = {
-            **{"x": "time", "label": "Baseline", "color": "black"},
+            **{"x": "time", "label": "Mean", "color": "black"},
             **kwargs_baseline_in,
         }
         colors = hv.Cycle().values
         kwargs_area = {**{"x": "time", "alpha": 0.6}, **kwargs_area_in}
-        kwargs_internal = {"label": "Internal", "color": colors[2], **kwargs_area}
-        kwargs_model = {"label": "Model", "color": colors[1], **kwargs_area}
-        kwargs_scenario = {"label": "Scenario", "color": colors[0], **kwargs_area}
+        kwargs_internal = {
+            "label": "Internal variability",
+            "color": colors[2],
+            **kwargs_area,
+        }
+        kwargs_model = {"label": "Model spread", "color": colors[1], **kwargs_area}
+        kwargs_scenario = {
+            "label": "Scenario spread",
+            "color": colors[0],
+            **kwargs_area,
+        }
         data_var = self._auto_select_data_var(data_var)
         if isinstance(data_var, list):
             # Avoid bug with np.sqrt for an xarray Dataset with a single data variable
@@ -786,6 +790,16 @@ class ClimEpiDatasetAccessor:
             # Deals with the case where the longitude co-ordinates are in the range
             # [0, 360] (slightly crude)
             lon = lon % 360
+        if (
+            lat < min(self._obj.lat)
+            or lat > max(self._obj.lat)
+            or lon < min(self._obj.lon)
+            or lon > max(self._obj.lon)
+        ):
+            print(
+                "Warning: The requested location is outside the range of the",
+                "dataset. Returning the nearest grid point.",
+            )
         ds_new = self._obj.sel(lat=lat, lon=lon, method="nearest")
         return ds_new
 
