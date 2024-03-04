@@ -15,9 +15,13 @@ from climepi import climdata
 # Dictionary of example datasets. Each key gives the example dataset name, and the
 # corresponding value should be a dictionary with the following keys/values:
 #   data_dir: Directory where the dataset is to be downloaded/accessed.
-#   subset: Dictionary of options for subsetting the CESM dataset to pass to
-#           CESMDataGetter as keyword arguments (see
-#           climepi.climdata.cesm.CESMDataGetter for details).
+#   data_source: Data source to retrieve data from. Currently supported sources are
+#       'lens2' (for CESM2 LENS data) and 'isimip' (for ISIMIP data).
+#   frequency: Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
+#       'yearly' (default is 'monthly').
+#   subset: Dictionary of options for subsetting the dataset to pass to
+#       climepi.climdata.get_climate_data as keyword arguments (see the docstring of
+#       climepi.climdata.get_climate_data for details).
 EXAMPLES = {
     "lens2_world": {
         "data_source": "lens2",
@@ -51,13 +55,11 @@ EXAMPLES = {
             "loc_str": "London",
         },
     },
-    "isimip_london_small": {
+    "isimip_london1": {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
             "loc_str": "London",
-            "scenarios": ["ssp126", "ssp245"],
-            "models": ["gfdl-esm4", "ipsl-cm6a-lr"],
         },
     },
 }
@@ -66,7 +68,7 @@ EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 def get_example_dataset(name, data_dir=None):
     """
-    Load a CESM LENS2 example dataset if it exists locally. If in future the formatted
+    Load an example climate dataset if it exists locally. If in future the formatted
     example datasets are made available for direct download, this function will be
     updated to download the dataset using pooch if it does not exist locally.
 
@@ -74,14 +76,15 @@ def get_example_dataset(name, data_dir=None):
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        'world_2020_2060_2100' (global monthly data for the years 2020, 2060 and 2100),
-        'cape_town' (monthly data for Cape Town between 2000 and 2100), and
-        'europe_small' (monthly data for Europe between 2020 and 2100, including only
-        the first two of the 100 total ensemble members).
+        "lens2_world" (CESM LENS2 global monthly data for 2020, 2060, and 2100),
+        "lens2_cape_town" (CESM LENS2 monthly data for Cape Town for 2000-2100),
+        "lens2_europe_small" (CESM LENS2 monthly data for Europe for 2020 and 2100,
+        with a small subset of realizations), and "isimip_london" (ISIMIP monthly data
+        for London for 2000-2100).
     data_dir : str or pathlib.Path, optional
         Data directory in which to look for the example dataset. If not specified, the
-        directory 'data/cesm_examples/{name}' within the same parent directory as the
-        climepi package will be used if it exists, and otherwise the OS cache will be
+        directory 'data/examples/{name}' within the same parent directory as the
+        `climepi` package will be used if it exists, and otherwise the OS cache will be
         used.
 
     Returns
@@ -99,7 +102,6 @@ def get_example_dataset(name, data_dir=None):
         data_source=data_source,
         frequency=frequency,
         subset=subset,
-        save_dir=data_dir,
     )
     # Create a pooch instance for the example dataset, and try to fetch the files.
     # Currently, the formatted example datasets are not available for direct download,
@@ -117,7 +119,7 @@ def get_example_dataset(name, data_dir=None):
         raise NotImplementedError(
             "The formatted example dataset was not found locally and is not yet"
             + " available to download directly. Use 'create_example_data' to create"
-            + " and download the formatted dataset from CESM output data."
+            + " and download the formatted dataset."
         ) from exc
     # Load the dataset
     ds_example = xcdat.open_mfdataset(paths, chunks={})
@@ -126,10 +128,9 @@ def get_example_dataset(name, data_dir=None):
 
 def create_example_dataset(name, data_dir=None):
     """
-    Create a CESM LENS2 example dataset from data in the aws server
-    (https://ncar.github.io/cesm2-le-aws/model_documentation.html), and download it
-    to the local machine. If the example dataset already exists locally, this function
-    will return without re-downloading the data.
+    Create an example climate dataset by retrieving, downloading and formatting the
+    data from the relevant server. If the example dataset already exists locally, this
+    function will return without re-downloading the data.
 
     Parameters
     ----------
@@ -138,8 +139,8 @@ def create_example_dataset(name, data_dir=None):
         available examples.
     data_dir : str or pathlib.Path, optional
         Data directory in which to save the example dataset. If not specified, the
-        directory 'data/cesm_examples/{name}' within the same parent directory as the
-        climepi package will be used if it exists, and otherwise the OS cache will be
+        directory 'data/examples/{name}' within the same parent directory as the
+        `climepi` package will be used if it exists, and otherwise the OS cache will be
         used.
 
     Returns
@@ -194,4 +195,4 @@ def _get_data_dir(name, data_dir):
 if __name__ == "__main__":
     for example_name in EXAMPLES:
         create_example_dataset(example_name)
-        get_example_dataset(example_name)
+        ds = get_example_dataset(example_name)
