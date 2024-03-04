@@ -64,7 +64,7 @@ def _get_scope_dict(ds_in):
     temporal_scope_xcdat = _infer_freq(ds_in.time)
     xcdat_freq_map = {"year": "yearly", "month": "monthly", "day": "daily"}
     temporal_scope = xcdat_freq_map[temporal_scope_xcdat]
-    spatial_scope = "single" if len(ds_in.lon) == 1 and len(ds_in.lat) == 1 else "grid"
+    spatial_scope = "single" if ds_in.lon.size == 1 and ds_in.lat.size == 1 else "grid"
     ensemble_scope = (
         "multiple"
         if "realization" in ds_in.dims and len(ds_in.realization) > 1
