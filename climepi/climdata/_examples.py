@@ -8,7 +8,6 @@ import pathlib
 
 import numpy as np
 import pooch
-import xcdat
 
 from climepi import climdata
 
@@ -55,22 +54,17 @@ EXAMPLES = {
             "loc_str": "London",
         },
     },
-    "isimip_london1": {
-        "data_source": "isimip",
-        "frequency": "monthly",
-        "subset": {
-            "loc_str": "London",
-        },
-    },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
 def get_example_dataset(name, data_dir=None):
     """
-    Load an example climate dataset if it exists locally. If in future the formatted
-    example datasets are made available for direct download, this function will be
-    updated to download the dataset using pooch if it does not exist locally.
+    Load an example climate dataset if it exists locally. If the dataset does not exist
+    locally, this function will retrieve, download and format the underlying data from
+    the relevant server. If in future the formatted example datasets are made available
+    for direct download, this function will be updated to download the dataset using
+    `pooch` if it does not exist locally.
 
     Parameters
     ----------
@@ -114,53 +108,22 @@ def get_example_dataset(name, data_dir=None):
         registry={file_name: None for file_name in file_names},
     )
     try:
-        paths = [pup.fetch(file_name) for file_name in file_names]
-    except ValueError as exc:
-        raise NotImplementedError(
-            "The formatted example dataset was not found locally and is not yet"
-            + " available to download directly. Use 'create_example_data' to create"
-            + " and download the formatted dataset."
-        ) from exc
+        _ = [pup.fetch(file_name) for file_name in file_names]
+    except ValueError:
+        print(
+            "The formatted example dataset was not found locally and is not currently"
+            + " available to download directly. Searching for the raw data and creating"
+            + " the example dataset from scratch."
+        )
     # Load the dataset
-    ds_example = xcdat.open_mfdataset(paths, chunks={})
-    return ds_example
-
-
-def create_example_dataset(name, data_dir=None):
-    """
-    Create an example climate dataset by retrieving, downloading and formatting the
-    data from the relevant server. If the example dataset already exists locally, this
-    function will return without re-downloading the data.
-
-    Parameters
-    ----------
-    name : str
-        Name of the example dataset to create. See `get_example_dataset` for a list of
-        available examples.
-    data_dir : str or pathlib.Path, optional
-        Data directory in which to save the example dataset. If not specified, the
-        directory 'data/examples/{name}' within the same parent directory as the
-        `climepi` package will be used if it exists, and otherwise the OS cache will be
-        used.
-
-    Returns
-    -------
-    None
-    """
-    # Get details of the example dataset.
-    example_details = _get_example_details(name)
-    data_dir = _get_data_dir(name, data_dir)
-    data_source = example_details["data_source"]
-    frequency = example_details["frequency"]
-    subset = example_details["subset"]
-    # Create and download the example dataset.
-    climdata.get_climate_data(
+    ds_example = climdata.get_climate_data(
         data_source=data_source,
         frequency=frequency,
         subset=subset,
         save_dir=data_dir,
         download=True,
     )
+    return ds_example
 
 
 def _get_example_details(name):
@@ -194,5 +157,4 @@ def _get_data_dir(name, data_dir):
 
 if __name__ == "__main__":
     for example_name in EXAMPLES:
-        create_example_dataset(example_name)
         ds = get_example_dataset(example_name)
