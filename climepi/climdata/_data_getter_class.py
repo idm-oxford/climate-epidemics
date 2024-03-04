@@ -251,6 +251,10 @@ class ClimateDataGetter:
         _ds = xcdat.open_mfdataset(
             [save_dir / file_name for file_name in file_names], chunks={}
         )
+        if "time_bnds" in _ds:
+            # Load time bounds to avoid bug saving to file caused by encoding not being
+            # set [REVISIT IN FUTURE]
+            _ds.time_bnds.load()
         self._ds = _ds
 
     def _find_remote_data(self):
