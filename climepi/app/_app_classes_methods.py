@@ -64,7 +64,13 @@ def _get_scope_dict(ds_in):
     temporal_scope_xcdat = _infer_freq(ds_in.time)
     xcdat_freq_map = {"year": "yearly", "month": "monthly", "day": "daily"}
     temporal_scope = xcdat_freq_map[temporal_scope_xcdat]
-    spatial_scope = "single" if ds_in.lon.size == 1 and ds_in.lat.size == 1 else "grid"
+    spatial_scope = (
+        "single"
+        if ds_in.lon.size == 1 and ds_in.lat.size == 1
+        else "list"
+        if "location" in ds_in.dims
+        else "grid"
+    )
     ensemble_scope = (
         "multiple"
         if "realization" in ds_in.dims and len(ds_in.realization) > 1
@@ -182,6 +188,8 @@ class _Plotter:
         ds_plot = self._ds_plot
         if spatial_scope_base == "single" or plot_type == "map":
             pass
+        elif spatial_scope_base == "list":
+            ds_plot = ds_plot.sel(location=location)
         elif spatial_scope_base == "grid" and plot_type in [
             "time series",
             "variance decomposition",
@@ -269,7 +277,7 @@ class _PlotController(param.Parameterized):
 
     plot_type = param.ObjectSelector(precedence=1)
     data_var = param.ObjectSelector(precedence=1)
-    location = param.String(default="London", precedence=-1)
+    location = param.ObjectSelector(precedence=-1)
     temporal_scope = param.ObjectSelector(precedence=1)
     year_range = param.Range(precedence=1)
     scenario = param.ObjectSelector(precedence=1)
@@ -325,17 +333,25 @@ class _PlotController(param.Parameterized):
     def _initialize_params(self):
         ds_base = self._ds_base
         scope_dict_base = self._scope_dict_base
+        # Plot type choices
+        if scope_dict_base["spatial"] == "grid":
+            plot_type_choices = ["time series", "map", "variance decomposition"]
+        elif scope_dict_base["spatial"] in ["single", "list"]:
+            plot_type_choices = ["time series", "variance decomposition"]
+        self.param.plot_type.objects = plot_type_choices
+        self.param.plot_type.default = plot_type_choices[0]
         # Data variable choices
         data_var_choices = ds_base.climepi.get_non_bnd_data_vars()
         self.param.data_var.objects = data_var_choices
         self.param.data_var.default = data_var_choices[0]
-        # Plot type choices
-        if scope_dict_base["spatial"] == "grid":
-            plot_type_choices = ["time series", "map", "variance decomposition"]
-        elif scope_dict_base["spatial"] == "single":
-            plot_type_choices = ["time series", "variance decomposition"]
-        self.param.plot_type.objects = plot_type_choices
-        self.param.plot_type.default = plot_type_choices[0]
+        # Location choices
+        if scope_dict_base["spatial"] == "list":
+            self.param.location = param.ObjectSelector(precedence=1)
+            location_choices = ds_base.location.values.tolist()
+            self.param.location.objects = location_choices
+            self.param.location.default = location_choices[0]
+        elif scope_dict_base["spatial"] == "grid":
+            self.param.location = param.String(default="London", precedence=-1)
         # Temporal scope choices
         if scope_dict_base["temporal"] == "yearly":
             temporal_scope_choices = ["yearly"]
@@ -453,8 +469,8 @@ class _PlotController(param.Parameterized):
     @param.depends("plot_type", watch=True)
     def _update_precedence(self):
         if (
-            self.plot_type == "time series"
-            and self._scope_dict_base["spatial"] == "grid"
+            self._scope_dict_base["spatial"] in ["grid", "list"]
+            and self.plot_type != "map"
         ):
             self.param.location.precedence = 1
         else:
