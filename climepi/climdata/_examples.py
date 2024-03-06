@@ -54,11 +54,40 @@ EXAMPLES = {
             "location": "London",
         },
     },
-    "isimip_cities": {
+    "isimip_capitals": {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
-            "location": ["London", "Cape Town"],
+            "location": [
+                "Beijing",
+                "Tokyo",
+                "Moscow",
+                "Kinshasa",
+                "Jakarta",
+                "Lima",
+                "Cairo",
+                "Seoul",
+                "Mexico City",
+                "London",
+            ],
+        },
+    },
+    "isimip_euro_capitals": {
+        "data_source": "isimip",
+        "frequency": "monthly",
+        "subset": {
+            "location": [
+                "Moscow",
+                "London",
+                "Ankara",
+                "Berlin",
+                "Madrid",
+                "Kyiv",
+                "Rome",
+                "Paris",
+                "Minsk",
+                "Vienna",
+            ],
         },
     },
 }
