@@ -151,7 +151,7 @@ class _Plotter:
         elif plot_type == "time series":
             p1 = ds_plot.climepi.plot_ci_plume()
             p2 = ds_plot.climepi.plot_time_series(label="Individual realization")
-            plot = p1 * p2
+            plot = (p1 * p2).opts(legend_position="top_left")
         elif plot_type == "variance decomposition":
             plot = ds_plot.climepi.plot_var_decomp()
         else:
@@ -183,17 +183,18 @@ class _Plotter:
 
     def _spatial_index_ds_plot(self):
         plot_type = self._plot_settings["plot_type"]
-        location = self._plot_settings["location"]
         spatial_scope_base = self._scope_dict_base["spatial"]
         ds_plot = self._ds_plot
         if spatial_scope_base == "single" or plot_type == "map":
             pass
         elif spatial_scope_base == "list":
+            location = self._plot_settings["location_selection"]
             ds_plot = ds_plot.sel(location=location)
         elif spatial_scope_base == "grid" and plot_type in [
             "time series",
             "variance decomposition",
         ]:
+            location = self._plot_settings["location_string"]
             ds_plot = ds_plot.climepi.sel_geopy(location)
         else:
             raise ValueError("Unsupported spatial base scope and plot type combination")
@@ -277,7 +278,8 @@ class _PlotController(param.Parameterized):
 
     plot_type = param.ObjectSelector(precedence=1)
     data_var = param.ObjectSelector(precedence=1)
-    location = param.ObjectSelector(precedence=-1)
+    location_string = param.String(default="[Type location]", precedence=-1)
+    location_selection = param.ObjectSelector(precedence=-1)
     temporal_scope = param.ObjectSelector(precedence=1)
     year_range = param.Range(precedence=1)
     scenario = param.ObjectSelector(precedence=1)
@@ -312,7 +314,8 @@ class _PlotController(param.Parameterized):
         widgets = {
             "plot_type": {"name": "Plot type"},
             "data_var": {"name": "Data variable"},
-            "location": {"name": "Location"},
+            "location_string": {"name": "Location"},
+            "location_selection": {"name": "Location"},
             "temporal_scope": {"name": "Temporal"},
             "year_range": {"name": "Year range"},
             "scenario": {"name": "Scenario"},
@@ -346,12 +349,9 @@ class _PlotController(param.Parameterized):
         self.param.data_var.default = data_var_choices[0]
         # Location choices
         if scope_dict_base["spatial"] == "list":
-            self.param.location = param.ObjectSelector(precedence=1)
-            location_choices = ds_base.location.values.tolist()
-            self.param.location.objects = location_choices
-            self.param.location.default = location_choices[0]
-        elif scope_dict_base["spatial"] == "grid":
-            self.param.location = param.String(default="London", precedence=-1)
+            location_values = ds_base.location.values.tolist()
+            self.param.location_selection.objects = location_values
+            self.param.location_selection.default = location_values[0]
         # Temporal scope choices
         if scope_dict_base["temporal"] == "yearly":
             temporal_scope_choices = ["yearly"]
@@ -417,7 +417,8 @@ class _PlotController(param.Parameterized):
         for par in [
             "plot_type",
             "data_var",
-            "location",
+            "location_string",
+            "location_selection",
             "temporal_scope",
             "year_range",
             "scenario",
@@ -468,13 +469,14 @@ class _PlotController(param.Parameterized):
 
     @param.depends("plot_type", watch=True)
     def _update_precedence(self):
-        if (
-            self._scope_dict_base["spatial"] in ["grid", "list"]
-            and self.plot_type != "map"
-        ):
-            self.param.location.precedence = 1
+        if self._scope_dict_base["spatial"] == "grid" and self.plot_type != "map":
+            self.param.location_string.precedence = 1
         else:
-            self.param.location.precedence = -1
+            self.param.location_string.precedence = -1
+        if self._scope_dict_base["spatial"] == "list":
+            self.param.location_selection.precedence = 1
+        else:
+            self.param.location_selection.precedence = -1
         if self.plot_type == "map":
             self.param.ensemble_stat.precedence = 1
         else:
@@ -483,7 +485,8 @@ class _PlotController(param.Parameterized):
 
     @param.depends(
         "data_var",
-        "location",
+        "location_string",
+        "location_selection",
         "temporal_scope",
         "year_range",
         "scenario",
