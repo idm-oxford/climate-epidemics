@@ -1,6 +1,7 @@
 """Core module for the climepi package. This module contains the
 ClimEpiDatasetAccessor class for xarray datasets.
 """
+
 import geoviews.feature as gf
 import holoviews as hv
 import hvplot.xarray  # noqa # pylint: disable=unused-import
@@ -762,11 +763,11 @@ class ClimEpiDatasetAccessor:
         ds_new.climepi.copy_bnds_from(self._obj)
         return ds_new
 
-    def sel_geopy(self, loc_str, **kwargs):
+    def sel_geopy(self, location, **kwargs):
         """
-        Uses geopy to obtain the latitude and longitude co-ordinates of the location
-        specified in loc_str, and returns a new dataset containing the data for the
-        nearest grid point.
+        Uses geopy to obtain the latitude and longitude co-ordinates of a specified
+        location, and returns a new dataset containing the data for the nearest grid
+        point.
 
         Parameters
         ----------
@@ -783,9 +784,9 @@ class ClimEpiDatasetAccessor:
                 "Warning: Trying to select a location from a dataset with only one",
                 "longitude and/or latitude co-ordinate.",
             )
-        location = geolocator.geocode(loc_str, **kwargs)
-        lat = location.latitude
-        lon = location.longitude
+        location_geopy = geolocator.geocode(location, **kwargs)
+        lat = location_geopy.latitude
+        lon = location_geopy.longitude
         if max(self._obj.lon) > 180.001:
             # Deals with the case where the longitude co-ordinates are in the range
             # [0, 360] (slightly crude)
