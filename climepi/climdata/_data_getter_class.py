@@ -62,18 +62,21 @@ class ClimateDataGetter:
             realizations : list or array-like of int, optional
                 Realizations for which to retrieve data. If not provided, all available
                 realizations are retrieved.
-            loc_str : str, optional
-                Name of a single location for which to retrieve data. If not provided,
-                the 'lon_range' and 'lat_range' parameters are used instead.
+            location : str or list of str, optional
+                Name of one or more locations for which to retrieve data (for each
+                provided location, `geopy` is used to query the corresponding longitude
+                and latitude, and data for the nearest grid point are retrieved). If
+                not provided, the 'lon_range' and 'lat_range' parameters are used
+                instead.
             lon_range : list or array-like of float, optional
                 Longitude range for which to retrieve data. Should comprise two values
-                giving the minimum and maximum longitudes. Ignored if 'loc_str' is
-                provided. If not provided, and 'loc_str' is also not provided, all
+                giving the minimum and maximum longitudes. Ignored if 'location' is
+                provided. If not provided, and 'location' is also not provided, all
                 longitudes are retrieved.
             lat_range : list or array-like of float, optional
                 Latitude range for which to retrieve data. Should comprise two values
-                giving the minimum and maximum latitudes. Ignored if 'loc_str' is
-                provided. If not provided, and 'loc_str' is also not provided, all
+                giving the minimum and maximum latitudes. Ignored if 'location' is
+                provided. If not provided, and 'location' is also not provided, all
                 latitudes are retrieved.
     save_dir : str or pathlib.Path, optional
         Directory to which downloaded data are saved to and accessed from. If not
@@ -96,7 +99,7 @@ class ClimateDataGetter:
             "scenarios": self.available_scenarios,
             "models": self.available_models,
             "realizations": self.available_realizations,
-            "loc_str": None,
+            "location": None,
             "lon_range": None,
             "lat_range": None,
         }
@@ -128,7 +131,7 @@ class ClimateDataGetter:
             scenarios = self._subset["scenarios"]
             models = self._subset["models"]
             realizations = self._subset["realizations"]
-            loc_str = self._subset["loc_str"]
+            location = self._subset["location"]
             lon_range = self._subset["lon_range"]
             lat_range = self._subset["lat_range"]
             base_name_str_list = [self.data_source, self._frequency]
@@ -146,8 +149,8 @@ class ClimateDataGetter:
                     "Warning: requesting a large number of non-uniform years may lead",
                     "to invalid long file names.",
                 )
-            if loc_str is not None:
-                base_name_str_list.append(loc_str.replace(" ", "_"))
+            if location is not None:
+                base_name_str_list.append(location.replace(" ", "_"))
             else:
                 if lon_range is not None:
                     base_name_str_list.extend(

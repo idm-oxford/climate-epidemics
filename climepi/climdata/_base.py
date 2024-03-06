@@ -5,7 +5,12 @@ from climepi.climdata._isimip import ISIMIPDataGetter
 
 
 def get_climate_data(
-    data_source, frequency="monthly", subset=None, save_dir=None, download=True
+    data_source,
+    frequency="monthly",
+    subset=None,
+    save_dir=None,
+    download=True,
+    max_subset_wait_time=20,
 ):
     """
     Function to retrieve and download climate projection data from a remote server.
@@ -32,29 +37,43 @@ def get_climate_data(
             realizations : list or array-like of int, optional
                 Realizations for which to retrieve data. If not provided, all available
                 realizations are retrieved.
-            loc_str : str, optional
-                Name of a single location for which to retrieve data. If not provided,
-                the 'lon_range' and 'lat_range' parameters are used instead.
+            location : str or list of str, optional
+                Name of one or more locations for which to retrieve data (for each
+                provided location, `geopy` is used to query the corresponding longitude
+                and latitude, and data for the nearest grid point are retrieved). If
+                not provided, the 'lon_range' and 'lat_range' parameters are used
+                instead.
             lon_range : list or array-like of float, optional
                 Longitude range for which to retrieve data. Should comprise two values
-                giving the minimum and maximum longitudes. Ignored if 'loc_str' is
-                provided. If not provided, and 'loc_str' is also not provided, all
+                giving the minimum and maximum longitudes. Ignored if 'location' is
+                provided. If not provided, and 'location' is also not provided, all
                 longitudes are retrieved.
             lat_range : list or array-like of float, optional
                 Latitude range for which to retrieve data. Should comprise two values
-                giving the minimum and maximum latitudes. Ignored if 'loc_str' is
-                provided. If not provided, and 'loc_str' is also not provided, all
+                giving the minimum and maximum latitudes. Ignored if 'location' is
+                provided. If not provided, and 'location' is also not provided, all
                 latitudes are retrieved.
     save_dir : str or pathlib.Path, optional
         Directory to which downloaded data are saved to and accessed from. If not
         provided, a directory within the OS cache directory is used.
     download : bool, optional
-        Whether to download the data if it is not found locally (default is False).
-        Details of where downloaded data are saved to and accessed from are given in
-        the CESMDataGetter class documentation.
+        For CESM2 LENS data only; whether to download the data to the 'save_dir'
+        directory if not found locally (default is True). If False and the data are not
+        found locally, a lazily opened xarray dataset linked to the remote data is
+        returned. For ISIMIP data, the data must be downloaded if not found locally.
+    max_subset_wait_time : int or float, optional
+        For ISIMIP data only; maximum time to wait for server-side data subsetting to
+        complete, in seconds, before timing out (default is 20). Server-side subsetting
+        will continue to run after this function times out, and this function can be
+        re-run to check if the subsetting has completed and retrieve the subsetted data.
+
+    Returns
+    -------
+    xarray.Dataset
+        Formatted climate projection dataset.
     """
-    if "loc_str" in subset and isinstance(subset["loc_str"], list):
-        return _get_climate_data_loc_list(
+    if "location" in subset and isinstance(subset["location"], list):
+        return _get_climate_data_location_list(
             data_source, frequency, subset, save_dir, download
         )
     data_getter = _get_data_getter(
@@ -62,6 +81,7 @@ def get_climate_data(
         frequency=frequency,
         subset=subset,
         save_dir=save_dir,
+        max_subset_wait_time=max_subset_wait_time,
     )
     ds_clim = data_getter.get_data(download=download)
     return ds_clim
@@ -84,12 +104,12 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
         Dictionary of data subsetting options. See the docstring of `get_climate_data`
         for details.
     """
-    if "loc_str" in subset and isinstance(subset["loc_str"], list):
+    if "location" in subset and isinstance(subset["location"], list):
         return [
             file_name
-            for loc_str_curr in subset["loc_str"]
+            for location_curr in subset["location"]
             for file_name in get_climate_data_file_names(
-                data_source, frequency, {**subset, "loc_str": loc_str_curr}
+                data_source, frequency, {**subset, "location": location_curr}
             )
         ]
     data_getter = _get_data_getter(
@@ -101,59 +121,43 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
     return file_names
 
 
-def _get_data_getter(data_source, *args, **kwargs):
+def _get_data_getter(data_source, *args, max_subset_wait_time=None, **kwargs):
     if data_source == "lens2":
         data_getter = CESMDataGetter(*args, **kwargs)
     elif data_source == "isimip":
-        data_getter = ISIMIPDataGetter(*args, **kwargs)
+        data_getter = ISIMIPDataGetter(
+            *args, max_subset_wait_time=max_subset_wait_time, **kwargs
+        )
     else:
         raise ValueError(f"Data source '{data_source}' not supported.")
     return data_getter
 
 
-def _get_climate_data_loc_list(data_source, frequency, subset, save_dir, download):
-    import functools
-    import multiprocessing
-
-    if data_source == "isimip":
-        # Run for each location with a timeout to ensure server-side processing is
-        # requested for each location (can then cancel the Python process and restart
-        # once the server-side processing is complete).
-        for loc_str_curr in subset["loc_str"]:
-            subset_curr = {**subset, "loc_str": loc_str_curr}
-            target = functools.partial(
-                get_climate_data,
-                data_source,
-                frequency,
-                subset_curr,
-                save_dir,
-                download,
-            )
-            p = multiprocessing.Process(target=target)
-            p.start()
-            p.join(60)
-            if p.is_alive():
-                p.terminate()
+def _get_climate_data_location_list(data_source, frequency, subset, save_dir, download):
     ds_list = []
-    for loc_str_curr in subset["loc_str"]:
-        subset_curr = {**subset, "loc_str": loc_str_curr}
-        ds_curr = get_climate_data(
-            data_source, frequency, subset_curr, save_dir, download
-        )
-        ds_curr["location"] = [loc_str_curr]
-        for data_var in ds_curr.data_vars:
-            if data_var == "time_bnds":
-                continue
-            if "lon" in ds_curr[data_var].dims:
-                ds_curr[data_var] = ds_curr[data_var].squeeze("lon")
-            if "lat" in ds_curr[data_var].dims:
-                ds_curr[data_var] = ds_curr[data_var].squeeze("lat")
-            ds_curr[data_var] = ds_curr[data_var].expand_dims("location", axis=0)
-        if "lon" in ds_curr.dims:
-            ds_curr["lon"] = ds_curr["lon"].swap_dims({"lon": "location"})
-        if "lat" in ds_curr.dims:
-            ds_curr["lat"] = ds_curr["lat"].swap_dims({"lat": "location"})
-        ds_list.append(ds_curr)
-        # Set CF x and y coords?
+    for location_curr in subset["location"]:
+        try:
+            subset_curr = {**subset, "location": location_curr}
+            ds_curr = get_climate_data(
+                data_source, frequency, subset_curr, save_dir, download
+            )
+            ds_curr["location"] = [location_curr]
+            for data_var in ds_curr.data_vars:
+                if data_var == "time_bnds":
+                    continue
+                if "lon" in ds_curr[data_var].dims:
+                    ds_curr[data_var] = ds_curr[data_var].squeeze("lon")
+                if "lat" in ds_curr[data_var].dims:
+                    ds_curr[data_var] = ds_curr[data_var].squeeze("lat")
+                ds_curr[data_var] = ds_curr[data_var].expand_dims("location", axis=0)
+            if "lon" in ds_curr.dims:
+                ds_curr["lon"] = ds_curr["lon"].swap_dims({"lon": "location"})
+            if "lat" in ds_curr.dims:
+                ds_curr["lat"] = ds_curr["lat"].swap_dims({"lat": "location"})
+            ds_list.append(ds_curr)
+        except TimeoutError as exc:
+            print(f"{exc}")
+            print(f"Skipping location '{location_curr}' for now.")
+    # Set CF x and y coords?
     ds = xr.concat(ds_list, dim="location", data_vars="minimal")
     return ds

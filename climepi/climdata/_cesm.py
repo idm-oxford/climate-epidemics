@@ -13,7 +13,6 @@ from climepi.climdata._data_getter_class import ClimateDataGetter
 
 
 class CESMDataGetter(ClimateDataGetter):
-
     """
     Class for accessing and downloading CESM2 LENS data from the aws server
     (https://registry.opendata.aws/ncar-cesm2-lens/). Available years that can be
@@ -73,14 +72,14 @@ class CESMDataGetter(ClimateDataGetter):
         # location(s), and store the subsetted dataset in the _ds attribute.
         years = self._subset["years"]
         realizations = self._subset["realizations"]
-        loc_str = self._subset["loc_str"]
+        location = self._subset["location"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         ds_subset = self._ds.copy()
         ds_subset = ds_subset.isel(member_id=realizations)
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
-        if loc_str is not None:
-            ds_subset = ds_subset.climepi.sel_geopy(loc_str)
+        if location is not None:
+            ds_subset = ds_subset.climepi.sel_geopy(location)
         else:
             if lon_range is not None:
                 # Note the remote data are stored with longitudes in the range 0 to 360.

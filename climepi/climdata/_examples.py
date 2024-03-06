@@ -34,7 +34,7 @@ EXAMPLES = {
         "frequency": "monthly",
         "subset": {
             "years": np.arange(2000, 2101),
-            "loc_str": "Cape Town",
+            "location": "Cape Town",
         },
     },
     "lens2_europe_small": {
@@ -51,7 +51,14 @@ EXAMPLES = {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
-            "loc_str": "London",
+            "location": "London",
+        },
+    },
+    "isimip_cities": {
+        "data_source": "isimip",
+        "frequency": "monthly",
+        "subset": {
+            "location": ["London", "Cape Town"],
         },
     },
 }

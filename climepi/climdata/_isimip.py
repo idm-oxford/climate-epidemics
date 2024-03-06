@@ -25,7 +25,6 @@ requests_session.mount(
 
 
 class ISIMIPDataGetter(ClimateDataGetter):
-
     """
     Class for accessing and downloading ISIMIP data from the ISIMIP repository
     (https://www.isimip.org/outputdata/isimip-repository/). Available
@@ -63,10 +62,11 @@ class ISIMIPDataGetter(ClimateDataGetter):
     lon_res = 0.5
     lat_res = 0.5
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, max_subset_wait_time=20, **kwargs):
         # Extends the base class constructor to include the _client_results attribute,
         # which stores the results of the client requests to the ISIMIP repository.
         super().__init__(*args, **kwargs)
+        self._max_subset_wait_time = max_subset_wait_time
         self._client_results = None
 
     def _find_remote_data(self):
@@ -106,14 +106,15 @@ class ISIMIPDataGetter(ClimateDataGetter):
     def _subset_remote_data(self):
         # Request server-side subsetting of the data to the requested location(s) and
         # update the _client_results attribute with the results of the subsetting.
-        loc_str = self._subset["loc_str"]
+        location = self._subset["location"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         client_results = self._client_results
-        if loc_str is not None:
-            location = geolocator.geocode(loc_str)
-            lat = location.latitude
-            lon = location.longitude
+        max_subset_wait_time = self._max_subset_wait_time
+        if location is not None:
+            location_geopy = geolocator.geocode(location)
+            lat = location_geopy.latitude
+            lon = location_geopy.longitude
             bbox = [lat, lat, lon, lon]
         else:
             if lon_range is None:
@@ -127,10 +128,11 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # Request server to subset the data
         client_file_paths = [file["path"] for file in client_results]
         paths_by_cutout_request = [
-            client_file_paths[i : i + 500]
-            for i in range(0, len(client_file_paths), 500)
+            client_file_paths[i : i + 300]
+            for i in range(0, len(client_file_paths), 300)
         ]
         subsetting_completed = False
+        subset_start_time = time.time()
         while not subsetting_completed:
             client_results_new = [
                 requests_session.post(
@@ -141,16 +143,27 @@ class ISIMIPDataGetter(ClimateDataGetter):
             ]
             job_ids = [results["id"] for results in client_results_new]
             job_statuses = [results["status"] for results in client_results_new]
-            print(
-                *[
-                    f"Job {job_id} {job_status}"
-                    for job_id, job_status in zip(job_ids, job_statuses)
-                ],
-                sep="\n",
-            )
             if all(job_status == "finished" for job_status in job_statuses):
                 subsetting_completed = True
             else:
+                if time.time() - subset_start_time > max_subset_wait_time:
+                    job_urls = [
+                        "https://data.isimip.org/download/" + job_id
+                        for job_id in job_ids
+                    ]
+                    raise TimeoutError(
+                        "Subsetting of the requested data has taken longer than the "
+                        + f"maximum wait time of {max_subset_wait_time} seconds. The "
+                        + "server-side subsetting is still in progress, and re-running "
+                        + "the data retrieval once the subsetting has completed will "
+                        + "retrieve the subsetted data. The progress of the subsetting "
+                        + "jobs can be monitored at the following URLs:\n"
+                        + "\n".join(job_urls)
+                        + "\n"
+                        + "Alternatively, increase the 'max_subset_wait_time' argument "
+                        + "to wait longer for the subsetting to complete before timing "
+                        + "out."
+                    )
                 time.sleep(10)
         self._client_results = client_results_new
 
