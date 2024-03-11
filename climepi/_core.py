@@ -221,7 +221,7 @@ class ClimEpiDatasetAccessor:
             data_var_list = data_var
         # Estimate ensemble mean by fitting a polynomial to each time series.
         ds_raw = self._obj[data_var_list]
-        if "realization" in ds_raw.sizes:
+        if "realization" in ds_raw.dims:
             if len(ds_raw.realization) > 1:
                 raise ValueError(
                     """The estimate_ensemble_stats method is only implemented for
@@ -259,6 +259,15 @@ class ClimEpiDatasetAccessor:
             dim=xr.Variable("ensemble_stat", ["mean", "var", "std", "lower", "upper"]),
             coords="minimal",
         )
+        for coord_var in ds_raw.coords:
+            # Add coordinate variables from the raw dataset that do not appear in the
+            # dimensions of the data variable (e.g. if lon and lat are not direct dims)
+            if (
+                coord_var not in ds_stat.coords
+                and coord_var != "realization"
+                and "realization" not in ds_raw[coord_var].dims
+            ):
+                ds_stat = ds_stat.assign_coords({coord_var: ds_raw[coord_var]})
         ds_stat.attrs = self._obj.attrs
         ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
         ds_stat.climepi.copy_bnds_from(self._obj)
