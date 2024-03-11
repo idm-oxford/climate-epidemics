@@ -1,7 +1,7 @@
 """
-Module for creating and accessing example CESM LENS2 datasets. Running this module as a
-script will create all example datasets by downloading and formatting the relevant CESM
-LENS2 output data.
+Module for creating and accessing example climate projection datasets. Running this
+module as a script will create all example datasets by downloading and formatting the
+relevant data.
 """
 
 import pathlib
