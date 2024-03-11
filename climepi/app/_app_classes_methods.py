@@ -9,7 +9,7 @@ import numpy as np
 import panel as pn
 import param
 import xarray as xr
-from xcdat.temporal import _infer_freq
+import xcdat.temporal
 
 import climepi  # noqa # pylint: disable=unused-import
 from climepi import climdata, epimod
@@ -23,15 +23,12 @@ _EXAMPLE_CLIM_DATASET_GETTER_DICT = {
     for name in _EXAMPLE_CLIM_DATASET_NAMES
 }
 
-_EXAMPLE_EPI_MODEL_NAMES = [
-    "Kaye ecological niche",
-    "Also Kaye ecological niche",
-    "The flipper",
-]
+_EXAMPLE_EPI_MODEL_NAMES = epimod.EXAMPLE_NAMES
+_EXAMPLE_EPI_MODEL_NAMES.append("The flipper")
 _EXAMPLE_EPI_MODEL_GETTER_DICT = {
-    name: epimod.ecolniche.get_kaye_model for name in _EXAMPLE_EPI_MODEL_NAMES
+    name: functools.partial(epimod.get_example_model, name=name)
+    for name in _EXAMPLE_EPI_MODEL_NAMES
 }
-_EXAMPLE_EPI_MODEL_GETTER_DICT["The flipper"] = functools.partial(ValueError, "Ouch!")
 
 _TEMP_FILE_DIR = pathlib.Path(__file__).parent / "temp"
 _TEMP_FILE_DIR.mkdir(exist_ok=True, parents=True)
@@ -49,19 +46,25 @@ def _load_clim_data_func(clim_dataset_name):
     return ds_clim
 
 
-def _run_epi_model_func(ds_clim, epi_model_name):
+def _run_epi_model_func(
+    ds_clim, epi_model_name, months_suitable=False, suitability_threshold=0
+):
     # Get and run the epidemiological model.
     epi_model = _EXAMPLE_EPI_MODEL_GETTER_DICT[epi_model_name]()
     ds_clim.epimod.model = epi_model
-    ds_suitability = ds_clim.epimod.run_model()
-    ds_suitability = _compute_to_file_reopen(ds_suitability, "suitability")
-    ds_months_suitable = ds_suitability.epimod.months_suitable()
-    ds_months_suitable = _compute_to_file_reopen(ds_months_suitable, "months_suitable")
-    return ds_months_suitable
+    ds_epi = ds_clim.epimod.run_model()
+    ds_epi = _compute_to_file_reopen(ds_epi, "epi_model_results")
+    if months_suitable:
+        ds_epi = ds_epi.epimod.months_suitable(
+            suitability_threshold=suitability_threshold
+        )
+        ds_epi = _compute_to_file_reopen(ds_epi, "epi_model_months_suitable")
+    return ds_epi
 
 
 def _get_scope_dict(ds_in):
-    temporal_scope_xcdat = _infer_freq(ds_in.time)
+    # pylint: disable-next=protected-access
+    temporal_scope_xcdat = xcdat.temporal._infer_freq(ds_in.time)  # noqa
     xcdat_freq_map = {"year": "yearly", "month": "monthly", "day": "daily"}
     temporal_scope = xcdat_freq_map[temporal_scope_xcdat]
     spatial_scope = (
@@ -153,7 +156,9 @@ class _Plotter:
             p2 = ds_plot.climepi.plot_time_series(label="Individual realization")
             plot = (p1 * p2).opts(legend_position="top_left")
         elif plot_type == "variance decomposition":
-            plot = ds_plot.climepi.plot_var_decomp()
+            p1 = ds_plot.climepi.plot_var_decomp(fraction=False)
+            p2 = ds_plot.climepi.plot_var_decomp(fraction=True)
+            plot = (p1 + p2).cols(1).opts(shared_axes=False)
         else:
             raise ValueError("Unsupported plot options")
         view = pn.panel(
@@ -189,7 +194,8 @@ class _Plotter:
             pass
         elif spatial_scope_base == "list":
             location = self._plot_settings["location_selection"]
-            ds_plot = ds_plot.sel(location=location)
+            if location != "all":
+                ds_plot = ds_plot.sel(location=location)
         elif spatial_scope_base == "grid" and plot_type in [
             "time series",
             "variance decomposition",
@@ -260,15 +266,7 @@ class _Plotter:
         plot_type = self._plot_settings["plot_type"]
         ensemble_stat = self._plot_settings["ensemble_stat"]
         ds_plot = self._ds_plot
-        if plot_type == "map" and ensemble_stat in [
-            "mean",
-            "std",
-            "var",
-            "min",
-            "max",
-            "lower",
-            "upper",
-        ]:
+        if plot_type == "map" and ensemble_stat != "individual realization(s)":
             ds_plot = ds_plot.climepi.ensemble_stats().sel(ensemble_stat=ensemble_stat)
         self._ds_plot = ds_plot
 
@@ -349,7 +347,7 @@ class _PlotController(param.Parameterized):
         self.param.data_var.default = data_var_choices[0]
         # Location choices
         if scope_dict_base["spatial"] == "list":
-            location_values = ds_base.location.values.tolist()
+            location_values = ["all", *ds_base.location.values.tolist()]
             self.param.location_selection.objects = location_values
             self.param.location_selection.default = location_values[0]
         # Temporal scope choices
@@ -402,7 +400,6 @@ class _PlotController(param.Parameterized):
             self.param.realization.precedence = -1
         # Ensemble stat choices
         ensemble_stat_choices = [
-            "individual realization(s)",
             "mean",
             "std",
             "var",
@@ -410,6 +407,7 @@ class _PlotController(param.Parameterized):
             "max",
             "lower",
             "upper",
+            "individual realization(s)",
         ]
         self.param.ensemble_stat.objects = ensemble_stat_choices
         self.param.ensemble_stat.default = ensemble_stat_choices[0]
@@ -518,6 +516,17 @@ class Controller(param.Parameterized):
         objects=_EXAMPLE_EPI_MODEL_NAMES,
         precedence=1,
     )
+    epi_output_choice = param.ObjectSelector(
+        objects=[
+            "Suitability values",
+            "Months where suitability exceeds threshold",
+        ],
+        default="Suitability values",
+        precedence=1,
+    )
+    suitabilty_threshold = param.Number(
+        default=0.5, bounds=(0, 1), step=0.01, precedence=-1
+    )
     epi_model_run_initiator = param.Event(default=False, precedence=1)
     epi_model_ran = param.Boolean(default=False, precedence=-1)
     epi_model_status = param.String(default="Model has not been run", precedence=1)
@@ -539,6 +548,11 @@ class Controller(param.Parameterized):
                 "name": "",
             },
             "epi_model_name": {"name": "Epidemiological model"},
+            "epi_output_choice": {
+                # "widget_type": pn.widgets.RadioBoxGroup,
+                "name": "Return:",
+            },
+            "suitabilty_threshold": {"name": "Suitability threshold"},
             "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
             "epi_model_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -596,7 +610,16 @@ class Controller(param.Parameterized):
             return
         try:
             self.epi_model_status = "Running model..."
-            ds_epi = _run_epi_model_func(self._ds_clim, self.epi_model_name)
+            if self.epi_output_choice == "Months where suitability exceeds threshold":
+                months_suitable = True
+            else:
+                months_suitable = False
+            ds_epi = _run_epi_model_func(
+                self._ds_clim,
+                self.epi_model_name,
+                months_suitable=months_suitable,
+                suitability_threshold=self.suitabilty_threshold,
+            )
             self.epi_plot_controller.initialize(ds_epi)
             self.epi_model_status = "Model run complete"
             self.epi_model_ran = True
@@ -610,8 +633,22 @@ class Controller(param.Parameterized):
         self.clim_data_status = "Data not loaded"
         self.clim_data_loaded = False
 
-    @param.depends("clim_dataset_name", "epi_model_name", watch=True)
+    @param.depends(
+        "clim_dataset_name",
+        "epi_model_name",
+        "epi_output_choice",
+        "suitabilty_threshold",
+        watch=True,
+    )
     def _revert_epi_model_run_status(self):
         # Revert the epi model run status (but retain data for plotting).
         self.epi_model_status = "Model has not been run"
         self.epi_model_ran = False
+
+    @param.depends("epi_output_choice", watch=True)
+    def _update_suitability_threshold_precedence(self):
+        # Update the suitability threshold parameter precedence.
+        if self.epi_output_choice == "Months where suitability exceeds threshold":
+            self.param.suitabilty_threshold.precedence = 1
+        else:
+            self.param.suitabilty_threshold.precedence = -1
