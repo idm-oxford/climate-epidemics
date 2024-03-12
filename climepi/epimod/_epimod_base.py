@@ -108,6 +108,10 @@ class SuitabilityModel(EpiModel):
             da_suitability = self._run_main_temp_precip_table(ds_clim)
         ds_epi = xr.Dataset(attrs=ds_clim.attrs)
         ds_epi["suitability"] = da_suitability
+        if self.suitability_table is not None:
+            ds_epi["suitability"].attrs = self.suitability_table["suitability"].attrs
+        if "long_name" not in ds_epi["suitability"].attrs:
+            ds_epi["suitability"].attrs["long_name"] = "Suitability"
         ds_epi.climepi.copy_bnds_from(ds_clim)
         if return_months_suitable:
             ds_epi = ds_epi.epimod.months_suitable(
@@ -130,10 +134,8 @@ class SuitabilityModel(EpiModel):
         if suitability_table is None:
             temperature_range = self.temperature_range
             temperature_vals = np.linspace(0, 1.25 * temperature_range[1], 1000)
-            suitability_vals = (
-                temperature_vals
-                > temperature_range[0] & temperature_vals
-                < temperature_range[1]
+            suitability_vals = (temperature_vals >= temperature_range[0]) & (
+                temperature_vals <= temperature_range[1]
             )
             suitability_table = xr.Dataset(
                 {
@@ -154,8 +156,6 @@ class SuitabilityModel(EpiModel):
         da_suitability = (temperature > temperature_range[0]) & (
             temperature < temperature_range[1]
         )
-        da_suitability = da_suitability.rename("suitability")
-        da_suitability.attrs["long_name"] = "Suitability"
         return da_suitability
 
     def _run_main_temp_table(self, ds_clim):
@@ -179,7 +179,6 @@ class SuitabilityModel(EpiModel):
         da_suitability = xr.apply_ufunc(
             suitability_func, temperature, dask="parallelized"
         )
-        da_suitability = da_suitability.rename("suitability")
         da_suitability.attrs = suitability_table["suitability"].attrs
         return da_suitability
 
@@ -195,9 +194,20 @@ class SuitabilityModel(EpiModel):
             .values
         )
         table_temp_vals = suitability_table["temperature"].values
-        table_temp_delta = table_temp_vals[1] - table_temp_vals[0]
+        table_temp_deltas = np.diff(table_temp_vals)
         table_precip_vals = suitability_table["precipitation"].values
-        table_precip_delta = table_precip_vals[1] - table_precip_vals[0]
+        table_precip_deltas = np.diff(table_precip_vals)
+        if not np.all(
+            np.isclose(table_temp_deltas, table_temp_deltas[0], rtol=1e-3, atol=0)
+        ) or not np.all(
+            np.isclose(table_precip_deltas, table_precip_deltas[0], rtol=1e-3, atol=0)
+        ):
+            raise ValueError(
+                "The suitability table must be defined on a regular grid of ",
+                "temperature and precipitation values.",
+            )
+        table_temp_delta = table_temp_deltas[0]
+        table_precip_delta = table_precip_deltas[0]
 
         temp_inds = (temperature - table_temp_vals[0]) / table_temp_delta
         temp_inds = temp_inds.round(0).astype(int).clip(0, len(table_temp_vals) - 1)
@@ -213,8 +223,6 @@ class SuitabilityModel(EpiModel):
         da_suitability = xr.apply_ufunc(
             suitability_func, temp_inds, precip_inds, dask="parallelized"
         )
-        da_suitability = da_suitability.rename("suitability")
-        da_suitability.attrs = suitability_table["suitability"].attrs
         return da_suitability
 
 
