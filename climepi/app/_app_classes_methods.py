@@ -548,10 +548,7 @@ class Controller(param.Parameterized):
                 "name": "",
             },
             "epi_model_name": {"name": "Epidemiological model"},
-            "epi_output_choice": {
-                # "widget_type": pn.widgets.RadioBoxGroup,
-                "name": "Return:",
-            },
+            "epi_output_choice": {"name": "Return"},
             "suitabilty_threshold": {"name": "Suitability threshold"},
             "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
             "epi_model_status": {
