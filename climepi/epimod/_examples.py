@@ -10,7 +10,7 @@ import xarray as xr
 from climepi import epimod
 
 EXAMPLES = {
-    "kaye_ae_aegypti": {  # from https://doi.org/10.1101/2023.08.31.23294902
+    "kaye_ae_aegyptae": {  # from https://doi.org/10.1101/2023.08.31.23294902
         "suitability_table_path": str(pathlib.Path(__file__).parent)
         + "/example_data/kaye_ae_aegyptae_niche.nc",
     },
@@ -18,12 +18,61 @@ EXAMPLES = {
         "temperature_range": [17.8, 34.6],
     },
     "mordecai_ae_aegyptae_table": {  # from https://doi.org/10.1371/journal.pntd.0005568
-        "temperature_vals": np.linspace(17.8, 34.6, 100),
-        "suitability_vals": np.ones(100),
+        "temperature_vals": np.arange(18, 37),
+        "suitability_vals": np.array(
+            [
+                0,
+                0.02,
+                0.04,
+                0.09,
+                0.16,
+                0.27,
+                0.40,
+                0.56,
+                0.72,
+                0.86,
+                0.96,
+                1,
+                0.97,
+                0.85,
+                0.67,
+                0.44,
+                0.20,
+                0.02,
+                0,
+            ]
+        ),
     },
-    "mordecai_ae_albopictus": {
+    "mordecai_ae_albopictus_range": {
         # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_range": [16.2, 31.6],
+    },
+    "mordecai_ae_albopictus_table": {
+        # from https://doi.org/10.1371/journal.pntd.0005568
+        "temperature_vals": np.arange(16, 35),
+        "suitability_vals": np.array(
+            [
+                0,
+                0.01,
+                0.03,
+                0.07,
+                0.15,
+                0.26,
+                0.41,
+                0.58,
+                0.76,
+                0.91,
+                0.99,
+                0.98,
+                0.85,
+                0.61,
+                0.33,
+                0.11,
+                0.03,
+                0.01,
+                0,
+            ]
+        ),
     },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
