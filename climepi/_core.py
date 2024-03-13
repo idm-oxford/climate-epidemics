@@ -474,15 +474,15 @@ class ClimEpiDatasetAccessor:
         )
         ds_plot = xr.Dataset(
             {
-                "Scenario": ds_var_decomp[data_var].sel(var_type="scenario", drop=True),
-                "Model": ds_var_decomp[data_var].sel(var_type="model", drop=True),
                 "Internal": ds_var_decomp[data_var].sel(var_type="internal", drop=True),
-            },
+                "Model": ds_var_decomp[data_var].sel(var_type="model", drop=True),
+                "Scenario": ds_var_decomp[data_var].sel(var_type="scenario", drop=True),
+            }
         ).squeeze()
         kwargs_hvplot = {
             "x": "time",
-            "y": ["Scenario", "Model", "Internal"],
-            "ylabel": label_from_attrs(ds_plot["Scenario"])
+            "y": ["Internal", "Model", "Scenario"],
+            "ylabel": label_from_attrs(ds_var_decomp[data_var])
             .replace("[", "(")
             .replace("]", ")"),
             "group_label": "Uncertainty type",
@@ -540,13 +540,13 @@ class ClimEpiDatasetAccessor:
         kwargs_area = {**{"x": "time", "alpha": 0.6}, **kwargs_area_in}
         kwargs_internal = {
             "label": "Internal variability",
-            "color": colors[2],
+            "color": colors[0],
             **kwargs_area,
         }
         kwargs_model = {"label": "Model spread", "color": colors[1], **kwargs_area}
         kwargs_scenario = {
             "label": "Scenario spread",
-            "color": colors[0],
+            "color": colors[2],
             **kwargs_area,
         }
         data_var = self._auto_select_data_var(data_var)
@@ -693,62 +693,6 @@ class ClimEpiDatasetAccessor:
         plot_obj_list.append(plot_obj_baseline)
         # Combine the plots
         plot_obj = hv.Overlay(plot_obj_list).collate()
-        return plot_obj
-
-    def plot_ensemble_ci_time_series(
-        self, data_var=None, central="mean", conf_level=None, **kwargs
-    ):
-        """
-        Generates a time series plot of the ensemble confidence interval and
-        (optionally) central estimate for a data variable. Can be called either
-        on an ensemble statistics dataset created using climepi.ensemble_stats,
-        or on an ensemble dataset (in which case climepi.ensemble_stats is used
-        to compute the statistics).
-
-        Parameters
-        ----------
-        data_var : str, optional
-            The name of the data variable to plot. If not provided, the
-            function will attempt to automatically select a suitable variable.
-        central : str, optional
-            The central estimate to plot. Can be "mean", "median", or None. If
-            None, only the confidence interval will be plotted.
-        conf_level : float, optional
-            The confidence level for the confidence interval. Has no effect if
-            the method is called on an ensemble statistics dataset created
-            using climepi.ensemble_stats (in which case the already calculated
-            confidence interval is used). Otherwise, defaults to the default
-            value of climepi.ensemble_stats.
-        **kwargs : optional
-            Additional keyword arguments to pass to the plotting functions.
-
-        Returns
-        -------
-        hvplot object
-            The resulting plot object.
-        """
-        data_var = self._auto_select_data_var(data_var)
-        if "realization" in self._obj.sizes:
-            ds_stat = self.ensemble_stats(data_var, conf_level=conf_level)
-            return ds_stat.climepi.plot_ensemble_ci_time_series(data_var, **kwargs)
-        ds_ci = xr.Dataset(attrs=self._obj.attrs)
-        ds_ci["lower"] = self._obj[data_var].sel(ensemble_stat="lower")
-        ds_ci["upper"] = self._obj[data_var].sel(ensemble_stat="upper")
-        kwargs_hv_ci = {
-            "x": "time",
-            "y": "lower",
-            "y2": "upper",
-            "alpha": 0.2,
-        }
-        kwargs_hv_ci.update(kwargs)
-        plot_ci = ds_ci.hvplot.area(**kwargs_hv_ci)
-        if central is None:
-            return plot_ci
-        da_central = self._obj[data_var].sel(ensemble_stat=central)
-        kwargs_hv_central = {"x": "time"}
-        kwargs_hv_central.update(kwargs)
-        plot_central = da_central.hvplot.line(**kwargs_hv_central)
-        plot_obj = plot_central * plot_ci
         return plot_obj
 
     def sel_data_var(self, data_var):
