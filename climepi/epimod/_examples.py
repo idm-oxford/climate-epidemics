@@ -74,6 +74,26 @@ EXAMPLES = {
             ]
         ),
     },
+    "ryan_ae_aegyptae_975": {
+        # from https://doi.org/10.1371/journal.pntd.0007213
+        "temperature_range": [21.3, 34.0],
+    },
+    "ryan_ae_albopictus_975": {
+        # from https://doi.org/10.1371/journal.pntd.0007213
+        "temperature_range": [19.9, 29.4],
+    },
+    "villena_an_stephensi_p_falciparum_975": {
+        # from https://doi.org/10.1002/ecy.3685
+        "temperature_range": [16.0, 36.5],
+    },
+    "villena_an_stephensi_p_vivax_975": {
+        # from https://doi.org/10.1002/ecy.3685
+        "temperature_range": [16.6, 31.7],
+    },
+    "taylor_hlb_range": {
+        # from https://doi.org/10.1111/1365-2664.13455
+        "temperature_range": [16, 33],
+    },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
