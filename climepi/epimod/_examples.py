@@ -10,14 +10,14 @@ import xarray as xr
 from climepi import epimod
 
 EXAMPLES = {
-    "kaye_ae_aegyptae": {  # from https://doi.org/10.1101/2023.08.31.23294902
+    "kaye_ae_aegypti": {  # from https://doi.org/10.1101/2023.08.31.23294902
         "suitability_table_path": str(pathlib.Path(__file__).parent)
-        + "/example_data/kaye_ae_aegyptae_niche.nc",
+        + "/example_data/kaye_ae_aegypti_niche.nc",
     },
-    "mordecai_ae_aegyptae_range": {  # from https://doi.org/10.1371/journal.pntd.0005568
+    "mordecai_ae_aegypti_range": {  # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_range": [17.8, 34.6],
     },
-    "mordecai_ae_aegyptae_table": {  # from https://doi.org/10.1371/journal.pntd.0005568
+    "mordecai_ae_aegypti_table": {  # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_vals": np.arange(18, 37),
         "suitability_vals": np.array(
             [
@@ -74,7 +74,7 @@ EXAMPLES = {
             ]
         ),
     },
-    "ryan_ae_aegyptae_975": {
+    "ryan_ae_aegypti_975": {
         # from https://doi.org/10.1371/journal.pntd.0007213
         "temperature_range": [21.3, 34.0],
     },
@@ -108,8 +108,8 @@ def get_example_model(name):
     name : str
         The name of the example model to return. Currently available examples are:
         "kaye_ae_aegypti" (the temperature and rainfall suitability model for
-        Ae. aegyptae from https://doi.org/10.1101/2023.08.31.23294902),
-        "mordecai_ae_aegyptae" (the temperature suitability model for Ae. aegyptae from
+        Ae. aegypti from https://doi.org/10.1101/2023.08.31.23294902),
+        "mordecai_ae_aegypti" (the temperature suitability model for Ae. aegypti from
         https://doi.org/10.1371/journal.pntd.0005568), and "mordecai_ae_albopictus" (the
         temperature suitability model for Ae. albopictus from
         https://doi.org/10.1371/journal.pntd.0005568).
