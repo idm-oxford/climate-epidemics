@@ -13,6 +13,7 @@ import xcdat.temporal
 
 import climepi  # noqa # pylint: disable=unused-import
 from climepi import climdata, epimod
+from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
 # Constants
 
@@ -51,11 +52,10 @@ def _run_epi_model_func(
 ):
     # Get and run the epidemiological model.
     epi_model = _EXAMPLE_EPI_MODEL_GETTER_DICT[epi_model_name]()
-    ds_clim.epimod.model = epi_model
-    ds_epi = ds_clim.epimod.run_model()
+    ds_epi = ds_clim.climepi.run_epi_model(epi_model)
     ds_epi = _compute_to_file_reopen(ds_epi, "epi_model_results")
     if months_suitable:
-        ds_epi = ds_epi.epimod.months_suitable(
+        ds_epi = ds_epi.climepi.months_suitable(
             suitability_threshold=suitability_threshold
         )
         ds_epi = _compute_to_file_reopen(ds_epi, "epi_model_months_suitable")
@@ -183,7 +183,7 @@ class _Plotter:
     def _sel_data_var_ds_plot(self):
         data_var = self._plot_settings["data_var"]
         ds_plot = self._ds_plot
-        ds_plot = ds_plot.climepi.sel_data_var(data_var)
+        ds_plot = get_data_var_and_bnds(ds_plot, data_var)
         self._ds_plot = ds_plot
 
     def _spatial_index_ds_plot(self):
@@ -201,7 +201,7 @@ class _Plotter:
             "variance decomposition",
         ]:
             location = self._plot_settings["location_string"]
-            ds_plot = ds_plot.climepi.sel_geopy(location)
+            ds_plot = ds_plot.climepi.sel_geo(location)
         else:
             raise ValueError("Unsupported spatial base scope and plot type combination")
         self._ds_plot = ds_plot
@@ -342,7 +342,7 @@ class _PlotController(param.Parameterized):
         self.param.plot_type.objects = plot_type_choices
         self.param.plot_type.default = plot_type_choices[0]
         # Data variable choices
-        data_var_choices = ds_base.climepi.get_non_bnd_data_vars()
+        data_var_choices = list_non_bnd_data_vars(ds_base)
         self.param.data_var.objects = data_var_choices
         self.param.data_var.default = data_var_choices[0]
         # Location choices

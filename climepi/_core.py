@@ -12,6 +12,12 @@ import xcdat  # noqa # pylint: disable=unused-import
 from geopy.geocoders import Nominatim
 from xarray.plot.utils import label_from_attrs
 
+from climepi.utils import (
+    add_bnds_from_other,
+    add_var_attrs_from_other,
+    list_non_bnd_data_vars,
+)
+
 geolocator = Nominatim(user_agent="climepi")
 
 
@@ -25,6 +31,75 @@ class ClimEpiDatasetAccessor:
 
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
+
+    def run_epi_model(self, epi_model, **kwargs):
+        """
+        Runs the epidemiological model on a climate dataset.
+
+        Parameters:
+        -----------
+        epi_model : climepi.epimod.EpiModel
+            The epidemiological model to run.
+        **kwargs : dict, optional
+            Keyword arguments to pass to the model's run method. For suitability models,
+            passing "return_months_suitable=True" will return the number of months
+            suitable each year, rather than the full suitability dataset, and
+            additionally passing a value for "suitability_threshold" will set the
+            minimum suitability threshold for a month to be considered suitable (default
+            is 0).
+
+        Returns:
+        --------
+        xarray.Dataset:
+            The output of the model's run method.
+        """
+        ds_epi = epi_model.run(self._obj, **kwargs)
+        return ds_epi
+
+    def sel_geo(self, location, **kwargs):
+        """
+        Obtains the latitude and longitude co-ordinates of a specified location using
+        geopy's Nominatim geocoder, and returns a new dataset containing the data for
+        the nearest grid point.
+
+
+        Parameters
+        ----------
+        location : str
+            Name of the location to select.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the geocode method of the Nominatim
+            geocoder.
+
+        Returns
+        -------
+        xarray.Dataset
+            A new dataset containing the data for the specified location.
+        """
+        if len(self._obj.lon) == 1 or len(self._obj.lat) == 1:
+            print(
+                "Warning: Trying to select a location from a dataset with only one",
+                "longitude and/or latitude co-ordinate.",
+            )
+        location_geopy = geolocator.geocode(location, **kwargs)
+        lat = location_geopy.latitude
+        lon = location_geopy.longitude
+        if max(self._obj.lon) > 180.001:
+            # Deals with the case where the longitude co-ordinates are in the range
+            # [0, 360] (slightly crude)
+            lon = lon % 360
+        if (
+            lat < min(self._obj.lat)
+            or lat > max(self._obj.lat)
+            or lon < min(self._obj.lon)
+            or lon > max(self._obj.lon)
+        ):
+            print(
+                "Warning: The requested location is outside the range of the",
+                "dataset. Returning the nearest grid point.",
+            )
+        ds_new = self._obj.sel(lat=lat, lon=lon, method="nearest")
+        return ds_new
 
     def temporal_group_average(self, data_var=None, frequency="yearly", **kwargs):
         """
@@ -48,7 +123,7 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the group average of the selected data
             variable(s) at the specified frequency.
         """
-        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        data_var = self._process_data_var_argument(data_var, allow_multiple=True)
         xcdat_freq_map = {"yearly": "year", "monthly": "month", "daily": "day"}
         xcdat_freq = xcdat_freq_map[frequency]
         if isinstance(data_var, list):
@@ -92,8 +167,7 @@ class ClimEpiDatasetAccessor:
         Returns
         -------
         xarray.Dataset
-            A new dataset containing the yearly mean of the selected data
-            variable(s).
+            A new dataset containing the yearly mean of the selected data variable(s).
         """
         return self.temporal_group_average(
             data_var=data_var, frequency="yearly", **kwargs
@@ -120,6 +194,53 @@ class ClimEpiDatasetAccessor:
         return self.temporal_group_average(
             data_var=data_var, frequency="monthly", **kwargs
         )
+
+    def months_suitable(self, suitability_var_name=None, suitability_threshold=0):
+        """
+        Calculates the number of months suitable each year from monthly suitability
+        data.
+
+        Parameters:
+        -----------
+        suitability_var_name : str, optional
+            Name of the suitability variable to use. If not provided, the method will
+            attempt to automatically select a suitable variable.
+        suitability_threshold : float or int, optional
+            Minimum suitability threshold for a month to be considered suitable. Default
+            is 0.
+
+        Returns:
+        --------
+        xarray.Dataset:
+            Dataset with a single non-bound data variable "months_suitable".
+        """
+        if suitability_var_name is None:
+            if len(self._obj.data_vars) == 1:
+                suitability_var_name = list(self._obj.data_vars)[0]
+            elif "suitability" in self._obj:
+                suitability_var_name = "suitability"
+            else:
+                raise ValueError(
+                    """No suitability data found. To calculate the number of months
+                    suitable from a climate dataset, first run the suitability model and
+                    then apply this method to the output dataset."""
+                )
+        da_suitability = self._obj[suitability_var_name]
+        ds_suitable_bool = xr.Dataset(
+            {"suitable": da_suitability > suitability_threshold}
+        )
+        ds_suitable_bool = add_bnds_from_other(ds_suitable_bool, self._obj)
+        ds_suitable_mean = ds_suitable_bool.climepi.yearly_average(weighted=False)
+        ds_months_suitable = ds_suitable_mean.assign(
+            months_suitable=12 * ds_suitable_mean["suitable"]
+        ).drop_vars("suitable")
+        ds_months_suitable.months_suitable.attrs.update(
+            long_name="Months where "
+            + suitability_var_name
+            + " > "
+            + str(suitability_threshold)
+        )
+        return ds_months_suitable
 
     def ensemble_stats(
         self,
@@ -152,7 +273,7 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the computed ensemble statistics for the
             selected data variable(s).
         """
-        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        data_var = self._process_data_var_argument(data_var, allow_multiple=True)
         if estimate_internal_variability and not (
             "realization" in self._obj.dims and len(self._obj.realization) > 1
         ):
@@ -189,8 +310,8 @@ class ClimEpiDatasetAccessor:
         if isinstance(ds_stat, xr.DataArray):
             ds_stat = ds_stat.to_dataset(name=data_var)
         ds_stat.attrs = self._obj.attrs
-        ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
-        ds_stat.climepi.copy_bnds_from(self._obj)
+        ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var)
+        ds_stat = add_bnds_from_other(ds_stat, self._obj)
         return ds_stat
 
     def estimate_ensemble_stats(self, data_var=None, conf_level=90, polyfit_degree=4):
@@ -214,7 +335,7 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the estimated ensemble statistics for the
             selected data variable(s).
         """
-        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        data_var = self._process_data_var_argument(data_var, allow_multiple=True)
         if isinstance(data_var, str):
             data_var_list = [data_var]
         else:
@@ -269,8 +390,8 @@ class ClimEpiDatasetAccessor:
             ):
                 ds_stat = ds_stat.assign_coords({coord_var: ds_raw[coord_var]})
         ds_stat.attrs = self._obj.attrs
-        ds_stat.climepi.copy_var_attrs_from(self._obj, var=data_var)
-        ds_stat.climepi.copy_bnds_from(self._obj)
+        ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var)
+        ds_stat = add_bnds_from_other(ds_stat, self._obj)
         return ds_stat
 
     def var_decomp(
@@ -305,7 +426,7 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the variance decomposition of the selected data
             variable(s).
         """
-        data_var = self._auto_select_data_var(data_var, allow_multiple=True)
+        data_var = self._process_data_var_argument(data_var, allow_multiple=True)
         if isinstance(data_var, str):
             data_var_list = [data_var]
         else:
@@ -345,13 +466,15 @@ class ClimEpiDatasetAccessor:
         if fraction:
             ds_var_decomp = ds_var_decomp / ds_var_decomp.sum(dim="var_type")
         # Copy and update attributes and bounds
-        ds_var_decomp.climepi.copy_bnds_from(self._obj)
+        ds_var_decomp = add_bnds_from_other(ds_var_decomp, self._obj)
         ds_var_decomp.attrs = self._obj.attrs
         if fraction:
             for data_var_curr in data_var_list:
                 ds_var_decomp[data_var_curr].attrs["long_name"] = "Fraction of variance"
         else:
-            ds_var_decomp.climepi.copy_var_attrs_from(self._obj, var=data_var)
+            ds_var_decomp = add_var_attrs_from_other(
+                ds_var_decomp, self._obj, var=data_var
+            )
             for data_var_curr in data_var_list:
                 if "units" in ds_var_decomp[data_var_curr].attrs:
                     units_in = ds_var_decomp[data_var_curr].attrs["units"]
@@ -387,7 +510,7 @@ class ClimEpiDatasetAccessor:
         hvplot object
             The resulting time series plot.
         """
-        data_var = self._auto_select_data_var(data_var)
+        data_var = self._process_data_var_argument(data_var)
         da_plot = self._obj[data_var].squeeze()
         kwargs_hvplot = {"x": "time"}
         kwargs_hvplot.update(kwargs)
@@ -413,7 +536,7 @@ class ClimEpiDatasetAccessor:
         hvplot object
             The resulting map plot.
         """
-        data_var = self._auto_select_data_var(data_var)
+        data_var = self._process_data_var_argument(data_var)
         da_plot = self._obj[data_var].squeeze()
         kwargs_hvplot = {
             "x": "lon",
@@ -465,7 +588,7 @@ class ClimEpiDatasetAccessor:
         hvplot object
             The resulting plot object.
         """
-        data_var = self._auto_select_data_var(data_var)
+        data_var = self._process_data_var_argument(data_var)
         ds_var_decomp = self.var_decomp(
             data_var,
             fraction=fraction,
@@ -549,7 +672,7 @@ class ClimEpiDatasetAccessor:
             "color": colors[2],
             **kwargs_area,
         }
-        data_var = self._auto_select_data_var(data_var)
+        data_var = self._process_data_var_argument(data_var)
         if isinstance(data_var, list):
             # Avoid bug with np.sqrt for an xarray Dataset with a single data variable
             # (this ensures DataArrays are used instead when necessary)
@@ -695,146 +818,13 @@ class ClimEpiDatasetAccessor:
         plot_obj = hv.Overlay(plot_obj_list).collate()
         return plot_obj
 
-    def sel_data_var(self, data_var):
-        """
-        Returns a new dataset containing only the selected data variable(s) and any
-        bounds variables.
-
-        Parameters
-        ----------
-        data_var : str or list, optional
-            Name(s) of the data variable(s) to select.
-
-        Returns
-        -------
-        xarray.Dataset
-            A new dataset containing the selected data variable(s) and any bounds
-            variables.
-        """
-        ds_new = xr.Dataset(attrs=self._obj.attrs)
-        ds_new[data_var] = self._obj[data_var]
-        ds_new.climepi.copy_bnds_from(self._obj)
-        return ds_new
-
-    def sel_geopy(self, location, **kwargs):
-        """
-        Uses geopy to obtain the latitude and longitude co-ordinates of a specified
-        location, and returns a new dataset containing the data for the nearest grid
-        point.
-
-        Parameters
-        ----------
-        loc_str : str
-            Name of the location to select.
-
-        Returns
-        -------
-        xarray.Dataset
-            A new dataset containing the data for the specified location.
-        """
-        if len(self._obj.lon) == 1 or len(self._obj.lat) == 1:
-            print(
-                "Warning: Trying to select a location from a dataset with only one",
-                "longitude and/or latitude co-ordinate.",
-            )
-        location_geopy = geolocator.geocode(location, **kwargs)
-        lat = location_geopy.latitude
-        lon = location_geopy.longitude
-        if max(self._obj.lon) > 180.001:
-            # Deals with the case where the longitude co-ordinates are in the range
-            # [0, 360] (slightly crude)
-            lon = lon % 360
-        if (
-            lat < min(self._obj.lat)
-            or lat > max(self._obj.lat)
-            or lon < min(self._obj.lon)
-            or lon > max(self._obj.lon)
-        ):
-            print(
-                "Warning: The requested location is outside the range of the",
-                "dataset. Returning the nearest grid point.",
-            )
-        ds_new = self._obj.sel(lat=lat, lon=lon, method="nearest")
-        return ds_new
-
-    def copy_var_attrs_from(self, ds_from, var):
-        """
-        Copies the attributes for a variable from another xarray dataset (ds_from) to
-        this one.
-
-        Parameters
-        ----------
-        ds_from : xarray.Dataset
-            The dataset to copy the variable attributes from.
-        var : str or list
-            The name(s) of the variable(s) to copy the attributes for (both datasets
-            must contain variable(s) with these names).
-
-        Returns
-        -------
-        None
-        """
-        if isinstance(var, list):
-            for var_curr in var:
-                self.copy_var_attrs_from(ds_from, var_curr)
-        else:
-            self._obj[var].attrs = ds_from[var].attrs
-
-    def copy_bnds_from(self, ds_from):
-        """
-        Copies the latitude, longitude, and time bounds from another xarray
-        dataset (ds_from) to this one, whenever the bounds exist in ds_from but not this
-        dataset and the corresponding co-ordinate dimension is the same for both
-        datasets.
-
-        Parameters
-        ----------
-        ds_from : xarray.Dataset
-            The dataset to copy the bounds from.
-
-        Returns
-        -------
-        None
-        """
-        for var in ["lat", "lon", "time"]:
-            bnd_var = var + "_bnds"
-            if (
-                bnd_var in self._obj.data_vars
-                or bnd_var not in ds_from.data_vars
-                or not self._obj[var].equals(ds_from[var])
-            ):
-                continue
-            self._obj[bnd_var] = ds_from[bnd_var]
-            self._obj[bnd_var].attrs = ds_from[bnd_var].attrs
-            self._obj[var].attrs.update(bounds=bnd_var)
-
-    def get_non_bnd_data_vars(self):
-        """
-        Returns a list of the names of the non-bound variables in the dataset.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        list
-            Names of the non-bound variables in the dataset.
-        """
-        data_vars = list(self._obj.data_vars)
-        bnd_vars = ["lat_bnds", "lon_bnds", "time_bnds"]
-        non_bnd_data_vars = [
-            data_vars[i] for i in range(len(data_vars)) if data_vars[i] not in bnd_vars
-        ]
-        return non_bnd_data_vars
-
-    def _auto_select_data_var(self, data_var_in, allow_multiple=False):
-        # Method for obtaining the name of the data variable in the xarray
-        # dataset, if only one is present (alongside latitude, longitude, and
-        # time bounds).
+    def _process_data_var_argument(self, data_var_in=None, allow_multiple=False):
+        # Method for processing the data_var argument in the various methods of the
+        # ClimEpiDatasetAccessor class, in order to allow for automatic specification of
+        # the data variable(s) if not provided, when this is possible.
         if data_var_in is not None and (isinstance(data_var_in, str) or allow_multiple):
             return data_var_in
-        non_bnd_data_vars = self.get_non_bnd_data_vars()
+        non_bnd_data_vars = list_non_bnd_data_vars(self._obj)
         if len(non_bnd_data_vars) == 1:
             return non_bnd_data_vars[0]
         if allow_multiple:

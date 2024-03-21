@@ -5,7 +5,6 @@ from climepi.epimod._examples import (  # noqa
     get_example_model,
 )
 from climepi.epimod._model_classes import (  # noqa
-    EpiModDatasetAccessor,
     EpiModel,
     SuitabilityModel,
 )

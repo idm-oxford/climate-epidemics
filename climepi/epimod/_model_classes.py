@@ -6,7 +6,7 @@ xarray accessor class.
 import numpy as np
 import xarray as xr
 
-import climepi  # noqa # pylint: disable=unused-import
+from climepi.utils import add_bnds_from_other
 
 
 class EpiModel:
@@ -128,7 +128,7 @@ class SuitabilityModel(EpiModel):
             ds_epi[suitability_var_name].attrs["long_name"] = (
                 self._suitability_var_long_name
             )
-        ds_epi.climepi.copy_bnds_from(ds_clim)
+        ds_epi = add_bnds_from_other(ds_epi, ds_clim)
         if return_months_suitable:
             ds_epi = ds_epi.epimod.months_suitable(
                 suitability_threshold=suitability_threshold
@@ -243,88 +243,3 @@ class SuitabilityModel(EpiModel):
             suitability_func, temp_inds, precip_inds, dask="parallelized"
         )
         return da_suitability
-
-
-@xr.register_dataset_accessor("epimod")
-class EpiModDatasetAccessor:
-    """
-    Accessor class that provides climate-sensitive epidemiological modelling methods on
-    xarray datasets through the ``.epimod`` attribute.
-    """
-
-    def __init__(self, xarray_obj):
-        self._obj = xarray_obj
-        self._model = None
-
-    @property
-    def model(self):
-        """Gets and sets an epidemiological model (EpiModel object) to run on a
-        climate dataset."""
-        if self._model is None:
-            raise ValueError("Model not set.")
-        return self._model
-
-    @model.setter
-    def model(self, model_in):
-        if not isinstance(model_in, EpiModel):
-            raise ValueError("Model must be an instance of EpiModel.")
-        self._model = model_in
-
-    def run_model(self, **kwargs):
-        """
-        Runs the epidemiological model on a climate dataset.
-
-        Parameters:
-        -----------
-        kwargs : dict
-            Keyword arguments to pass to the model's run method. For suitability models,
-            passing "return_months_suitable=True" will return the number of months
-            suitable each year, rather than the full suitability dataset, and
-            additionally passing a value for "suitability_threshold" will set the
-            minimum suitability threshold for a month to be considered suitable.
-
-        Returns:
-        --------
-        xarray.Dataset:
-            The output of the model's run method.
-        """
-        ds_epi = self.model.run(self._obj, **kwargs)
-        return ds_epi
-
-    def months_suitable(self, suitability_var_name=None, suitability_threshold=0):
-        """
-        Calculates the number of months suitable each year from monthly suitability
-        data.
-
-        Returns:
-        --------
-        xarray.Dataset:
-            Dataset with a single non-bounds variable "months_suitable".
-        """
-        if suitability_var_name is None:
-            if len(self._obj.data_vars) == 1:
-                suitability_var_name = list(self._obj.data_vars)[0]
-            elif "suitability" in self._obj:
-                suitability_var_name = "suitability"
-            else:
-                raise ValueError(
-                    """No suitability data found. To calculate the number of months
-                    suitable from a climate dataset, first run the suitability model and
-                    then apply this method to the output dataset."""
-                )
-        da_suitability = self._obj[suitability_var_name]
-        ds_suitable_bool = xr.Dataset(
-            {"suitable": da_suitability > suitability_threshold}
-        )
-        ds_suitable_bool.climepi.copy_bnds_from(self._obj)
-        ds_suitable_mean = ds_suitable_bool.climepi.yearly_average(weighted=False)
-        ds_months_suitable = ds_suitable_mean.assign(
-            months_suitable=12 * ds_suitable_mean["suitable"]
-        ).drop_vars("suitable")
-        ds_months_suitable.months_suitable.attrs.update(
-            long_name="Months where "
-            + suitability_var_name
-            + " > "
-            + str(suitability_threshold)
-        )
-        return ds_months_suitable
