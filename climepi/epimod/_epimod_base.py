@@ -77,6 +77,17 @@ class SuitabilityModel(EpiModel):
         super().__init__()
         self.temperature_range = temperature_range
         self.suitability_table = suitability_table
+        if suitability_table is None:
+            self._suitability_var_name = "suitability"
+            self._suitability_var_long_name = "Suitability"
+        else:
+            assert (
+                len(suitability_table.data_vars) == 1
+            ), "The suitability table should only have a single data variable."
+            self._suitability_var_name = list(suitability_table.data_vars)[0]
+            self._suitability_var_long_name = suitability_table[
+                self._suitability_var_name
+            ].attrs.get("long_name", self._suitability_var_name.capitalize())
 
     def run(self, ds_clim, return_months_suitable=False, suitability_threshold=0):
         """
@@ -100,6 +111,7 @@ class SuitabilityModel(EpiModel):
         xarray.Dataset
             The output epidemiological dataset.
         """
+        suitability_var_name = self._suitability_var_name
         if self.suitability_table is None:
             da_suitability = self._run_main_temp_range(ds_clim)
         elif "precipitation" not in self.suitability_table.dims:
@@ -107,11 +119,15 @@ class SuitabilityModel(EpiModel):
         else:
             da_suitability = self._run_main_temp_precip_table(ds_clim)
         ds_epi = xr.Dataset(attrs=ds_clim.attrs)
-        ds_epi["suitability"] = da_suitability
+        ds_epi[suitability_var_name] = da_suitability
         if self.suitability_table is not None:
-            ds_epi["suitability"].attrs = self.suitability_table["suitability"].attrs
-        if "long_name" not in ds_epi["suitability"].attrs:
-            ds_epi["suitability"].attrs["long_name"] = "Suitability"
+            ds_epi[suitability_var_name].attrs = self.suitability_table[
+                suitability_var_name
+            ].attrs
+        if "long_name" not in ds_epi[suitability_var_name].attrs:
+            ds_epi[suitability_var_name].attrs["long_name"] = (
+                self._suitability_var_long_name
+            )
         ds_epi.climepi.copy_bnds_from(ds_clim)
         if return_months_suitable:
             ds_epi = ds_epi.epimod.months_suitable(
@@ -119,7 +135,7 @@ class SuitabilityModel(EpiModel):
             )
         return ds_epi
 
-    def plot_niche(self, **kwargs):
+    def plot_suitability_region(self, **kwargs):
         """
         Plot suitability against temperature and (if relevant) precipitation.
 
@@ -131,6 +147,7 @@ class SuitabilityModel(EpiModel):
             A holoviews object representing the ecological niche.
         """
         suitability_table = self.suitability_table
+        suitability_var_name = self._suitability_var_name
         if suitability_table is None:
             temperature_range = self.temperature_range
             temperature_vals = np.linspace(0, 1.25 * temperature_range[1], 1000)
@@ -140,14 +157,14 @@ class SuitabilityModel(EpiModel):
             suitability_table = xr.Dataset(
                 {
                     "temperature": temperature_vals,
-                    "suitability": (["temperature"], suitability_vals),
+                    suitability_var_name: (["temperature"], suitability_vals),
                 }
             )
         if "precipitation" not in suitability_table.dims:
             kwargs_hvplot = {"x": "temperature", **kwargs}
-            return suitability_table["suitability"].hvplot.line(**kwargs_hvplot)
+            return suitability_table[suitability_var_name].hvplot.line(**kwargs_hvplot)
         kwargs_hvplot = {"x": "temperature", "y": "precipitation", **kwargs}
-        return suitability_table["suitability"].hvplot.image(**kwargs_hvplot)
+        return suitability_table[suitability_var_name].hvplot.image(**kwargs_hvplot)
 
     def _run_main_temp_range(self, ds_clim):
         # Run the main logic of a suitability model defined by a temperature range.
@@ -164,7 +181,8 @@ class SuitabilityModel(EpiModel):
         temperature = ds_clim["temperature"]
         suitability_table = self.suitability_table
         table_temp_vals = suitability_table["temperature"].values
-        table_suitability_vals = suitability_table["suitability"].values
+        suitability_var_name = self._suitability_var_name
+        table_suitability_vals = suitability_table[suitability_var_name].values
 
         def suitability_func(temperature_curr):
             suitability_curr = np.interp(
@@ -179,7 +197,7 @@ class SuitabilityModel(EpiModel):
         da_suitability = xr.apply_ufunc(
             suitability_func, temperature, dask="parallelized"
         )
-        da_suitability.attrs = suitability_table["suitability"].attrs
+        da_suitability.attrs = suitability_table[suitability_var_name].attrs
         return da_suitability
 
     def _run_main_temp_precip_table(self, ds_clim):
@@ -188,8 +206,9 @@ class SuitabilityModel(EpiModel):
         temperature = ds_clim["temperature"]
         precipitation = ds_clim["precipitation"]
         suitability_table = self.suitability_table
+        suitability_var_name = self._suitability_var_name
         table_values = (
-            suitability_table["suitability"]
+            suitability_table[suitability_var_name]
             .transpose("temperature", "precipitation")
             .values
         )
@@ -272,7 +291,7 @@ class EpiModDatasetAccessor:
         ds_epi = self.model.run(self._obj, **kwargs)
         return ds_epi
 
-    def months_suitable(self, suitability_threshold=0):
+    def months_suitable(self, suitability_var_name=None, suitability_threshold=0):
         """
         Calculates the number of months suitable each year from monthly suitability
         data.
@@ -282,14 +301,18 @@ class EpiModDatasetAccessor:
         xarray.Dataset:
             Dataset with a single non-bounds variable "months_suitable".
         """
-        try:
-            da_suitability = self._obj["suitability"]
-        except KeyError as exc:
-            raise KeyError(
-                """No suitability data found. To calculate the number of months suitable
-                from a climate dataset, first run the suitability model and then apply
-                this method to the output dataset."""
-            ) from exc
+        if suitability_var_name is None:
+            if len(self._obj.data_vars) == 1:
+                suitability_var_name = list(self._obj.data_vars)[0]
+            elif "suitability" in self._obj:
+                suitability_var_name = "suitability"
+            else:
+                raise ValueError(
+                    """No suitability data found. To calculate the number of months
+                    suitable from a climate dataset, first run the suitability model and
+                    then apply this method to the output dataset."""
+                )
+        da_suitability = self._obj[suitability_var_name]
         ds_suitable_bool = xr.Dataset(
             {"suitable": da_suitability > suitability_threshold}
         )
@@ -299,6 +322,9 @@ class EpiModDatasetAccessor:
             months_suitable=12 * ds_suitable_mean["suitable"]
         ).drop_vars("suitable")
         ds_months_suitable.months_suitable.attrs.update(
-            units="months", long_name="Months suitable"
+            long_name="Months where "
+            + suitability_var_name
+            + " > "
+            + str(suitability_threshold)
         )
         return ds_months_suitable
