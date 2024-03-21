@@ -90,6 +90,26 @@ EXAMPLES = {
             ],
         },
     },
+    "isimip_cities": {
+        "data_source": "isimip",
+        "frequency": "monthly",
+        "subset": {
+            "location": [
+                "New York City",
+                "Los Angeles",
+                "Chicago",
+                "San Francisco",
+                "Lisbon",
+                "Barcelona",
+                "Milan",
+                "Lyon",
+                "Munich",
+                "Cape Town",
+                "Karachi",
+                "Melbourne",
+            ],
+        },
+    },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
