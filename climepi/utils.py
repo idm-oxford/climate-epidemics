@@ -29,12 +29,11 @@ def add_var_attrs_from_other(ds, ds_from, var=None):
     ds_out = ds.copy()
     if var is None:
         var = list(ds.data_vars) + list(ds.coords)
-    if isinstance(var, list):
-        for var_curr in var:
-            ds = add_var_attrs_from_other(ds, ds_from, var=var_curr)
-    else:
+    elif isinstance(var, str):
+        var = [var]
+    for var_curr in var:
         try:
-            ds_out[var].attrs = ds_from[var].attrs
+            ds_out[var_curr].attrs = ds_from[var_curr].attrs
         except KeyError:
             pass
     return ds_out
