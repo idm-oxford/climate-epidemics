@@ -19,12 +19,14 @@ def _get_app():
     clim_plot_controls = controller.clim_plot_controls
     epi_plot_controls = controller.epi_plot_controls
     clim_plot_view = controller.clim_plot_view
+    epi_model_plot_view = controller.epi_model_plot_view
     epi_plot_view = controller.epi_plot_view
 
     template.main.append(
         pn.Tabs(
             ("Climate data", pn.Row(clim_plot_controls, clim_plot_view)),
-            ("Epidemiological model results", pn.Row(epi_plot_controls, epi_plot_view)),
+            ("Epidemiological model", pn.Row(epi_model_plot_view)),
+            ("Epidemiological projections", pn.Row(epi_plot_controls, epi_plot_view)),
         )
     )
     return template
