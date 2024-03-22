@@ -35,7 +35,10 @@ class EpiModel:
         xarray.Dataset
             The output epidemiological dataset.
         """
-        raise NotImplementedError
+        raise NotImplementedError(
+            "The run method should be implemented by subclasses of the base EpiModel "
+            "class."
+        )
 
 
 class SuitabilityModel(EpiModel):
@@ -88,6 +91,9 @@ class SuitabilityModel(EpiModel):
             self._suitability_var_long_name = suitability_table[
                 self._suitability_var_name
             ].attrs.get("long_name", self._suitability_var_name.capitalize())
+            self.suitability_table[self._suitability_var_name].attrs.update(
+                {"long_name": self._suitability_var_long_name}
+            )
 
     def run(self, ds_clim, return_months_suitable=False, suitability_threshold=0):
         """
@@ -140,6 +146,11 @@ class SuitabilityModel(EpiModel):
         Plot suitability against temperature and (if relevant) precipitation.
 
         Parameters:
+        -----------
+        **kwargs: dict, optional
+            Additional keyword arguments to pass to the plotting function (hvplot.line
+            for temperature-only suitability, or hvplot.image for temperature-
+            precipitation suitability).
 
         Returns:
         --------
@@ -151,20 +162,45 @@ class SuitabilityModel(EpiModel):
         if suitability_table is None:
             temperature_range = self.temperature_range
             temperature_vals = np.linspace(0, 1.25 * temperature_range[1], 1000)
-            suitability_vals = (temperature_vals >= temperature_range[0]) & (
-                temperature_vals <= temperature_range[1]
-            )
+            suitability_vals = (
+                (temperature_vals >= temperature_range[0])
+                & (temperature_vals <= temperature_range[1])
+            ).astype(int)
             suitability_table = xr.Dataset(
                 {
                     "temperature": temperature_vals,
                     suitability_var_name: (["temperature"], suitability_vals),
-                }
+                },
             )
+            suitability_table[suitability_var_name].attrs = {
+                "long_name": self._suitability_var_long_name
+            }
+            suitability_table["temperature"].attrs = {
+                "long_name": "Temperature",
+                "units": "°C",
+            }
         if "precipitation" not in suitability_table.dims:
             kwargs_hvplot = {"x": "temperature", **kwargs}
             return suitability_table[suitability_var_name].hvplot.line(**kwargs_hvplot)
         kwargs_hvplot = {"x": "temperature", "y": "precipitation", **kwargs}
         return suitability_table[suitability_var_name].hvplot.image(**kwargs_hvplot)
+
+    def get_max_suitability(self):
+        """
+        Returns the maximum suitability value.
+
+        Parameters:
+        -----------
+        None
+
+        Returns:
+        --------
+        float
+            The maximum suitability value.
+        """
+        if self.suitability_table is None:
+            return 1
+        return self.suitability_table[self._suitability_var_name].max().item()
 
     def _run_main_temp_range(self, ds_clim):
         # Run the main logic of a suitability model defined by a temperature range.
