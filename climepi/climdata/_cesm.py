@@ -79,7 +79,7 @@ class CESMDataGetter(ClimateDataGetter):
         ds_subset = ds_subset.isel(member_id=realizations)
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
         if location is not None:
-            ds_subset = ds_subset.climepi.sel_geopy(location)
+            ds_subset = ds_subset.climepi.sel_geo(location)
         else:
             if lon_range is not None:
                 # Note the remote data are stored with longitudes in the range 0 to 360.
