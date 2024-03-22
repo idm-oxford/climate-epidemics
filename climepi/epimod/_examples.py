@@ -139,6 +139,11 @@ def get_example_model(name):
             },
             coords={"temperature": example_details["temperature_vals"]},
         )
+        suitability_table["suitability"].attrs = {"long_name": "Suitability"}
+        suitability_table["temperature"].attrs = {
+            "long_name": "Temperature",
+            "units": "°C",
+        }
         epi_model = epimod.SuitabilityModel(suitability_table=suitability_table)
     return epi_model
 
