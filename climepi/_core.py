@@ -113,7 +113,7 @@ class ClimEpiDatasetAccessor:
             provided, all non-bound data variables will be used.
         frequency : str, optional
             Frequency to compute the group average for (options are "yearly", "monthly"
-            or "daily").
+            or "daily"). Default is "yearly".
         **kwargs : dict, optional
             Additional keyword arguments to pass to xcdat temporal.group_average.
 
@@ -133,7 +133,7 @@ class ClimEpiDatasetAccessor:
             ]
             ds_m = xr.merge(ds_m_list)
         elif np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(
-            self._obj[data_var].dtype, np.integer
+            self._obj[data_var].dtype, bool
         ):
             # Workaround for bug in xcdat temporal.group_average using integer or
             # boolean data types
