@@ -176,31 +176,73 @@ def test_monthly_average():
     xrt.assert_identical(result, expected)
 
 
-def test_months_suitable():
+class TestMonthsSuitable:
     """
-    Test the months_suitable method of the ClimEpiDatasetAccessor class.
+    Class defining tests for the months_suitable method of the ClimEpiDatasetAccessor
+    class.
     """
-    time_lb = xr.cftime_range(start="2001-01-01", periods=24, freq="MS")
-    time_rb = xr.cftime_range(start="2001-02-01", periods=24, freq="MS")
-    time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "bnds"))
-    time = time_bnds.mean(dim="bnds")
-    suitability_values_in = np.random.rand(24, 2)
-    ds = xr.Dataset(
-        {
-            "suitability": (("time", "kenobi"), suitability_values_in),
-            "time_bnds": time_bnds,
-        },
-        coords={"time": time},
-    )
-    ds.time.attrs.update(bounds="time_bnds")
-    ds["time"].encoding.update(calendar="standard")
-    suitability_threshold = 0.5
-    result = ds.climepi.months_suitable(suitability_threshold=suitability_threshold)
-    months_suitable_values_result = result.months_suitable.values
-    months_suitable_values_expected = np.array(
-        [
-            np.sum(suitability_values_in[:12, :] > suitability_threshold, axis=0),
-            np.sum(suitability_values_in[12:, :] > suitability_threshold, axis=0),
-        ]
-    )
-    npt.assert_allclose(months_suitable_values_result, months_suitable_values_expected)
+
+    def test_months_suitable(self):
+        """
+        Main test for the months_suitable method of the ClimEpiDatasetAccessor class.
+        """
+        time_lb = xr.cftime_range(start="2001-01-01", periods=24, freq="MS")
+        time_rb = xr.cftime_range(start="2001-02-01", periods=24, freq="MS")
+        time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "bnds"))
+        time = time_bnds.mean(dim="bnds")
+        suitability_values_in = np.random.rand(24, 2)
+        ds = xr.Dataset(
+            {
+                "suitability": (("time", "kenobi"), suitability_values_in),
+                "time_bnds": time_bnds,
+            },
+            coords={"time": time},
+        )
+        ds.time.attrs.update(bounds="time_bnds")
+        ds["time"].encoding.update(calendar="standard")
+        suitability_threshold = 0.5
+        result = ds.climepi.months_suitable(suitability_threshold=suitability_threshold)
+        months_suitable_values_result = result.months_suitable.values
+        months_suitable_values_expected = np.array(
+            [
+                np.sum(suitability_values_in[:12, :] > suitability_threshold, axis=0),
+                np.sum(suitability_values_in[12:, :] > suitability_threshold, axis=0),
+            ]
+        )
+        npt.assert_allclose(
+            months_suitable_values_result, months_suitable_values_expected
+        )
+
+    def test_months_suitable_var_names(self):
+        """
+        Test the months_suitable method of the ClimEpiDatasetAccessor class with
+        different data variable names present in the dataset.
+        """
+        data_vars = ["suitability", "also_suitability", "temperature"]
+        ds = generate_dataset(data_var=data_vars)
+        ds["suitability"].values = np.random.rand(*ds["suitability"].shape)
+        ds["also_suitability"].values = ds["suitability"].values
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        suitability_threshold = 0.2
+        result1 = ds.climepi.months_suitable(
+            suitability_threshold=suitability_threshold
+        )
+        result2 = ds.climepi.months_suitable(
+            suitability_threshold=suitability_threshold,
+            suitability_var_name="also_suitability",
+        )
+        xrt.assert_allclose(result1["months_suitable"], result2["months_suitable"])
+        result3 = ds[["also_suitability", "time_bnds"]].climepi.months_suitable(
+            suitability_threshold=suitability_threshold,
+        )
+        xrt.assert_allclose(result1["months_suitable"], result3["months_suitable"])
+        result4 = ds.climepi.months_suitable(
+            suitability_threshold=suitability_threshold,
+            suitability_var_name="temperature",
+        )
+        with pytest.raises(AssertionError):
+            xrt.assert_allclose(result1["months_suitable"], result4["months_suitable"])
+        with pytest.raises(ValueError):
+            ds[
+                ["also_suitability", "temperature", "time_bnds"]
+            ].climepi.months_suitable(suitability_threshold=suitability_threshold)
