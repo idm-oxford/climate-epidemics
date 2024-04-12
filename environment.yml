@@ -7,7 +7,7 @@ dependencies:
   - python>=3.8
   - pip
   # climepi dependencies (should match dependencies in pyproject.toml)
-  - xcdat<0.6.1 #0.6.1 requires xesmf, which complicates Windows installation (may revisit in future)
+  - xcdat
   - bottleneck
   - flox
   - geopy

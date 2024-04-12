@@ -20,7 +20,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  "xcdat<0.6.1",
+  "xcdat",
   "bottleneck",
   "flox",
   "geopy",
@@ -37,3 +37,8 @@ dependencies = [
 [project.urls]
 "Homepage" = "https://github.com/will-s-hart/climate-epidemics"
 "Bug Tracker" = "https://github.com/will-s-hart/climate-epidemics/issues"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
