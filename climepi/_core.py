@@ -128,7 +128,7 @@ class ClimEpiDatasetAccessor:
         xcdat_freq = xcdat_freq_map[frequency]
         if isinstance(data_var, list):
             ds_m_list = [
-                self.temporal_group_average(data_var_curr, frequency)
+                self.temporal_group_average(data_var_curr, frequency, **kwargs)
                 for data_var_curr in data_var
             ]
             ds_m = xr.merge(ds_m_list)
@@ -139,17 +139,20 @@ class ClimEpiDatasetAccessor:
             # boolean data types
             ds_copy = self._obj.copy()
             ds_copy[data_var] = ds_copy[data_var].astype("float64")
-            ds_m = ds_copy.climepi.temporal_group_average(data_var, frequency)
+            ds_m = ds_copy.climepi.temporal_group_average(data_var, frequency, **kwargs)
         else:
             ds_m = self._obj.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
-            ds_m = ds_m.bounds.add_time_bounds(method="freq", freq=xcdat_freq)
-            # Workaround for bug in xcdat.center_times when longitude and/or latitude
-            # are non-dimension singleton coordinates (otherwise, longitude and/or
-            # latitude are incorrectly treated as time coordinates, leading to an error
-            # being raised)
-            centered_times = xcdat.center_times(ds_m[["time", "time_bnds"]])
-            ds_m["time"] = centered_times.time
-            ds_m["time_bnds"] = centered_times.time_bnds
+            if ds_m.time.size > 1:
+                # Add time bounds and center times (only if there is more than one time
+                # point, as xcdat add_time_bounds does not work for a single time point)
+                ds_m = ds_m.bounds.add_time_bounds(method="freq", freq=xcdat_freq)
+                # Workaround for bug in xcdat.center_times when longitude and/or latitude
+                # are non-dimension singleton coordinates (otherwise, longitude and/or
+                # latitude are incorrectly treated as time coordinates, leading to an error
+                # being raised)
+                centered_times = xcdat.center_times(ds_m[["time", "time_bnds"]])
+                ds_m["time"] = centered_times.time
+                ds_m["time_bnds"] = centered_times.time_bnds
         return ds_m
 
     def yearly_average(self, data_var=None, **kwargs):
@@ -215,15 +218,18 @@ class ClimEpiDatasetAccessor:
             Dataset with a single non-bound data variable "months_suitable".
         """
         if suitability_var_name is None:
-            if len(self._obj.data_vars) == 1:
-                suitability_var_name = list(self._obj.data_vars)[0]
-            elif "suitability" in self._obj:
+            non_bnd_data_vars = list_non_bnd_data_vars(self._obj)
+            if len(non_bnd_data_vars) == 1:
+                suitability_var_name = non_bnd_data_vars[0]
+            elif "suitability" in non_bnd_data_vars:
                 suitability_var_name = "suitability"
             else:
                 raise ValueError(
                     """No suitability data found. To calculate the number of months
                     suitable from a climate dataset, first run the suitability model and
-                    then apply this method to the output dataset."""
+                    then apply this method to the output dataset. If the suitability
+                    variable is not named "suitability", specify the name using the
+                    suitability_var_name argument.""",
                 )
         da_suitability = self._obj[suitability_var_name]
         ds_suitable_bool = xr.Dataset(
