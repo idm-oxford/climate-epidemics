@@ -9,6 +9,8 @@ import numpy as np
 import xarray as xr
 import xcdat
 
+from climepi import epimod
+
 # Time
 time_yearly = xr.DataArray(
     data=np.array(
@@ -231,7 +233,7 @@ lon_bnds = xr.DataArray(
 # Dataset generation
 def generate_dataset(
     data_var="temperature",
-    dtype=int,
+    dtype="float64",
     frequency="yearly",
     lon_0_360=True,
     extra_dims=None,
@@ -246,7 +248,7 @@ def generate_dataset(
         Name of the data variable(s) to include in the dataset. Default is
         "temperature".
     dtype : type, optional
-        Data type of the data variable(s). Default is int.
+        Data type of the data variable(s). Default is "float64"
     frequency : str, optional
         Frequency to compute the group average for (options are "yearly", "monthly"
         or "daily"). Default is "monthly".
@@ -295,3 +297,9 @@ def generate_dataset(
     if not lon_0_360:
         ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
     return ds
+
+
+# Epi model
+def generate_epi_model():
+    epi_model = epimod.SuitabilityModel(temperature_range=(15, 30))
+    return epi_model
