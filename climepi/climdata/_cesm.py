@@ -3,12 +3,12 @@ Module for accessing and downloading CESM LENS2 data from the aws server (see
 https://ncar.github.io/cesm2-le-aws/model_documentation.html).
 """
 
-import climepi  # noqa
 import dask.diagnostics
 import intake
 import numpy as np
 import xarray as xr
 
+import climepi  # noqa
 from climepi.climdata._data_getter_class import ClimateDataGetter
 
 
