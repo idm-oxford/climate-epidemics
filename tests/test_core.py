@@ -246,3 +246,152 @@ class TestMonthsSuitable:
             ds[
                 ["also_suitability", "temperature", "time_bnds"]
             ].climepi.months_suitable(suitability_threshold=suitability_threshold)
+
+
+class TestEnsembleStats:
+    """
+    Class defining tests for the ensemble_stats method of the ClimEpiDatasetAccessor.
+    """
+
+    def test_ensemble_stats(self):
+        """
+        Main test for the ensemble_stats method of the ClimEpiDatasetAccessor class.
+        """
+        ds = generate_dataset(data_var="temperature", extra_dims={"realization": 3})
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        result = ds.climepi.ensemble_stats(conf_level=60)
+        xrt.assert_allclose(
+            result["temperature"].sel(ensemble_stat="mean", drop=True),
+            ds["temperature"].mean(dim="realization"),
+        )
+        xrt.assert_allclose(
+            result["temperature"].sel(ensemble_stat="std", drop=True),
+            ds["temperature"].std(dim="realization"),
+        )
+        xrt.assert_allclose(
+            result["temperature"].sel(ensemble_stat="var", drop=True),
+            ds["temperature"].var(dim="realization"),
+        )
+        xrt.assert_allclose(
+            result["temperature"].sel(ensemble_stat="median", drop=True),
+            ds["temperature"].median(dim="realization"),
+        )
+        xrt.assert_allclose(
+            result["temperature"].sel(ensemble_stat="min", drop=True),
+            ds["temperature"].min(dim="realization"),
+        )
+        xrt.assert_allclose(
+            result["temperature"].sel(ensemble_stat="max", drop=True),
+            ds["temperature"].max(dim="realization"),
+        )
+        xrt.assert_allclose(
+            result["temperature"].sel(ensemble_stat="lower", drop=True),
+            ds["temperature"].quantile(0.2, dim="realization").drop_vars("quantile"),
+        )
+        xrt.assert_allclose(
+            result["temperature"].sel(ensemble_stat="upper", drop=True),
+            ds["temperature"].quantile(0.8, dim="realization").drop_vars("quantile"),
+        )
+
+    def test_ensemble_stats_varlist(self):
+        """
+        Test the ensemble_stats method of the ClimEpiDatasetAccessor class with a list
+        of data variables.
+        """
+        data_vars = ["temperature", "precipitation"]
+        ds = generate_dataset(data_var=data_vars, extra_dims={"realization": 3})
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
+        result = ds.climepi.ensemble_stats()
+        for data_var in data_vars:
+            xrt.assert_allclose(
+                result[data_var],
+                ds[[data_var]].climepi.ensemble_stats()[data_var],
+            )
+            xrt.assert_allclose(
+                result[data_var],
+                ds.climepi.ensemble_stats(data_var)[data_var],
+            )
+
+    def test_ensemble_stats_single_realization(self):
+        """
+        Test the ensemble_stats method of the ClimEpiDatasetAccessor class with a single
+        realization, with the option to estimate internal variability at its default on
+        value (only test that this gives the same result as the estimate_ensemble_stats
+        method, which is tested separately).
+        """
+        ds1 = generate_dataset(data_var="temperature")
+        ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
+        ds2 = ds1.copy()
+        ds2["temperature"] = ds2["temperature"].expand_dims("realization")
+        ds3 = ds1.copy()
+        ds3["realization"] = "googly"
+        ds3 = ds3.set_coords("realization")
+        result1 = ds1.climepi.ensemble_stats()
+        result2 = ds2.climepi.ensemble_stats()
+        result3 = ds3.climepi.ensemble_stats()
+        expected = ds1.climepi.estimate_ensemble_stats()
+        xrt.assert_allclose(result1, expected)
+        xrt.assert_allclose(result2, expected)
+        xrt.assert_allclose(result3, expected)
+
+    def test_ensemble_stats_single_realization_no_estimation(self):
+        """
+        Test the ensemble_stats method of the ClimEpiDatasetAccessor class with a single
+        realization, with the option to estimate internal variability turned off.
+        """
+        ds1 = generate_dataset(data_var="temperature")
+        ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
+        ds2 = ds1.copy()
+        ds2["temperature"] = ds2["temperature"].expand_dims("realization")
+        ds3 = ds1.copy()
+        ds3["realization"] = "googly"
+        ds3 = ds3.set_coords("realization")
+        result1 = ds1.climepi.ensemble_stats(estimate_internal_variability=False)
+        result2 = ds2.climepi.ensemble_stats(estimate_internal_variability=False)
+        result3 = ds3.climepi.ensemble_stats(estimate_internal_variability=False)
+        xrt.assert_allclose(result1, result2)
+        xrt.assert_allclose(result1, result3)
+        for ensemble_stat in ["mean", "median", "min", "max", "lower", "upper"]:
+            xrt.assert_allclose(
+                result1["temperature"].sel(ensemble_stat=ensemble_stat, drop=True),
+                ds1["temperature"],
+            )
+        for ensemble_stat in ["std", "var"]:
+            npt.assert_allclose(
+                result1["temperature"]
+                .sel(ensemble_stat=ensemble_stat, drop=True)
+                .values,
+                0,
+            )
+
+
+class TestEstimateEnsembleStats:
+    """
+    Class defining tests for the estimate_ensemble_stats method of the
+    ClimEpiDatasetAccessor class.
+    """
+
+    def test_estimate_ensemble_stats(self):
+        pass
+
+    def test_estimate_ensemble_stats_varlist(self):
+        pass
+
+    def test_estimate_ensemble_stats_contains_realization(self):
+        ds_base = generate_dataset(data_var="temperature")
+        ds_base["temperature"].values = np.random.rand(*ds_base["temperature"].shape)
+        ds1 = ds_base.copy()
+        ds1["temperature"] = ds1["temperature"].expand_dims("realization")
+        ds2 = ds_base.copy()
+        ds2["realization"] = "googly"
+        ds2 = ds2.set_coords("realization")
+        result1 = ds1.climepi.ensemble_stats()
+        result2 = ds2.climepi.ensemble_stats()
+        expected = ds_base.climepi.estimate_ensemble_stats()
+        xrt.assert_allclose(result1, expected)
+        xrt.assert_allclose(result2, expected)
+        ds3 = generate_dataset(extra_dims={"realization": 3})
+        ds3["temperature"].values = np.random.rand(*ds3["temperature"].shape)
+        with pytest.raises(ValueError):
+            ds3.climepi.estimate_ensemble_stats()
