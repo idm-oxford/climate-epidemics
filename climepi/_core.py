@@ -283,13 +283,20 @@ class ClimEpiDatasetAccessor:
         if estimate_internal_variability and not (
             "realization" in self._obj.dims and len(self._obj.realization) > 1
         ):
-            ds_stat = self.estimate_ensemble_stats(
+            return self.estimate_ensemble_stats(
                 data_var, conf_level=conf_level, polyfit_degree=polyfit_degree
             )
-            return ds_stat
-        ds_raw = self._obj[data_var]  # drops bounds for now (re-add at end)
         if "realization" not in self._obj.dims:
-            ds_raw = ds_raw.expand_dims(dim="realization")
+            ds_expanded = self._obj.copy()
+            ds_expanded[data_var] = ds_expanded[data_var].expand_dims(dim="realization")
+            return ds_expanded.climepi.ensemble_stats(
+                data_var, conf_level=conf_level, estimate_internal_variability=False
+            )
+        if isinstance(data_var, list):
+            data_var_list = data_var
+        else:
+            data_var_list = [data_var]
+        ds_raw = self._obj[data_var_list]  # drops bounds for now (re-add at end)
         ds_mean = ds_raw.mean(dim="realization").expand_dims(
             dim={"ensemble_stat": ["mean"]}, axis=-1
         )
@@ -341,6 +348,24 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the estimated ensemble statistics for the
             selected data variable(s).
         """
+        # Deal with cases where the dataset includes a realization coordinate
+        if "realization" in self._obj.dims:
+            if len(self._obj.realization) > 1:
+                raise ValueError(
+                    """The estimate_ensemble_stats method is only implemented for
+                    datasets with a single ensemble member. Use the ensemble_stats
+                    method instead.""",
+                )
+            return self._obj.squeeze(
+                "realization", drop=True
+            ).climepi.estimate_ensemble_stats(
+                data_var, conf_level=conf_level, polyfit_degree=polyfit_degree
+            )
+        if "realization" in self._obj.coords:
+            return self._obj.drop_vars("realization").climepi.estimate_ensemble_stats(
+                data_var, conf_level=conf_level, polyfit_degree=polyfit_degree
+            )
+        # Process the data variable argument
         data_var = self._process_data_var_argument(data_var, allow_multiple=True)
         if isinstance(data_var, str):
             data_var_list = [data_var]
@@ -348,16 +373,6 @@ class ClimEpiDatasetAccessor:
             data_var_list = data_var
         # Estimate ensemble mean by fitting a polynomial to each time series.
         ds_raw = self._obj[data_var_list]
-        if "realization" in ds_raw.dims:
-            if len(ds_raw.realization) > 1:
-                raise ValueError(
-                    """The estimate_ensemble_stats method is only implemented for
-                    datasets with a single ensemble member. Use the ensemble_stats
-                    method instead.""",
-                )
-            ds_raw = ds_raw.squeeze("realization", drop=True)
-        elif "realization" in ds_raw.coords:
-            ds_raw = ds_raw.drop("realization")
         fitted_polys = ds_raw.polyfit(dim="time", deg=polyfit_degree, full=True)
         poly_coeff_data_var_list = [x + "_polyfit_coefficients" for x in data_var_list]
         ds_mean = xr.polyval(
