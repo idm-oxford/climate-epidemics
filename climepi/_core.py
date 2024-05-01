@@ -286,7 +286,7 @@ class ClimEpiDatasetAccessor:
             return self.estimate_ensemble_stats(
                 data_var, conf_level=conf_level, polyfit_degree=polyfit_degree
             )
-        if "realization" not in self._obj.dims:
+        if "realization" not in self._obj[data_var].dims:
             ds_expanded = self._obj.copy()
             ds_expanded[data_var] = ds_expanded[data_var].expand_dims(dim="realization")
             return ds_expanded.climepi.ensemble_stats(
@@ -446,6 +446,18 @@ class ClimEpiDatasetAccessor:
             variable(s).
         """
         data_var = self._process_data_var_argument(data_var, allow_multiple=True)
+        for dim in ["scenario", "model"]:
+            # Deal with cases with a single scenario and/or model that is not a
+            # dimension
+            if dim not in self._obj[data_var].dims:
+                ds_expanded = self._obj.copy()
+                ds_expanded[data_var] = ds_expanded[data_var].expand_dims(dim=dim)
+                return ds_expanded.climepi.var_decomp(
+                    data_var,
+                    fraction=fraction,
+                    estimate_internal_variability=estimate_internal_variability,
+                    polyfit_degree=polyfit_degree,
+                )
         if isinstance(data_var, str):
             data_var_list = [data_var]
         else:
