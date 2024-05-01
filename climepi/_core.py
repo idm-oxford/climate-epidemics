@@ -320,8 +320,6 @@ class ClimEpiDatasetAccessor:
             dim="ensemble_stat",
             coords="minimal",
         )
-        if isinstance(ds_stat, xr.DataArray):
-            ds_stat = ds_stat.to_dataset(name=data_var)
         ds_stat.attrs = self._obj.attrs
         ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var)
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
