@@ -2,8 +2,6 @@
 Module containing utility functions for working with xarray datasets.
 """
 
-import xarray as xr
-
 
 def add_var_attrs_from_other(ds, ds_from, var=None):
     """
