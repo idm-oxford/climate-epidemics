@@ -545,19 +545,6 @@ class TestEstimateEnsembleStats:
         with pytest.raises(ValueError):
             ds3.climepi.estimate_ensemble_stats()
 
-    def test_estimate_ensemble_stats_contains_singleton_coord(self):
-        """
-        Test that the estimate_ensemble_stats method of the ClimEpiDatasetAccessor class
-        correctly includes a non-dimensional singleton coordinate (other than time and
-        realization) in the output dataset.
-        """
-        ds = generate_dataset(data_var="temperature", frequency="monthly")
-        ds["hello there"] = "general kenobi"
-        ds = ds.set_coords("hello there")
-        result = ds.climepi.estimate_ensemble_stats()
-        assert "hello there" in result.coords
-        assert result["hello there"].values == "general kenobi"
-
 
 class TestVarDecomp:
     """
@@ -708,3 +695,5 @@ def test__process_data_var_argument():
         ds2.climepi._process_data_var_argument()
     with pytest.raises(ValueError):
         ds2.climepi._process_data_var_argument(["temperature", "precipitation"])
+    with pytest.raises(ValueError):
+        ds2.climepi._process_data_var_argument(("temperature", "precipitation"))

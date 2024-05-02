@@ -402,15 +402,6 @@ class ClimEpiDatasetAccessor:
             dim=xr.Variable("ensemble_stat", ["mean", "var", "std", "lower", "upper"]),
             coords="minimal",
         )
-        for coord_var in ds_raw.coords:
-            # Add coordinate variables from the raw dataset that do not appear in the
-            # dimensions of the data variable (e.g. if lon and lat are not direct dims)
-            if (
-                coord_var not in ds_stat.coords
-                and coord_var != "realization"
-                and "realization" not in ds_raw[coord_var].dims
-            ):
-                ds_stat = ds_stat.assign_coords({coord_var: ds_raw[coord_var]})
         ds_stat.attrs = self._obj.attrs
         ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var_list)
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
@@ -470,12 +461,6 @@ class ClimEpiDatasetAccessor:
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )[data_var_list]
-        # Make "scenario" and "model" dimensions of ds_stat if they are not present
-        # or are (singleton) non-dimension coordinates (reduces number of cases to
-        # handle)
-        for dim in ["scenario", "model"]:
-            if dim not in ds_stat.dims:
-                ds_stat = ds_stat.expand_dims(dim)
         # Calculate the internal, model and scenario contributions to the variance
         ds_var_internal = ds_stat.sel(ensemble_stat="var", drop=True).mean(
             dim=["scenario", "model"]
