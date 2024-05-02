@@ -2,6 +2,7 @@
 Unit tests for the utils module.
 """
 
+import pytest
 import xarray.testing as xrt
 
 from climepi.testing.fixtures import generate_dataset
@@ -15,16 +16,25 @@ from climepi.utils import (
 
 def test_add_var_attrs_from_other():
     ds = generate_dataset(data_var=["temperature", "precipitation"])
-    ds_from = ds.drop_vars("precipitation")
-    ds_from["temperature"].attrs["units"] = "K"
-    ds_from["lon"].attrs["units"] = "degrees_east"
     ds["temperature"].attrs["units"] = "C"
     ds["lat"].attrs["units"] = "degrees_north"
-    ds_out = add_var_attrs_from_other(ds, ds_from)
-    assert ds_out["temperature"].attrs["units"] == "C"
-    assert ds_out["lon"].attrs["units"] == "degrees_east"
-    assert ds_out["lat"].attrs["units"] == "degrees_north"
-    assert ds_out["precipitation"].attrs == {}
+    ds_from = ds.copy().drop_vars("precipitation")
+    ds_from["temperature"].attrs["units"] = "K"
+    ds_from["lon"].attrs["units"] = "degrees_east"
+    result1 = add_var_attrs_from_other(ds, ds_from)
+    result2 = add_var_attrs_from_other(ds, ds_from, ["temperature", "lon"])
+    result3 = add_var_attrs_from_other(ds, ds_from, "lon")
+    result4 = add_var_attrs_from_other(ds, ds_from, ["lon"])
+    xrt.assert_identical(result1, result2)
+    assert result1["temperature"].attrs["units"] == "K"
+    assert result1["lon"].attrs["units"] == "degrees_east"
+    assert result1["lat"].attrs["units"] == "degrees_north"
+    assert result1["precipitation"].attrs == {}
+    xrt.assert_identical(result3, result4)
+    assert result3["temperature"].attrs["units"] == "C"
+    assert result3["lon"].attrs["units"] == "degrees_east"
+    assert result3["lat"].attrs["units"] == "degrees_north"
+    assert result3["precipitation"].attrs == {}
 
 
 def test_add_bnds_from_other():
@@ -56,6 +66,8 @@ def test_get_data_var_and_bnds():
     xrt.assert_identical(
         result3, ds[["temperature", "kenobi", "lat_bnds", "lon_bnds", "time_bnds"]]
     )
+    with pytest.raises(ValueError):
+        get_data_var_and_bnds(ds, ("temperature", "precipitation"))
 
 
 def test_list_non_bnd_data_vars():
