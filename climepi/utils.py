@@ -92,9 +92,16 @@ def get_data_var_and_bnds(ds, data_var):
         A new dataset containing the selected data variable(s) and any bounds
         variables.
     """
-    ds_out = xr.Dataset(attrs=ds.attrs)
-    ds_out[data_var] = ds[data_var]
-    ds_out = add_bnds_from_other(ds_out, ds)
+    if isinstance(data_var, str):
+        data_var_list = [data_var]
+    elif isinstance(data_var, list):
+        data_var_list = data_var
+    else:
+        raise ValueError("data_var must be a string or list")
+    for bnd_var in ["lat_bnds", "lon_bnds", "time_bnds"]:
+        if bnd_var in ds:
+            data_var_list.append(bnd_var)
+    ds_out = ds[data_var_list]
     return ds_out
 
 
