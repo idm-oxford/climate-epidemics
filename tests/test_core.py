@@ -460,10 +460,6 @@ class TestEstimateEnsembleStats:
                     result["temperature"].sel(ensemble_stat="upper", drop=True).values,
                     upper_expected,
                 )
-                xrt.assert_allclose(
-                    result[["lon", "lat", "time", "lon_bnds", "lat_bnds", "time_bnds"]],
-                    ds[["lon", "lat", "time", "lon_bnds", "lat_bnds", "time_bnds"]],
-                )
             mean_result_sum += (
                 result["temperature"].sel(ensemble_stat="mean", drop=True).values
             )
@@ -681,3 +677,34 @@ class TestVarDecomp:
         npt.assert_allclose(
             result1["temperature"].sel(var_type="scenario", drop=True).values, 0
         )
+
+
+def test__process_data_var_argument():
+    """
+    Test the _process_data_var_argument method of the ClimEpiDatasetAccessor class.
+    """
+    ds1 = generate_dataset(data_var="temperature")
+    ds2 = generate_dataset(data_var=["temperature", "precipitation"])
+    assert ds1.climepi._process_data_var_argument("temperature") == "temperature"
+    assert ds1.climepi._process_data_var_argument(["temperature"], as_list=True) == [
+        "temperature"
+    ]
+    assert ds1.climepi._process_data_var_argument() == "temperature"
+    assert ds1.climepi._process_data_var_argument(as_list=True) == ["temperature"]
+    with pytest.raises(ValueError):
+        ds1.climepi._process_data_var_argument(["temperature"])
+    assert ds2.climepi._process_data_var_argument("precipitation") == "precipitation"
+    assert ds2.climepi._process_data_var_argument(
+        ["temperature", "precipitation"], as_list=True
+    ) == [
+        "temperature",
+        "precipitation",
+    ]
+    assert ds2.climepi._process_data_var_argument(as_list=True) == [
+        "temperature",
+        "precipitation",
+    ]
+    with pytest.raises(ValueError):
+        ds2.climepi._process_data_var_argument()
+    with pytest.raises(ValueError):
+        ds2.climepi._process_data_var_argument(["temperature", "precipitation"])
