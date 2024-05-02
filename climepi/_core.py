@@ -123,36 +123,38 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the group average of the selected data
             variable(s) at the specified frequency.
         """
-        data_var = self._process_data_var_argument(data_var, allow_multiple=True)
-        xcdat_freq_map = {"yearly": "year", "monthly": "month", "daily": "day"}
-        xcdat_freq = xcdat_freq_map[frequency]
-        if isinstance(data_var, list):
-            ds_m_list = [
-                self.temporal_group_average(data_var_curr, frequency, **kwargs)
-                for data_var_curr in data_var
-            ]
-            ds_m = xr.merge(ds_m_list)
-        elif np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(
+        try:
+            data_var = self._process_data_var_argument(data_var)
+        except ValueError:
+            data_var_list = self._process_data_var_argument(data_var, as_list=True)
+            return xr.merge(
+                [
+                    self.temporal_group_average(data_var_curr, frequency, **kwargs)
+                    for data_var_curr in data_var_list
+                ]
+            )
+        if np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(
             self._obj[data_var].dtype, bool
         ):
             # Workaround for bug in xcdat temporal.group_average using integer or
             # boolean data types
             ds_copy = self._obj.copy()
             ds_copy[data_var] = ds_copy[data_var].astype("float64")
-            ds_m = ds_copy.climepi.temporal_group_average(data_var, frequency, **kwargs)
-        else:
-            ds_m = self._obj.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
-            if ds_m.time.size > 1:
-                # Add time bounds and center times (only if there is more than one time
-                # point, as xcdat add_time_bounds does not work for a single time point)
-                ds_m = ds_m.bounds.add_time_bounds(method="freq", freq=xcdat_freq)
-                # Workaround for bug in xcdat.center_times when longitude and/or latitude
-                # are non-dimension singleton coordinates (otherwise, longitude and/or
-                # latitude are incorrectly treated as time coordinates, leading to an error
-                # being raised)
-                centered_times = xcdat.center_times(ds_m[["time", "time_bnds"]])
-                ds_m["time"] = centered_times.time
-                ds_m["time_bnds"] = centered_times.time_bnds
+            return ds_copy.climepi.temporal_group_average(data_var, frequency, **kwargs)
+        xcdat_freq_map = {"yearly": "year", "monthly": "month", "daily": "day"}
+        xcdat_freq = xcdat_freq_map[frequency]
+        ds_m = self._obj.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
+        if ds_m.time.size > 1:
+            # Add time bounds and center times (only if there is more than one time
+            # point, as xcdat add_time_bounds does not work for a single time point)
+            ds_m = ds_m.bounds.add_time_bounds(method="freq", freq=xcdat_freq)
+            # Workaround for bug in xcdat.center_times when longitude and/or latitude
+            # are non-dimension singleton coordinates (otherwise, longitude and/or
+            # latitude are incorrectly treated as time coordinates, leading to an error
+            # being raised)
+            centered_times = xcdat.center_times(ds_m[["time", "time_bnds"]])
+            ds_m["time"] = centered_times.time
+            ds_m["time_bnds"] = centered_times.time_bnds
         return ds_m
 
     def yearly_average(self, data_var=None, **kwargs):
@@ -279,23 +281,28 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the computed ensemble statistics for the
             selected data variable(s).
         """
-        data_var = self._process_data_var_argument(data_var, allow_multiple=True)
+        # Process the data variable argument
+        data_var_list = self._process_data_var_argument(data_var, as_list=True)
+        # Deal with cases where only a single realization is available for each model
+        # and scenario
         if estimate_internal_variability and not (
             "realization" in self._obj.dims and len(self._obj.realization) > 1
         ):
             return self.estimate_ensemble_stats(
-                data_var, conf_level=conf_level, polyfit_degree=polyfit_degree
+                data_var_list, conf_level=conf_level, polyfit_degree=polyfit_degree
             )
-        if "realization" not in self._obj[data_var].dims:
+        if "realization" not in self._obj[data_var_list].dims:
             ds_expanded = self._obj.copy()
-            ds_expanded[data_var] = ds_expanded[data_var].expand_dims(dim="realization")
+            for data_var_curr in data_var_list:
+                ds_expanded[data_var_curr] = ds_expanded[data_var_curr].expand_dims(
+                    dim="realization"
+                )
             return ds_expanded.climepi.ensemble_stats(
-                data_var, conf_level=conf_level, estimate_internal_variability=False
+                data_var_list,
+                conf_level=conf_level,
+                estimate_internal_variability=False,
             )
-        if isinstance(data_var, list):
-            data_var_list = data_var
-        else:
-            data_var_list = [data_var]
+        # Compute ensemble statistics
         ds_raw = self._obj[data_var_list]  # drops bounds for now (re-add at end)
         ds_mean = ds_raw.mean(dim="realization").expand_dims(
             dim={"ensemble_stat": ["mean"]}, axis=-1
@@ -321,7 +328,7 @@ class ClimEpiDatasetAccessor:
             coords="minimal",
         )
         ds_stat.attrs = self._obj.attrs
-        ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var)
+        ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var_list)
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
         return ds_stat
 
@@ -346,6 +353,8 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the estimated ensemble statistics for the
             selected data variable(s).
         """
+        # Process the data variable argument
+        data_var_list = self._process_data_var_argument(data_var, as_list=True)
         # Deal with cases where the dataset includes a realization coordinate
         if "realization" in self._obj.dims:
             if len(self._obj.realization) > 1:
@@ -357,18 +366,12 @@ class ClimEpiDatasetAccessor:
             return self._obj.squeeze(
                 "realization", drop=True
             ).climepi.estimate_ensemble_stats(
-                data_var, conf_level=conf_level, polyfit_degree=polyfit_degree
+                data_var_list, conf_level=conf_level, polyfit_degree=polyfit_degree
             )
         if "realization" in self._obj.coords:
             return self._obj.drop_vars("realization").climepi.estimate_ensemble_stats(
-                data_var, conf_level=conf_level, polyfit_degree=polyfit_degree
+                data_var_list, conf_level=conf_level, polyfit_degree=polyfit_degree
             )
-        # Process the data variable argument
-        data_var = self._process_data_var_argument(data_var, allow_multiple=True)
-        if isinstance(data_var, str):
-            data_var_list = [data_var]
-        else:
-            data_var_list = data_var
         # Estimate ensemble mean by fitting a polynomial to each time series.
         ds_raw = self._obj[data_var_list]
         fitted_polys = ds_raw.polyfit(dim="time", deg=polyfit_degree, full=True)
@@ -409,7 +412,7 @@ class ClimEpiDatasetAccessor:
             ):
                 ds_stat = ds_stat.assign_coords({coord_var: ds_raw[coord_var]})
         ds_stat.attrs = self._obj.attrs
-        ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var)
+        ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var_list)
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
         return ds_stat
 
@@ -445,26 +448,25 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the variance decomposition of the selected data
             variable(s).
         """
-        data_var = self._process_data_var_argument(data_var, allow_multiple=True)
+        data_var_list = self._process_data_var_argument(data_var, as_list=True)
         for dim in ["scenario", "model"]:
             # Deal with cases with a single scenario and/or model that is not a
             # dimension
-            if dim not in self._obj[data_var].dims:
+            if dim not in self._obj[data_var_list].dims:
                 ds_expanded = self._obj.copy()
-                ds_expanded[data_var] = ds_expanded[data_var].expand_dims(dim=dim)
+                for data_var_curr in data_var_list:
+                    ds_expanded[data_var_curr] = ds_expanded[data_var_curr].expand_dims(
+                        dim=dim
+                    )
                 return ds_expanded.climepi.var_decomp(
-                    data_var,
+                    data_var_list,
                     fraction=fraction,
                     estimate_internal_variability=estimate_internal_variability,
                     polyfit_degree=polyfit_degree,
                 )
-        if isinstance(data_var, str):
-            data_var_list = [data_var]
-        else:
-            data_var_list = data_var
         # Calculate or estimate ensemble statistics characterizing internal variability
         ds_stat = self.ensemble_stats(
-            data_var,
+            data_var_list,
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )[data_var_list]
@@ -504,7 +506,7 @@ class ClimEpiDatasetAccessor:
                 ds_var_decomp[data_var_curr].attrs["long_name"] = "Fraction of variance"
         else:
             ds_var_decomp = add_var_attrs_from_other(
-                ds_var_decomp, self._obj, var=data_var
+                ds_var_decomp, self._obj, var=data_var_list
             )
             for data_var_curr in data_var_list:
                 if "units" in ds_var_decomp[data_var_curr].attrs:
@@ -849,17 +851,31 @@ class ClimEpiDatasetAccessor:
         plot_obj = hv.Overlay(plot_obj_list).collate()
         return plot_obj
 
-    def _process_data_var_argument(self, data_var_in=None, allow_multiple=False):
+    def _process_data_var_argument(self, data_var_in=None, as_list=False):
         # Method for processing the data_var argument in the various methods of the
         # ClimEpiDatasetAccessor class, in order to allow for automatic specification of
         # the data variable(s) if not provided, when this is possible.
-        if data_var_in is not None and (isinstance(data_var_in, str) or allow_multiple):
-            return data_var_in
+        if data_var_in is not None:
+            if as_list:
+                if isinstance(data_var_in, str):
+                    return [data_var_in]
+                if isinstance(data_var_in, list):
+                    return data_var_in
+                raise ValueError(
+                    """The method only accepts a scalar string or list argument for the
+                    data variable."""
+                )
+            if isinstance(data_var_in, str):
+                return data_var_in
+            raise ValueError(
+                """The method only accepts a scalar string argument for the data
+                variable."""
+            )
         non_bnd_data_vars = list_non_bnd_data_vars(self._obj)
+        if as_list:
+            return non_bnd_data_vars
         if len(non_bnd_data_vars) == 1:
             return non_bnd_data_vars[0]
-        if allow_multiple:
-            return non_bnd_data_vars
         raise ValueError(
             """Multiple data variables present. The data variable to use must be
             specified."""
