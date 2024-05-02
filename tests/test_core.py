@@ -696,4 +696,6 @@ def test__process_data_var_argument():
     with pytest.raises(ValueError):
         ds2.climepi._process_data_var_argument(["temperature", "precipitation"])
     with pytest.raises(ValueError):
-        ds2.climepi._process_data_var_argument(("temperature", "precipitation"))
+        ds2.climepi._process_data_var_argument(
+            ("temperature", "precipitation"), as_list=True
+        )
