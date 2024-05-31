@@ -4,11 +4,15 @@ subpackage
 """
 
 import cftime
+import geoviews
+import holoviews as hv
+import hvplot.xarray  # noqa
 import numpy as np
 import numpy.testing as npt
 import pytest
 import xarray as xr
 import xarray.testing as xrt
+from holoviews.element.comparison import Comparison as hvt
 from scipy.stats import norm
 
 from climepi import ClimEpiDatasetAccessor  # noqa
@@ -669,6 +673,236 @@ class TestVarDecomp:
         )
         npt.assert_allclose(
             result1["temperature"].sel(var_type="scenario", drop=True).values, 0
+        )
+
+
+def test_plot_time_series():
+    """
+    Test the plot_time_series method of the ClimEpiDatasetAccessor class. Since this
+    method is a thin wrapper around hvplot.line, only test that this method returns the
+    same result as calling hvplot.line directly in a simple case.
+    """
+    ds = generate_dataset(
+        data_var=["temperature", "precipitation"], extra_dims={"realization": 3}
+    )
+    ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+    ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
+    kwargs = {"by": ["realization", "lat", "lon"]}
+    result = ds.climepi.plot_time_series("precipitation", **kwargs)
+    expected = ds["precipitation"].hvplot.line(x="time", **kwargs)
+    hvt.assertEqual(result, expected)
+
+
+def test_plot_map():
+    """
+    Test the plot_map method of the ClimEpiDatasetAccessor class. Since this method is a
+    thin wrapper around hvplot.quadmesh, only test that this method returns the same
+    result as calling hvplot.quadmesh directly in a simple case.
+    """
+    ds = generate_dataset(data_var=["temperature", "precipitation"]).isel(time=0)
+    ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+    result = ds.climepi.plot_map("temperature", rasterize=False)
+    quadmesh_expected = ds["temperature"].hvplot.quadmesh(
+        x="lon",
+        y="lat",
+        cmap="viridis",
+        project=True,
+        geo=True,
+        rasterize=False,
+    )
+    hvt.compare_quadmesh(result.QuadMesh.I, quadmesh_expected)
+    assert isinstance(result.Coastline.I, geoviews.element.geo.Feature)
+    assert isinstance(result.Ocean.I, geoviews.element.geo.Feature)
+
+
+@pytest.mark.parametrize("fraction", [True, False])
+def test_plot_var_decomp(fraction):
+    """
+    Test the plot_var_decomp method of the ClimEpiDatasetAccessor class.
+    """
+    ds = generate_dataset(
+        data_var="temperature",
+        extra_dims={"scenario": 6, "model": 4, "realization": 9},
+    ).isel(lon=0, lat=0)
+    ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+    ds["temperature"].attrs.update(units="there", long_name="Hello")
+    result = ds.climepi.plot_var_decomp(fraction=fraction)
+    # Test that lower/upper bounds for each component are correct
+    da_var_decomp = ds.climepi.var_decomp(fraction=fraction)["temperature"]
+    internal_lower_expected = 0
+    internal_upper_expected = da_var_decomp.sel(var_type="internal").values
+    model_lower_expected = internal_upper_expected
+    model_upper_expected = model_lower_expected + (
+        da_var_decomp.sel(var_type="model").values
+    )
+    scenario_lower_expected = model_upper_expected
+    scenario_upper_expected = scenario_lower_expected + (
+        da_var_decomp.sel(var_type="scenario").values
+    )
+    npt.assert_allclose(
+        result["Internal"].data.Baseline.values, internal_lower_expected
+    )
+    npt.assert_allclose(
+        result["Internal"].data.value.values,
+        internal_upper_expected,
+    )
+    npt.assert_allclose(
+        result["Model"].data.Baseline.values,
+        model_lower_expected,
+    )
+    npt.assert_allclose(
+        result["Model"].data.value.values,
+        model_upper_expected,
+    )
+    npt.assert_allclose(
+        result["Scenario"].data.Baseline.values,
+        scenario_lower_expected,
+    )
+    npt.assert_allclose(
+        result["Scenario"].data.value.values,
+        scenario_upper_expected,
+    )
+    if fraction:
+        assert result.opts["ylabel"] == "Fraction of variance"
+    else:
+        assert result.opts["ylabel"] == "Variance of hello (there²)"
+
+
+class TestPlotCiPlume:
+    """
+    Class defining tests for the plot_ci_plume method of the ClimEpiDatasetAccessor
+    class.
+    """
+
+    def test_plot_ci_plume(self):
+        """
+        Main test for the plot_ci_plume method of the ClimEpiDatasetAccessor class.
+        """
+        ds = generate_dataset(
+            data_var="temperature",
+            extra_dims={"scenario": 6, "model": 4, "realization": 9},
+        ).isel(lon=0, lat=0)
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
+            ds["temperature"]
+            - ds["temperature"].mean(dim=["scenario", "model", "realization"])
+        )
+        result = ds.climepi.plot_ci_plume()
+        # Test that mean and lower/upper bounds for each component are correct
+        npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
+        z = norm.ppf(0.95)
+        da_var_decomp = ds.climepi.var_decomp(fraction=False)["temperature"]
+        internal_upper_expected = z * np.sqrt(
+            da_var_decomp.sel(var_type="internal").values
+        )
+        internal_lower_expected = -internal_upper_expected
+        model_upper_expected = z * np.sqrt(
+            da_var_decomp.sel(var_type="internal").values
+            + da_var_decomp.sel(var_type="model").values
+        )
+        model_lower_expected = -model_upper_expected
+        scenario_upper_expected = z * np.sqrt(da_var_decomp.sum(dim="var_type").values)
+        scenario_lower_expected = -scenario_upper_expected
+        npt.assert_allclose(  # Portion due to internal variability
+            result.Area.Internal_variability.data[["internal_lower", "internal_upper"]],
+            np.array([internal_lower_expected, internal_upper_expected]).T,
+        )
+        npt.assert_allclose(  # Lower portion due to model spread
+            result.Area.Model_spread.data[["model_lower", "internal_lower"]],
+            np.array([model_lower_expected, internal_lower_expected]).T,
+        )
+        npt.assert_allclose(  # Upper portion due to model spread
+            result.Area.II.data[["internal_upper", "model_upper"]],
+            np.array([internal_upper_expected, model_upper_expected]).T,
+        )
+        npt.assert_allclose(  # Lower portion due to scenario spread
+            result.Area.Scenario_spread.data[["model_lower", "scenario_lower"]],
+            np.array([model_lower_expected, scenario_lower_expected]).T,
+        )
+        npt.assert_allclose(  # Upper portion due to scenario spread
+            result.Area.I.data[["model_upper", "scenario_upper"]],
+            np.array([model_upper_expected, scenario_upper_expected]).T,
+        )
+
+    def test_plot_ci_plume_internal_only(self):
+        """
+        Test the plot_ci_plume method of the ClimEpiDatasetAccessor class when only
+        internal variability is present.
+        """
+        ds = generate_dataset(
+            data_var="temperature",
+            extra_dims={"realization": 231},
+        ).isel(lon=0, lat=0)
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
+            ds["temperature"] - ds["temperature"].mean(dim="realization")
+        )
+        result = ds.climepi.plot_ci_plume()
+        # Test that mean and lower/upper bounds for each component are correct
+        npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
+        lower_expected = ds["temperature"].quantile(0.05, dim="realization").values
+        upper_expected = ds["temperature"].quantile(0.95, dim="realization").values
+        npt.assert_allclose(
+            result.Area.Internal_variability.data[["internal_lower", "internal_upper"]],
+            np.array([lower_expected, upper_expected]).T,
+        )
+
+    def test_plot_ci_plume_model_only(self):
+        """
+        Test the plot_ci_plume method of the ClimEpiDatasetAccessor class when only
+        model uncertainty is present (not estimating internal variability).
+        """
+        ds = generate_dataset(
+            data_var="temperature",
+            extra_dims={"model": 17},
+        ).isel(lon=0, lat=0)
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
+            ds["temperature"] - ds["temperature"].mean(dim="model")
+        )
+        result = ds.climepi.plot_ci_plume(estimate_internal_variability=False)
+        # Test that mean and lower/upper bounds for each component are correct
+        npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
+        lower_expected = ds["temperature"].quantile(0.05, dim="model").values
+        upper_expected = ds["temperature"].quantile(0.95, dim="model").values
+        npt.assert_allclose(
+            result.Area.Model_spread.data[["model_lower", "internal_lower"]],
+            np.array([lower_expected, np.zeros(lower_expected.shape)]).T,
+            atol=1e-7,
+        )
+        npt.assert_allclose(
+            result.Area.I.data[["internal_upper", "model_upper"]],
+            np.array([np.zeros(upper_expected.shape), upper_expected]).T,
+            atol=1e-7,
+        )
+
+    def test_plot_ci_plume_scenario_only(self):
+        """
+        Test the plot_ci_plume method of the ClimEpiDatasetAccessor class when only
+        scenario uncertainty is present (not estimating internal variability).
+        """
+        ds = generate_dataset(
+            data_var="temperature",
+            extra_dims={"scenario": 17},
+        ).isel(lon=0, lat=0)
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
+            ds["temperature"] - ds["temperature"].mean(dim="scenario")
+        )
+        result = ds.climepi.plot_ci_plume(estimate_internal_variability=False)
+        # Test that mean and lower/upper bounds for each component are correct
+        npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
+        lower_expected = ds["temperature"].quantile(0.05, dim="scenario").values
+        upper_expected = ds["temperature"].quantile(0.95, dim="scenario").values
+        npt.assert_allclose(
+            result.Area.Scenario_spread.data[["scenario_lower", "model_lower"]],
+            np.array([lower_expected, np.zeros(lower_expected.shape)]).T,
+            atol=1e-7,
+        )
+        npt.assert_allclose(
+            result.Area.I.data[["model_upper", "scenario_upper"]],
+            np.array([np.zeros(upper_expected.shape), upper_expected]).T,
+            atol=1e-7,
         )
 
 
