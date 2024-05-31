@@ -525,8 +525,7 @@ class ClimEpiDatasetAccessor:
         """
         data_var = self._process_data_var_argument(data_var)
         da_plot = self._obj[data_var].squeeze()
-        kwargs_hvplot = {"x": "time"}
-        kwargs_hvplot.update(kwargs)
+        kwargs_hvplot = {"x": "time", **kwargs}
         plot_obj = da_plot.hvplot.line(**kwargs_hvplot)
         return plot_obj
 
@@ -560,8 +559,8 @@ class ClimEpiDatasetAccessor:
             "rasterize": True,
             "coastline": True,
             "dynamic": False,
+            **kwargs,
         }
-        kwargs_hvplot.update(kwargs)
         plot_obj = da_plot.hvplot.quadmesh(**kwargs_hvplot)
         if not include_ocean:
             plot_obj *= gf.ocean.options(fill_color="white")
@@ -622,8 +621,8 @@ class ClimEpiDatasetAccessor:
             .replace("[", "(")
             .replace("]", ")"),
             "group_label": "Uncertainty type",
+            **kwargs,
         }
-        kwargs_hvplot.update(kwargs)
         plot_obj = ds_plot.hvplot.area(**kwargs_hvplot)
         return plot_obj
 
