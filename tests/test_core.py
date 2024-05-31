@@ -36,13 +36,19 @@ def test_run_epi_model():
 
 
 @pytest.mark.parametrize("lon_0_360", [True, False])
-def test_sel_geo(lon_0_360):
+@pytest.mark.parametrize(
+    "location,lat,lon", [("Miami", 25.7617, -80.1918), ("Cape Town", -33.9221, 18.4231)]
+)
+def test_sel_geo(lon_0_360, location, lat, lon):
     """Test the sel_geo method of the ClimEpiDatasetAccessor class."""
-    ds = generate_dataset(lon_0_360=lon_0_360)
-    location = "Miami"
-    lat = 25.7617
-    lon = -80.1918
+    ds = xr.Dataset(
+        {
+            "hello": (("lat", "lon", "there"), np.ones((9, 36, 3))),
+        },
+        coords={"lat": np.arange(0, 90, 10), "lon": np.arange(-90, 90, 5)},
+    )
     if lon_0_360:
+        ds["lon"] = np.sort(ds["lon"].values % 360)
         lon = lon % 360
     result = ds.climepi.sel_geo(location=location)
     lat_result = result.lat.values
