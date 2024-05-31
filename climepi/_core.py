@@ -719,8 +719,8 @@ class ClimEpiDatasetAccessor:
         ds_plume = xr.Dataset()
         multiple_realizations = len(da_raw.realization) > 1
         if estimate_internal_variability or multiple_realizations:
-            # Obtain confidence interval contribution from internal variability if there are
-            # multiple realizations or if internal variability is to be estimated
+            # Obtain confidence interval contribution from internal variability if there
+            # are multiple realizations or if internal variability is to be estimated
             if len(da_raw.scenario) == 1 and len(da_raw.model) == 1:
                 ds_plume["internal_lower"] = da_stat.squeeze(
                     ["model", "scenario"], drop=True
