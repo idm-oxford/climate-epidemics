@@ -76,11 +76,6 @@ class ClimEpiDatasetAccessor:
         xarray.Dataset
             A new dataset containing the data for the specified location.
         """
-        if len(self._obj.lon) == 1 or len(self._obj.lat) == 1:
-            print(
-                "Warning: Trying to select a location from a dataset with only one",
-                "longitude and/or latitude co-ordinate.",
-            )
         location_geopy = geolocator.geocode(location, **kwargs)
         lat = location_geopy.latitude
         lon = location_geopy.longitude
