@@ -685,10 +685,6 @@ class ClimEpiDatasetAccessor:
             **kwargs_area,
         }
         data_var = self._process_data_var_argument(data_var)
-        if isinstance(data_var, list):
-            # Avoid bug with np.sqrt for an xarray Dataset with a single data variable
-            # (this ensures DataArrays are used instead when necessary)
-            data_var = data_var[0]
         da_raw = self._obj[data_var].squeeze()
         # Make "scenario", "model" and "realization" dimensions of the data variable if
         # they are not present or are (singleton) non-dimension coordinates (reduces
@@ -749,10 +745,10 @@ class ClimEpiDatasetAccessor:
                 ).chunk({"model": -1})
                 ds_plume["model_lower"] = da_raw_rechunked.quantile(
                     0.5 - conf_level / 200, dim="model"
-                ).drop("quantile")
+                ).drop_vars("quantile")
                 ds_plume["model_upper"] = da_raw_rechunked.quantile(
                     0.5 + conf_level / 200, dim="model"
-                ).drop("quantile")
+                ).drop_vars("quantile")
             else:
                 da_std_internal_model = np.sqrt(
                     da_var_decomp.sel(var_type=["internal", "model"]).sum(
@@ -776,10 +772,10 @@ class ClimEpiDatasetAccessor:
                 ).chunk({"scenario": -1})
                 ds_plume["scenario_lower"] = da_raw_rechunked.quantile(
                     0.5 - conf_level / 200, dim="scenario"
-                ).drop("quantile")
+                ).drop_vars("quantile")
                 ds_plume["scenario_upper"] = da_raw_rechunked.quantile(
                     0.5 + conf_level / 200, dim="scenario"
-                ).drop("quantile")
+                ).drop_vars("quantile")
             else:
                 da_std_internal_model_scenario = np.sqrt(
                     da_var_decomp.sum(dim="var_type")
