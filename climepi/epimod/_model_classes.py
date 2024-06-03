@@ -221,8 +221,8 @@ class SuitabilityModel(EpiModel):
         # Run the main logic of a suitability model defined by a temperature range.
         temperature = ds_clim["temperature"]
         temperature_range = self.temperature_range
-        da_suitability = (temperature > temperature_range[0]) & (
-            temperature < temperature_range[1]
+        da_suitability = (temperature >= temperature_range[0]) & (
+            temperature <= temperature_range[1]
         )
         return da_suitability
 
