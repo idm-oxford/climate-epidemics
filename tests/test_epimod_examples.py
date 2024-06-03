@@ -1,0 +1,74 @@
+"""
+Unit tests for the _examples.py module of the epimod subpackage.
+"""
+
+from unittest.mock import patch
+
+import numpy.testing as npt
+import pytest
+import xarray as xr
+import xarray.testing as xrt
+
+from climepi import epimod
+
+
+class TestGetExampleModel:
+    @patch.dict(
+        epimod._examples.EXAMPLES,
+        {"test": {"temperature_range": [10, 40]}},
+    )
+    def test_get_example_model_range(self):
+        """
+        Test that get_example_model with a temperature range supplied returns an
+        EpiModel object with the supplied temperature range."""
+        epi_model = epimod.get_example_model("test")
+        assert epi_model.temperature_range == [10, 40]
+
+    @patch.dict(
+        epimod._examples.EXAMPLES,
+        {"test": {"temperature_vals": [10, 20, 30], "suitability_vals": [0, 1, 0]}},
+    )
+    def test_get_example_model_vals(self):
+        """
+        Test that get_example_model with temperature and suitability values supplied
+        returns an EpiModel object with the supplied values."""
+        epi_model = epimod.get_example_model("test")
+        npt.assert_allclose(
+            epi_model.suitability_table["temperature"].values, [10, 20, 30]
+        )
+        npt.assert_allclose(
+            epi_model.suitability_table["suitability"].values, [0, 1, 0]
+        )
+
+    @patch.dict(
+        epimod._examples.EXAMPLES,
+        {"test": {"suitability_table_path": "not/a/real/path.nc"}},
+    )
+    def test_get_example_model_table(self):
+        """
+        Test that get_example_model with a suitability table path supplied returns an
+        EpiModel object with the suitability table loaded from the path.
+        """
+        suitability_table = xr.Dataset(
+            {"suitability": ("temperature", [0, 1, 0])},
+            coords={"temperature": [10, 20, 30]},
+        )
+        suitability_table["suitability"].attrs = {"long_name": "Suitability"}
+        suitability_table["temperature"].attrs = {
+            "long_name": "Temperature",
+            "units": "°C",
+        }
+        with patch("xarray.open_dataset", return_value=suitability_table):
+            epi_model = epimod.get_example_model("test")
+        xrt.assert_identical(epi_model.suitability_table, suitability_table)
+
+
+@patch.dict(epimod._examples.EXAMPLES, {"googly": "back of the hand"})
+def test_get_example_details():
+    """
+    Test that _get_example_details returns the details of an example model.
+    """
+    result = epimod._examples._get_example_details("googly")
+    assert result == "back of the hand"
+    with pytest.raises(ValueError, match="Available examples are"):
+        epimod._examples._get_example_details("flipper")
