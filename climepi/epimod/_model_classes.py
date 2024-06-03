@@ -78,22 +78,35 @@ class SuitabilityModel(EpiModel):
 
     def __init__(self, temperature_range=None, suitability_table=None):
         super().__init__()
-        self.temperature_range = temperature_range
-        self.suitability_table = suitability_table
         if suitability_table is None:
+            self.temperature_range = temperature_range
+            self.suitability_table = None
             self._suitability_var_name = "suitability"
             self._suitability_var_long_name = "Suitability"
         else:
-            assert (
-                len(suitability_table.data_vars) == 1
-            ), "The suitability table should only have a single data variable."
-            self._suitability_var_name = list(suitability_table.data_vars)[0]
-            self._suitability_var_long_name = suitability_table[
-                self._suitability_var_name
-            ].attrs.get("long_name", self._suitability_var_name.capitalize())
-            self.suitability_table[self._suitability_var_name].attrs.update(
-                {"long_name": self._suitability_var_long_name}
+            if len(suitability_table.data_vars) != 1:
+                raise ValueError(
+                    "The suitability table should only have a single data variable."
+                )
+            if temperature_range is not None:
+                raise ValueError(
+                    "The temperature_range argument should not be provided if the "
+                    "suitability_table argument is provided."
+                )
+            self.temperature_range = None
+            suitability_var_name = list(suitability_table.data_vars)[0]
+            suitability_var_long_name = suitability_table[
+                suitability_var_name
+            ].attrs.get("long_name", suitability_var_name.capitalize())
+            self.suitability_table = suitability_table.assign(
+                {
+                    suitability_var_name: suitability_table[
+                        suitability_var_name
+                    ].assign_attrs(long_name=suitability_var_long_name)
+                }
             )
+            self._suitability_var_name = suitability_var_name
+            self._suitability_var_long_name = suitability_var_long_name
 
     def run(self, ds_clim, return_months_suitable=False, suitability_threshold=0):
         """
