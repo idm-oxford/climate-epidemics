@@ -149,7 +149,7 @@ class SuitabilityModel(EpiModel):
             )
         ds_epi = add_bnds_from_other(ds_epi, ds_clim)
         if return_months_suitable:
-            ds_epi = ds_epi.epimod.months_suitable(
+            ds_epi = ds_epi.climepi.months_suitable(
                 suitability_threshold=suitability_threshold
             )
         return ds_epi
