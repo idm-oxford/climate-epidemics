@@ -50,8 +50,8 @@ class SuitabilityModel(EpiModel):
     temperature_range : list or tuple or array-like of two floats, optional
         A list or tuple of two floats defining the temperature range of suitability
         (in degrees Celsius), where suitability is assumed to be 1 for temperatures
-        within the range and 0 otherwise. Default is None. Not used if
-        `suitability_table` is not None.
+        within the range and 0 otherwise. Default is None. Only one of
+        `temperature_range` and `suitability_table` should be provided.
     suitability_table : xarray.Dataset
         A dataset containing suitability values defined for different temperature
         values or temperature/precipitation combinations. The dataset should have a
@@ -64,8 +64,10 @@ class SuitabilityModel(EpiModel):
         required if suitability only depends on temperature), and nearest neighbour
         interpolation is used to calculate suitability values away from grid points
         (this is for performance reasons). Suitability values can be either binary (0
-        or 1) or continuous. Suitability is assumed to be 0 outside of the grid.
-        Default is None.
+        or 1) or continuous. Suitability is assumed to take the nearest endpoint value
+        for temperature and/or precipitation values outside the provided range(s).
+        Default is None. Only one of `temperature_range` and `suitability_table` should
+        be provided.
 
     Parameters:
     -----------
@@ -238,8 +240,6 @@ class SuitabilityModel(EpiModel):
                 temperature_curr,
                 table_temp_vals,
                 table_suitability_vals,
-                left=0,
-                right=0,
             )
             return suitability_curr
 
