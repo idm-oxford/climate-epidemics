@@ -5,7 +5,6 @@ subpackage
 
 import cftime
 import geoviews
-import holoviews as hv
 import hvplot.xarray  # noqa
 import numpy as np
 import numpy.testing as npt
@@ -15,8 +14,8 @@ import xarray.testing as xrt
 from holoviews.element.comparison import Comparison as hvt
 from scipy.stats import norm
 
-from climepi import ClimEpiDatasetAccessor  # noqa
-from climepi.testing.fixtures import generate_dataset, generate_epi_model
+from climepi import ClimEpiDatasetAccessor, epimod
+from climepi.testing.fixtures import generate_dataset
 
 
 def test__init__():
@@ -33,7 +32,7 @@ def test_run_epi_model():
     method of the EpiModel class is tested in the test module for the epimod subpackage.
     """
     ds = generate_dataset()
-    epi_model = generate_epi_model()
+    epi_model = epimod.SuitabilityModel(temperature_range=(15, 20))
     result = ds.climepi.run_epi_model(epi_model)
     expected = epi_model.run(ds)
     xrt.assert_identical(result, expected)
