@@ -17,6 +17,10 @@ EXAMPLES = {
     "mordecai_ae_aegypti_range": {  # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_range": [17.8, 34.6],
     },
+    "parham_anopheles_range": {  # from https://doi.org/10.1007/978-1-4419-6064-1_13
+        "temperature_range": [12.1606, 40],
+        "precipitation_range": [0, 50],
+    },
     "mordecai_ae_aegypti_table": {  # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_vals": np.arange(18, 37),
         "suitability_vals": np.array(
@@ -123,6 +127,47 @@ def get_example_model(name):
     if "suitability_table_path" in example_details:
         suitability_table = xr.open_dataset(example_details["suitability_table_path"])
         epi_model = epimod.SuitabilityModel(suitability_table=suitability_table)
+    elif (
+        "temperature_range" in example_details
+        and "precipitation_range" in example_details
+    ):
+        # Create a suitability table with suitability 1 in the relevant ranges and 0
+        # outside them (with the range limits equidistant from two adjacent grid points
+        # to ensure the correct ranges are enforced with nearest-neighbour
+        # interpolation).
+        temperature_range = example_details["temperature_range"]
+        temperature_diff = temperature_range[1] - temperature_range[0]
+        temperature_vals = temperature_range[0] + temperature_diff * np.arange(
+            -0.005, 1.01, 0.01
+        )
+        precipitation_range = example_details["precipitation_range"]
+        precipitation_diff = precipitation_range[1] - precipitation_range[0]
+        precipitation_vals = precipitation_range[0] + precipitation_diff * np.arange(
+            -0.005, 1.01, 0.01
+        )
+        suitability_vals = np.ones((len(temperature_vals), len(precipitation_vals)))
+        suitability_vals[0, :] = 0
+        suitability_vals[-1, :] = 0
+        suitability_vals[:, 0] = 0
+        suitability_vals[:, -1] = 0
+        suitability_table = xr.Dataset(
+            {"suitability": (["temperature", "precipitation"], suitability_vals)},
+            coords={
+                "temperature": temperature_vals,
+                "precipitation": precipitation_vals,
+            },
+        )
+        suitability_table["suitability"].attrs = {"long_name": "Suitability"}
+        suitability_table["temperature"].attrs = {
+            "long_name": "Temperature",
+            "units": "°C",
+        }
+        suitability_table["precipitation"].attrs = {
+            "long_name": "Precipitation",
+            "units": "mm/day",
+        }
+        epi_model = epimod.SuitabilityModel(suitability_table=suitability_table)
+
     elif "temperature_range" in example_details:
         epi_model = epimod.SuitabilityModel(
             temperature_range=example_details["temperature_range"]

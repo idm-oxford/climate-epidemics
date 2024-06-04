@@ -4,6 +4,7 @@ Unit tests for the _examples.py module of the epimod subpackage.
 
 from unittest.mock import patch
 
+import numpy as np
 import numpy.testing as npt
 import pytest
 import xarray as xr
@@ -17,12 +18,39 @@ class TestGetExampleModel:
         epimod._examples.EXAMPLES,
         {"test": {"temperature_range": [10, 40]}},
     )
-    def test_get_example_model_range(self):
+    def test_get_example_model_temp_range(self):
         """
         Test that get_example_model with a temperature range supplied returns an
         EpiModel object with the supplied temperature range."""
         epi_model = epimod.get_example_model("test")
         assert epi_model.temperature_range == [10, 40]
+
+    @patch.dict(
+        epimod._examples.EXAMPLES,
+        {"test": {"temperature_range": [10, 40], "precipitation_range": [0, 100]}},
+    )
+    def test_get_example_model_temp_precip_range(self):
+        """
+        Test that get_example_model with temperature and precipitation ranges supplied
+        returns an EpiModel object with a compatible suitability table.
+        """
+        epi_model = epimod.get_example_model("test")
+        temperature_vals = np.random.uniform(-5, 55, 1000)
+        precipitation_vals = np.random.uniform(-50, 150, 1000)
+        ds_clim = xr.Dataset(
+            {
+                "temperature": ("legspinner", temperature_vals),
+                "precipitation": ("legspinner", precipitation_vals),
+            }
+        )
+        suitability_vals = epi_model.run(ds_clim)["suitability"].values
+        suitability_vals_expected = (
+            (temperature_vals >= 10)
+            & (temperature_vals <= 40)
+            & (precipitation_vals >= 0)
+            & (precipitation_vals <= 100)
+        ).astype(int)
+        npt.assert_equal(suitability_vals, suitability_vals_expected)
 
     @patch.dict(
         epimod._examples.EXAMPLES,
