@@ -3,6 +3,7 @@
 import atexit
 import functools
 import pathlib
+import tempfile
 
 import dask.diagnostics
 import numpy as np
@@ -32,8 +33,8 @@ _EXAMPLE_EPI_MODEL_GETTER_DICT = {
 }
 _EXAMPLE_EPI_MODEL_GETTER_DICT["The arm ball"] = functools.partial(epimod.EpiModel)
 
-_TEMP_FILE_DIR = pathlib.Path(__file__).parent / "temp"
-_TEMP_FILE_DIR.mkdir(exist_ok=True, parents=True)
+_TEMP_FILE_DIR = pathlib.Path(tempfile.mkdtemp(suffix="climepi_app"))
+
 
 # Global variables
 
