@@ -19,21 +19,16 @@ from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 # Constants
 
 _EXAMPLE_CLIM_DATASET_NAMES = climdata.EXAMPLE_NAMES
-_EXAMPLE_CLIM_DATASET_NAMES.append("The googly")
 _EXAMPLE_CLIM_DATASET_GETTER_DICT = {
     name: functools.partial(climdata.get_example_dataset, name=name)
     for name in _EXAMPLE_CLIM_DATASET_NAMES
 }
 
 _EXAMPLE_EPI_MODEL_NAMES = epimod.EXAMPLE_NAMES
-_EXAMPLE_EPI_MODEL_NAMES.extend(["The flipper", "The arm ball"])
 _EXAMPLE_EPI_MODEL_GETTER_DICT = {
     name: functools.partial(epimod.get_example_model, name=name)
     for name in _EXAMPLE_EPI_MODEL_NAMES
 }
-_EXAMPLE_EPI_MODEL_GETTER_DICT["The arm ball"] = functools.partial(epimod.EpiModel)
-
-_TEMP_FILE_DIR = pathlib.Path(tempfile.mkdtemp(suffix="climepi_app"))
 
 
 # Global variables
@@ -56,17 +51,28 @@ def _get_epi_model_func(epi_model_name):
 
 
 def _run_epi_model_func(
-    ds_clim, epi_model, return_months_suitable=False, suitability_threshold=0
+    ds_clim,
+    epi_model,
+    return_months_suitable=False,
+    suitability_threshold=0,
+    save_path=None,
 ):
     # Get and run the epidemiological model.
-    ds_epi = ds_clim.climepi.run_epi_model(epi_model)
-    ds_epi = _compute_to_file_reopen(ds_epi, "epi_model_results")
+    ds_suitability = ds_clim.climepi.run_epi_model(epi_model)
     if return_months_suitable:
-        ds_epi = ds_epi.climepi.months_suitable(
+        save_path_suitability = save_path.parent / "ds_suitability.nc"
+    else:
+        save_path_suitability = save_path
+    ds_suitability = _compute_to_file_reopen(ds_suitability, save_path_suitability)
+    if return_months_suitable:
+        ds_months_suitable = ds_suitability.climepi.months_suitable(
             suitability_threshold=suitability_threshold
         )
-        ds_epi = _compute_to_file_reopen(ds_epi, "epi_model_months_suitable")
-    return ds_epi
+        ds_months_suitable = _compute_to_file_reopen(ds_months_suitable, save_path)
+        ds_suitability.close()
+        save_path_suitability.unlink()
+        return ds_months_suitable
+    return ds_suitability
 
 
 def _get_scope_dict(ds_in):
@@ -109,32 +115,13 @@ def _get_view_func(ds_in, plot_settings):
     return view
 
 
-def _compute_to_file_reopen(ds_in, name, dask_scheduler=None):
-    temp_file_path = _TEMP_FILE_DIR / f"{name}.nc"
-    try:
-        _file_ds_dict[name].close()
-    except KeyError:
-        pass
-    try:
-        temp_file_path.unlink()
-    except FileNotFoundError:
-        pass
+def _compute_to_file_reopen(ds_in, save_path, dask_scheduler=None):
     chunks = ds_in.chunks.mapping
-    delayed_obj = ds_in.to_netcdf(temp_file_path, compute=False)
+    delayed_obj = ds_in.to_netcdf(save_path, compute=False)
     with dask.diagnostics.ProgressBar():
         delayed_obj.compute(scheduler=dask_scheduler)
-    _file_ds_dict[name] = xr.open_dataset(temp_file_path, chunks=chunks)
-    ds_out = _file_ds_dict[name].copy()
+    ds_out = xr.open_dataset(save_path, chunks=chunks)
     return ds_out
-
-
-@atexit.register
-def _cleanup_temp_files():
-    for name, ds_file in _file_ds_dict.items():
-        ds_file.close()
-        temp_file_path = _TEMP_FILE_DIR / f"{name}.nc"
-        temp_file_path.unlink()
-    print("Deleted temporary files.")
 
 
 # Classes
@@ -548,6 +535,10 @@ class Controller(param.Parameterized):
         super().__init__(**params)
         self._ds_clim = None
         self._epi_model = None
+        self._ds_epi = None
+        self._ds_epi_path = (
+            pathlib.Path(tempfile.mkdtemp(suffix="_climepi_app")) / "ds_epi.nc"
+        )
         data_widgets = {
             "clim_dataset_name": {"name": "Climate dataset"},
             "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
@@ -658,13 +649,17 @@ class Controller(param.Parameterized):
             return_months_suitable = bool(
                 self.epi_output_choice == "Months where suitability exceeds threshold"
             )
+            if self._ds_epi is not None:
+                self._ds_epi.close()
             ds_epi = _run_epi_model_func(
                 self._ds_clim,
                 self._epi_model,
                 return_months_suitable=return_months_suitable,
                 suitability_threshold=self.suitabilty_threshold,
+                save_path=self._ds_epi_path,
             )
-            self.epi_plot_controller.initialize(ds_epi)
+            self._ds_epi = ds_epi
+            self.epi_plot_controller.initialize(ds_epi.copy())
             self.epi_model_status = "Model run complete"
             self.epi_model_ran = True
         except Exception as exc:
@@ -696,3 +691,14 @@ class Controller(param.Parameterized):
             self.param.suitabilty_threshold.precedence = 1
         else:
             self.param.suitabilty_threshold.precedence = -1
+
+    def cleanup_temp_file(self):
+        """
+        Cleanup the temporary file created for the epidemiological model output.
+        """
+        if self._ds_epi is not None:
+            self._ds_epi.close()
+        if self._ds_epi_path.exists():
+            self._ds_epi_path.unlink()
+            self._ds_epi_path.parent.rmdir()
+        print("\nDeleted temporary file.")

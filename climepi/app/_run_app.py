@@ -2,6 +2,8 @@
 Module defining the layout of the climepi app and providing a method to run it.
 """
 
+import atexit
+
 import panel as pn
 
 from climepi.app._app_classes_methods import Controller
@@ -29,7 +31,19 @@ def _get_app():
             ("Epidemiological projections", pn.Row(epi_plot_controls, epi_plot_view)),
         )
     )
+
+    def _cleanup_temp_file(session_context):
+        controller.cleanup_temp_file()
+
+    pn.state.on_session_destroyed(_cleanup_temp_file)
+    atexit.register(_cleanup_temp_file, None)
+
     return template
+
+
+# def _session_cleanup(session_context):
+#     print(f"Session {session_context.id} destroyed, performing cleanup.")
+#     # _cleanup_temp_files(session_context)
 
 
 def run_app():
@@ -44,5 +58,4 @@ def run_app():
     --------
     None
     """
-    template = _get_app()
-    pn.serve(template)
+    pn.serve({"/climepi_app": _get_app})
