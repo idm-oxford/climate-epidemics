@@ -164,7 +164,7 @@ class SuitabilityModel(EpiModel):
         -----------
         **kwargs: dict, optional
             Additional keyword arguments to pass to the plotting function (hvplot.line
-            for temperature-only suitability, or hvplot.image for temperature-
+            for temperature-only suitability, or hvplot.quadmesh for temperature-
             precipitation suitability).
 
         Returns:
