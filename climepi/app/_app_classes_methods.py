@@ -30,10 +30,6 @@ _EXAMPLE_EPI_MODEL_GETTER_DICT = {
 }
 
 
-# Global variables
-
-_file_ds_dict = {}
-
 # Pure functions
 
 
