@@ -1,6 +1,5 @@
 """Module defining the classes and methods underlying the climepi app."""
 
-import atexit
 import functools
 import pathlib
 import tempfile
@@ -12,7 +11,7 @@ import param
 import xarray as xr
 import xcdat.temporal
 
-import climepi  # noqa # pylint: disable=unused-import
+import climepi  # noqa #
 from climepi import climdata, epimod
 from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
