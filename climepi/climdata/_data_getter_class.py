@@ -1,5 +1,6 @@
 import itertools
 import pathlib
+import warnings
 
 import numpy as np
 import pooch
@@ -145,9 +146,10 @@ class ClimateDataGetter:
                 )
             else:
                 base_name_str_list.extend([f"{year}" for year in years])
-                print(
-                    "Warning: requesting a large number of non-uniform years may lead",
+                warnings.warn(
+                    "Warning: requesting a large number of non-uniform years may lead "
                     "to invalid long file names.",
+                    stacklevel=2,
                 )
             if location is not None:
                 base_name_str_list.append(location.replace(" ", "_"))
@@ -170,8 +172,11 @@ class ClimateDataGetter:
             for scenario, model, realization in itertools.product(
                 scenarios, models, realizations
             ):
-                name_str_list = base_name_str_list.copy()
-                name_str_list.extend([scenario, model, f"{realization}.nc"])
+                name_str_list = base_name_str_list + [
+                    scenario,
+                    model,
+                    f"{realization}.nc",
+                ]
                 name_str = "_".join(name_str_list)
                 file_name_dict[scenario][model][realization] = name_str
             self._file_name_dict = file_name_dict
