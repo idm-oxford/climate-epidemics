@@ -54,22 +54,6 @@ time_monthly = xr.DataArray(
         "standard_name": "time",
     },
 )
-time_daily = xr.DataArray(
-    data=np.array(
-        [
-            cftime.DatetimeGregorian(2000, 1, 1, 12, 0, 0, 0, has_year_zero=False),
-            cftime.DatetimeGregorian(2000, 1, 2, 12, 0, 0, 0, has_year_zero=False),
-            cftime.DatetimeGregorian(2000, 1, 3, 12, 0, 0, 0, has_year_zero=False),
-        ],
-        dtype=object,
-    ),
-    dims=["time"],
-    attrs={
-        "axis": "T",
-        "long_name": "time",
-        "standard_name": "time",
-    },
-)
 
 time_bnds_yearly = xr.DataArray(
     name="time_bnds",
@@ -167,30 +151,6 @@ time_bnds_monthly = xr.DataArray(
         "xcdat_bounds": "True",
     },
 )
-time_bnds_daily = xr.DataArray(
-    name="time_bnds",
-    data=np.array(
-        [
-            [
-                cftime.DatetimeGregorian(2000, 1, 1, 0, 0, 0, 0, has_year_zero=False),
-                cftime.DatetimeGregorian(2000, 1, 2, 0, 0, 0, 0, has_year_zero=False),
-            ],
-            [
-                cftime.DatetimeGregorian(2000, 1, 2, 0, 0, 0, 0, has_year_zero=False),
-                cftime.DatetimeGregorian(2000, 1, 3, 0, 0, 0, 0, has_year_zero=False),
-            ],
-            [
-                cftime.DatetimeGregorian(2000, 1, 3, 0, 0, 0, 0, has_year_zero=False),
-                cftime.DatetimeGregorian(2000, 1, 4, 0, 0, 0, 0, has_year_zero=False),
-            ],
-        ],
-        dtype=object,
-    ),
-    dims=["time", "bnds"],
-    attrs={
-        "xcdat_bounds": "True",
-    },
-)
 
 # Latitude
 lat = xr.DataArray(
@@ -248,8 +208,8 @@ def generate_dataset(
     dtype : type, optional
         Data type of the data variable(s). Default is "float64"
     frequency : str, optional
-        Frequency to compute the group average for (options are "yearly", "monthly"
-        or "daily"). Default is "monthly".
+        Frequency to compute the group average for (options are "yearly" or "monthly").
+        Default is "monthly".
     extra_dims : Hashable, sequence of Hashable, dict, or None, optional
         Extra dimensions to add to the dataset (used as an argument to xarray's
         DataArray.expand_dims method). Default is None.
@@ -269,9 +229,6 @@ def generate_dataset(
     elif frequency == "yearly":
         time = time_yearly.copy()
         time_bnds = time_bnds_yearly
-    elif frequency == "daily":
-        time = time_daily
-        time_bnds = time_bnds_daily
     # Create the base dataset.
     da = xr.DataArray(
         data=np.ones((len(time), len(lat), len(lon)), dtype=dtype),
