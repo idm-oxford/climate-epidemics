@@ -236,8 +236,9 @@ class ISIMIPDataGetter(ClimateDataGetter):
         super()._open_temp_data(**kwargs)
 
     def _process_data(self):
-        # Extends the parent method to add temporal subsetting, renaming, unit conversion
-        # and (depending on the requested data frequency) temporal averaging.
+        # Extends the parent method to add temporal subsetting, time bounds, renaming,
+        # unit conversion and (depending on the requested data frequency) temporal
+        # averaging.
         ds_processed = self._ds.copy()
         frequency = self._frequency
         years = self._subset["years"]
