@@ -478,25 +478,26 @@ class TestProcessData:
         if lon_option == "dim":
             ds_in = xr.Dataset(
                 data_vars={
-                    "delivery": xr.DataArray(np.random.rand(1, 5), dims=["lon", "lat"])
+                    "delivery": xr.DataArray(np.random.rand(1, 1), dims=["lon", "lat"])
                 },
                 coords={
                     "lon": xr.DataArray([345], dims="lon"),
-                    "lat": xr.DataArray(np.arange(5), dims="lat"),
+                    "lat": xr.DataArray([1], dims="lat"),
                 },
             )
         elif lon_option == "non_dim":
             ds_in = xr.Dataset(
-                data_vars={"delivery": xr.DataArray(np.random.rand(5), dims=["lat"])},
+                data_vars={"delivery": xr.DataArray(np.random.rand(1), dims=["lat"])},
                 coords={
                     "lon": 345,
-                    "lat": xr.DataArray(np.arange(5), dims="lat"),
+                    "lat": xr.DataArray([1], dims="lat"),
                 },
             )
         ds_in["lon"].attrs = {"long_name": "Longitude", "units": "degrees_east"}
         ds_in["lat"].attrs = {"long_name": "Latitude", "units": "degrees_north"}
         data_getter1 = ClimateDataGetter()
         data_getter1.lon_res = 0.8
+        data_getter1.lat_res = 0.15
         data_getter1._ds = ds_in
         data_getter1._process_data()
         ds_out1 = data_getter1._ds
@@ -511,11 +512,13 @@ class TestProcessData:
         assert ds_out1["lon_bnds"].attrs == {}
         # Case where lon_res is not set, so bounds cannot be calculated
         data_getter2 = ClimateDataGetter()
+        data_getter2.lat_res = 0.15
         data_getter2._ds = ds_in
         with caplog.at_level(logging.WARNING):
             data_getter2._process_data()
         assert "Cannot generate bounds" in caplog.text
         ds_out2 = data_getter2._ds
+        assert "lat_bnds" in ds_out2
         assert "lon_bnds" not in ds_out2
 
 
