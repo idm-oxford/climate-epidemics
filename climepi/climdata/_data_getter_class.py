@@ -342,7 +342,7 @@ class ClimateDataGetter:
         models = self._subset["models"]
         realizations = self._subset["realizations"]
         save_dir = self._save_dir
-        file_name_dict = self._file_name_dict
+        file_name_dict = self.file_name_dict
         ds_all = self._ds
         for scenario, model, realization in itertools.product(
             scenarios, models, realizations
