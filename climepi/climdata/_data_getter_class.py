@@ -254,7 +254,7 @@ class ClimateDataGetter:
     def _open_local_data(self):
         # Open the data from the local files (will raise FileNotFoundError if any
         # files are not found), and store the dataset in the _ds attribute.
-        save_dir = pathlib.Path(self._save_dir)
+        save_dir = self._save_dir
         file_names = self.file_names
         _ds = xcdat.open_mfdataset(
             [save_dir / file_name for file_name in file_names], chunks={}
@@ -287,7 +287,7 @@ class ClimateDataGetter:
         # closing the temporary file(s) before they are deleted). The 'kwargs' argument
         # is included to allow for different options to be passed to
         # xarray.open_mfdataset by subclasses which extend this method.
-        kwargs = {"chunks": {}, **kwargs}
+        kwargs = {"data_vars": "minimal", "chunks": {}, **kwargs}
         temp_save_dir = self._temp_save_dir
         temp_file_names = self._temp_file_names
         temp_file_paths = [
@@ -297,30 +297,28 @@ class ClimateDataGetter:
         self._ds = self._ds_temp
 
     def _process_data(self):
-        # Process the remotely opened dataset, and store the processed dataset in the
-        # _ds attribute. Processing common to all data sources is implemented here;
-        # this method can be extended (or overridden) by subclasses to include data
-        # source-specific processing.
+        # Process the downloaded dataset, and store the processed dataset in the _ds
+        # attribute. Processing common to all data sources is implemented here; this
+        # method can be extended (or overridden) by subclasses to include data source-
+        # specific processing.
         ds_processed = self._ds.copy()
-        # Convert the longitude coordinate to the range -180 to 180 (MAY REMOVE IN
-        # FUTURE)
-        if ds_processed.lon.size > 1:
-            ds_processed = xcdat.swap_lon_axis(ds_processed, to=(-180, 180))
-        else:
-            lon_attrs = ds_processed.lon.attrs
-            ds_processed["lon"] = ((ds_processed["lon"] + 180) % 360) - 180
-            ds_processed["lon"].attrs = lon_attrs
         # Add latitude and longitude bounds (use provided resolution if available, else
         # use the xcdat `add_missing_bounds` method to infer bounds from the coordinate
         # values (which is not possible for single-value coordinates).
         lon_res = self.lon_res
+        lat_res = self.lat_res
+        if "lon" not in ds_processed.dims:
+            # Ensure lon is a dim so it appears as a dim of the bounds variables
+            ds_processed = ds_processed.expand_dims("lon")
+        if "lat" not in ds_processed.dims:
+            ds_processed = ds_processed.expand_dims("lat")
         if "lon_bnds" not in ds_processed and lon_res is not None:
             ds_processed["lon_bnds"] = xr.concat(
                 [ds_processed.lon - lon_res / 2, ds_processed.lon + lon_res / 2],
                 dim="bnds",
             ).T
             ds_processed["lon"].attrs.update(bounds="lon_bnds")
-        lat_res = self.lat_res
+
         if "lat_bnds" not in ds_processed and lat_res is not None:
             ds_processed["lat_bnds"] = xr.concat(
                 [ds_processed.lat - lat_res / 2, ds_processed.lat + lat_res / 2],
@@ -328,6 +326,10 @@ class ClimateDataGetter:
             ).T
             ds_processed["lat"].attrs.update(bounds="lat_bnds")
         ds_processed = ds_processed.bounds.add_missing_bounds(axes=["X", "Y"])
+        # Convert the longitude coordinate to the range -180 to 180 (MAY REMOVE IN
+        # FUTURE) - note this should be done after adding bounds to avoid issues on
+        # the boundaries
+        ds_processed = xcdat.swap_lon_axis(ds_processed, to=(-180, 180))
         # Use degree symbol for units of latitude and longitude (for nicer plotting)
         ds_processed["lon"].attrs.update(units="°E")
         ds_processed["lat"].attrs.update(units="°N")
