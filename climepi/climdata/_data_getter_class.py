@@ -201,7 +201,7 @@ class ClimateDataGetter:
             ]
         return self._file_names
 
-    def get_data(self, download=True):
+    def get_data(self, download=True, force_remake=False):
         """
         Main method for retrieving data. First tries to open the data locally from
         the provided 'save_dir' directory. If not found locally, the data are searched
@@ -216,17 +216,22 @@ class ClimateDataGetter:
             locally (default is True). If False and the data are not found locally,
             the remotely held data are only lazily opened and processed (provided this
             is possible).
-
+        force_remake : bool, optional
+            Whether to force re-download and re-formatting of the data even if the data
+            exist locally (default is False). Can only be used if 'download' is True.
         Returns
         -------
         xarray.Dataset
             Processed data (lazily opened from either local or remote files)
         """
-        try:
-            self._open_local_data()
-            return self._ds
-        except FileNotFoundError:
-            pass
+        if not download and force_remake:
+            raise ValueError("Cannot force remake if download is False.")
+        if not force_remake:
+            try:
+                self._open_local_data()
+                return self._ds
+            except FileNotFoundError:
+                pass
         if not self.remote_open_possible and not download:
             raise ValueError(
                 "It is not possible to lazily load the remote data. Set download=True",

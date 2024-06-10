@@ -21,6 +21,9 @@ from climepi import climdata
 #   subset: Dictionary of options for subsetting the dataset to pass to
 #       climepi.climdata.get_climate_data as keyword arguments (see the docstring of
 #       climepi.climdata.get_climate_data for details).
+#   formatted_data_downloadable: Optional, boolean indicating whether the formatted
+#       example dataset is available for direct download. If not specified, it is
+#       assumed to be False.
 EXAMPLES = {
     "lens2_world": {
         "data_source": "lens2",
@@ -53,6 +56,7 @@ EXAMPLES = {
         "subset": {
             "location": "London",
         },
+        "formatted_data_downloadable": True,
     },
     "isimip_capitals": {
         "data_source": "isimip",
@@ -114,13 +118,11 @@ EXAMPLES = {
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
-def get_example_dataset(name, data_dir=None):
+def get_example_dataset(name, data_dir=None, force_remake=False):
     """
-    Load an example climate dataset if it exists locally. If the dataset does not exist
-    locally, this function will retrieve, download and format the underlying data from
-    the relevant server. If in future the formatted example datasets are made available
-    for direct download, this function will be updated to download the dataset using
-    `pooch` if it does not exist locally.
+    Load an example climate dataset if it exists locally, download the formatted example
+    dataset if possible, or retrieve/download/format the raw underlying data from the
+    relevant server.
 
     Parameters
     ----------
@@ -132,52 +134,38 @@ def get_example_dataset(name, data_dir=None):
         with a small subset of realizations), and "isimip_london" (ISIMIP monthly data
         for London for 2000-2100).
     data_dir : str or pathlib.Path, optional
-        Data directory in which to look for the example dataset. If not specified, the
-        directory 'data/examples/{name}' within the same parent directory as the
-        `climepi` package will be used if it exists, and otherwise the OS cache will be
-        used.
+        Data directory in which to look for the example dataset at, or download the
+        dataset to. If not specified, the directory 'data/examples/{name}' within the
+        parent directory of the climepi package will be used if 'data/examples' exists,
+        otherwise the OS cache will be used.
+    force_remake : bool, optional
+        If True, force the download/formatting of the raw underlying data, even if the
+        formatted dataset already exists locally and/or is available for direct
+        download (default is False).
+
 
     Returns
     -------
     xarray.Dataset
         Example dataset.
     """
-    # Get details of the example dataset.
-    example_details = _get_example_details(name)
     data_dir = _get_data_dir(name, data_dir)
+    example_details = _get_example_details(name)
+    # If the formatted example dataset is available for direct download, download it
+    # if neccessary
+    if example_details.get("formatted_data_downloadable", False) and not force_remake:
+        _fetch_formatted_example_dataset(name, data_dir)
+    # Download and format the raw underlying data if neccessary, and return the dataset
     data_source = example_details["data_source"]
     frequency = example_details["frequency"]
     subset = example_details["subset"]
-    file_names = climdata.get_climate_data_file_names(
-        data_source=data_source,
-        frequency=frequency,
-        subset=subset,
-    )
-    # Create a pooch instance for the example dataset, and try to fetch the files.
-    # Currently, the formatted example datasets are not available for direct download,
-    # so this will either simply return the local file paths if the dataset exists
-    # locally, or otherwise raise an error. However, in future this could be updated
-    # to directly download the formatted example datasets if they are made available.
-    pup = pooch.create(
-        base_url="",
-        path=data_dir,
-        registry={file_name: None for file_name in file_names},
-    )
-    try:
-        _ = [pup.fetch(file_name) for file_name in file_names]
-    except ValueError:
-        print(
-            "The formatted example dataset was not found locally and is not currently"
-            + " available to download directly. Searching for the raw data and creating"
-            + " the example dataset from scratch."
-        )
-    # Load the dataset
     ds_example = climdata.get_climate_data(
         data_source=data_source,
         frequency=frequency,
         subset=subset,
         save_dir=data_dir,
         download=True,
+        force_remake=force_remake,
     )
     return ds_example
 
@@ -199,10 +187,9 @@ def _get_example_details(name):
 def _get_data_dir(name, data_dir):
     # Helper function for getting the directory where the example dataset is to be
     # downloaded/accessed. If no directory is specified, then if a directory named
-    # 'data/examples/{name}' exists in the same parent directory as the climepi
-    # package, the example datasets will be downloaded to and accessed from that
-    # directory. Otherwise, the datasets will be downloaded to and accessed from the OS
-    # cache.
+    # 'data/examples' exists in the parent directory of the climepi package, the example
+    # datasets will be downloaded to and accessed from 'data/examples/{name}'.
+    # Otherwise, the datasets will be downloaded to and accessed from the OS cache.
     if data_dir is None:
         base_dir = pathlib.Path(__file__).parents[2] / "data/examples"
         if not base_dir.exists():
@@ -211,6 +198,46 @@ def _get_data_dir(name, data_dir):
     return data_dir
 
 
+def _fetch_formatted_example_dataset(name, data_dir):
+    # Helper function for fetching the formatted example dataset if available for direct
+    # download.
+    example_details = _get_example_details(name)
+    data_source = example_details["data_source"]
+    frequency = example_details["frequency"]
+    subset = example_details["subset"]
+    file_names = climdata.get_climate_data_file_names(
+        data_source=data_source,
+        frequency=frequency,
+        subset=subset,
+    )
+    url = (
+        "https://github.com/will-s-hart/climate-epidemics/tree/main/data/examples/"
+        + name
+    )
+    pup = pooch.create(
+        base_url=url,
+        path=data_dir,
+        retry_if_failed=3,
+    )
+    registry_file_path = _get_registry_file_path(name)
+    pup.load_registry(registry_file_path)
+    _ = [pup.fetch(file_name) for file_name in file_names]
+
+
+def _get_registry_file_path(name):
+    # Helper function for getting the path to the registry file for the example dataset.
+    return pathlib.Path(__file__).parent / "_example_registry_files" / f"{name}.txt"
+
+
+def _make_example_registry(name, data_dir=None):
+    # Create a registry file for the example dataset to be used by a pooch instance for
+    # downloading the dataset.
+    data_dir = _get_data_dir(name, data_dir)
+    registry_file_path = _get_registry_file_path(name)
+    pooch.make_registry(data_dir, registry_file_path, recursive=False)
+
+
 if __name__ == "__main__":
     for example_name in EXAMPLES:
-        ds = get_example_dataset(example_name)
+        ds = get_example_dataset(example_name, force_remake=True)
+        _make_example_registry(example_name)

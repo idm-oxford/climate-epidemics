@@ -10,6 +10,7 @@ def get_climate_data(
     subset=None,
     save_dir=None,
     download=True,
+    force_remake=False,
     max_subset_wait_time=20,
 ):
     """
@@ -61,6 +62,9 @@ def get_climate_data(
         directory if not found locally (default is True). If False and the data are not
         found locally, a lazily opened xarray dataset linked to the remote data is
         returned. For ISIMIP data, the data must be downloaded if not found locally.
+    force_remake : bool, optional
+        Whether to force re-download and re-formatting of the data even if found
+        locally (default is False). Can only be used if 'download' is True.
     max_subset_wait_time : int or float, optional
         For ISIMIP data only; maximum time to wait for server-side data subsetting to
         complete, in seconds, before timing out (default is 20). Server-side subsetting
@@ -74,7 +78,12 @@ def get_climate_data(
     """
     if "location" in subset and isinstance(subset["location"], list):
         return _get_climate_data_location_list(
-            data_source, frequency, subset, save_dir, download
+            data_source=data_source,
+            frequency=frequency,
+            subset=subset,
+            save_dir=save_dir,
+            download=download,
+            force_remake=force_remake,
         )
     data_getter = _get_data_getter(
         data_source=data_source,
@@ -83,7 +92,7 @@ def get_climate_data(
         save_dir=save_dir,
         max_subset_wait_time=max_subset_wait_time,
     )
-    ds_clim = data_getter.get_data(download=download)
+    ds_clim = data_getter.get_data(download=download, force_remake=force_remake)
     return ds_clim
 
 
@@ -133,13 +142,15 @@ def _get_data_getter(data_source, *args, max_subset_wait_time=None, **kwargs):
     return data_getter
 
 
-def _get_climate_data_location_list(data_source, frequency, subset, save_dir, download):
+def _get_climate_data_location_list(
+    data_source, frequency, subset, save_dir, download, force_remake
+):
     ds_list = []
     for location_curr in subset["location"]:
         try:
             subset_curr = {**subset, "location": location_curr}
             ds_curr = get_climate_data(
-                data_source, frequency, subset_curr, save_dir, download
+                data_source, frequency, subset_curr, save_dir, download, force_remake
             )
             ds_curr["location"] = [location_curr]
             for data_var in ds_curr.data_vars:
