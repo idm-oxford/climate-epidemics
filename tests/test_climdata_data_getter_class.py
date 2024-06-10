@@ -501,6 +501,7 @@ class TestProcessData:
         data_getter1._ds = ds_in
         data_getter1._process_data()
         ds_out1 = data_getter1._ds
+        assert "lon" in ds_out1.dims and "lat" in ds_out1.dims
         assert "lon_bnds" in ds_out1 and "lat_bnds" in ds_out1
         npt.assert_allclose(ds_out1.lon.values, -15)
         npt.assert_allclose(ds_out1["lon_bnds"].values, np.array([[-15.4, -14.6]]))
@@ -518,6 +519,7 @@ class TestProcessData:
             data_getter2._process_data()
         assert "Cannot generate bounds" in caplog.text
         ds_out2 = data_getter2._ds
+        assert "lon" in ds_out2.dims and "lat" in ds_out2.dims
         assert "lat_bnds" in ds_out2
         assert "lon_bnds" not in ds_out2
 
