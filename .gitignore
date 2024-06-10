@@ -4,7 +4,8 @@
 .DS_Store
 
 # Data files
-*.nc
+/data/examples/*
+!/data/examples/isimip_london
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
