@@ -17,10 +17,6 @@ EXAMPLES = {
     "mordecai_ae_aegypti_range": {  # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_range": [17.8, 34.6],
     },
-    "parham_anopheles_range": {  # from https://doi.org/10.1007/978-1-4419-6064-1_13
-        "temperature_range": [12.1606, 40],
-        "precipitation_range": [0, 50],
-    },
     "mordecai_ae_aegypti_table": {  # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_vals": np.arange(18, 37),
         "suitability_vals": np.array(
@@ -97,6 +93,10 @@ EXAMPLES = {
     "taylor_hlb_range": {
         # from https://doi.org/10.1111/1365-2664.13455
         "temperature_range": [16, 33],
+    },
+    "parham_anopheles_range": {  # from https://doi.org/10.1007/978-1-4419-6064-1_13
+        "temperature_range": [12.1606, 40],
+        "precipitation_range": [0.001, 50],
     },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
