@@ -7,11 +7,14 @@ import panel as pn
 from climepi.app._app_classes_methods import Controller
 
 
-def _get_app():
+def _get_app(clim_dataset_example_names=None, epi_model_example_names=None):
     # Returns a Panel template object defining the layout of the app.
     template = pn.template.BootstrapTemplate(title="climepi app")
 
-    controller = Controller()
+    controller = Controller(
+        clim_dataset_example_names=clim_dataset_example_names,
+        epi_model_example_names=epi_model_example_names,
+    )
 
     data_controls = controller.data_controls
     template.sidebar.append(data_controls)

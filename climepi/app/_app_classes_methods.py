@@ -1,6 +1,5 @@
 """Module defining the classes and methods underlying the climepi app."""
 
-import functools
 import pathlib
 import tempfile
 
@@ -15,33 +14,18 @@ import climepi  # noqa #
 from climepi import climdata, epimod
 from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
-# Constants
-
-_EXAMPLE_CLIM_DATASET_NAMES = climdata.EXAMPLE_NAMES
-_EXAMPLE_CLIM_DATASET_GETTER_DICT = {
-    name: functools.partial(climdata.get_example_dataset, name=name)
-    for name in _EXAMPLE_CLIM_DATASET_NAMES
-}
-
-_EXAMPLE_EPI_MODEL_NAMES = epimod.EXAMPLE_NAMES
-_EXAMPLE_EPI_MODEL_GETTER_DICT = {
-    name: functools.partial(epimod.get_example_model, name=name)
-    for name in _EXAMPLE_EPI_MODEL_NAMES
-}
-
-
 # Pure functions
 
 
 def _load_clim_data_func(clim_dataset_name):
     # Load climate data from the data source.
-    ds_clim = _EXAMPLE_CLIM_DATASET_GETTER_DICT[clim_dataset_name]()
+    ds_clim = climdata.get_example_dataset(clim_dataset_name)
     return ds_clim
 
 
 def _get_epi_model_func(epi_model_name):
     # Get the epidemiological model.
-    epi_model = _EXAMPLE_EPI_MODEL_GETTER_DICT[epi_model_name]()
+    epi_model = epimod.get_example_model(epi_model_name)
     return epi_model
 
 
@@ -492,19 +476,11 @@ class _PlotController(param.Parameterized):
 class Controller(param.Parameterized):
     """Main controller class for the dashboard."""
 
-    clim_dataset_name = param.ObjectSelector(
-        default=_EXAMPLE_CLIM_DATASET_NAMES[0],
-        objects=_EXAMPLE_CLIM_DATASET_NAMES,
-        precedence=1,
-    )
+    clim_dataset_name = param.ObjectSelector(precedence=1)
     clim_data_load_initiator = param.Event(default=False, precedence=1)
     clim_data_loaded = param.Boolean(default=False, precedence=-1)
     clim_data_status = param.String(default="Data not loaded", precedence=1)
-    epi_model_name = param.ObjectSelector(
-        default=_EXAMPLE_EPI_MODEL_NAMES[0],
-        objects=_EXAMPLE_EPI_MODEL_NAMES,
-        precedence=1,
-    )
+    epi_model_name = param.ObjectSelector(precedence=1)
     epi_output_choice = param.ObjectSelector(
         objects=[
             "Suitability values",
@@ -526,8 +502,23 @@ class Controller(param.Parameterized):
         default=_PlotController(), class_=_PlotController, precedence=-1
     )
 
-    def __init__(self, **params):
+    def __init__(
+        self,
+        clim_dataset_example_names=None,
+        epi_model_example_names=None,
+        **params,
+    ):
         super().__init__(**params)
+        self.param.clim_dataset_name.objects = (
+            clim_dataset_example_names or climdata.EXAMPLE_NAMES
+        )
+        self.param.clim_dataset_name.default = self.param.clim_dataset_name.objects[0]
+        self.clim_dataset_name = self.param.clim_dataset_name.default
+        self.param.epi_model_name.objects = (
+            epi_model_example_names or epimod.EXAMPLE_NAMES
+        )
+        self.param.epi_model_name.default = self.param.epi_model_name.objects[0]
+        self.epi_model_name = self.param.epi_model_name.default
         self._ds_clim = None
         self._epi_model = None
         self._ds_epi = None
