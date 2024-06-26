@@ -173,26 +173,11 @@ class TestGetData:
     }
     data_source = "warner"
 
-    def test_get_data_already_downloaded(self):
-        """
-        Test the get_data method of the ClimateDataGetter class retrieved locally
-        available data if already downloaded (_open_local_data is tested in detail
-        separately).
-        """
-        data_getter = ClimateDataGetter(subset=self.subset)
-        data_getter.data_source = self.data_source
-
-        def _side_effect():
-            data_getter._ds = ["flipper"]
-
-        data_getter._open_local_data = MagicMock(side_effect=_side_effect)
-        result = data_getter.get_data()
-        assert result == ["flipper"]
-        assert data_getter._ds == ["flipper"]
-
     @pytest.mark.parametrize("remote_open_possible", [True, False])
     @pytest.mark.parametrize("download", [True, False])
-    def test_get_data(self, remote_open_possible, download):
+    @pytest.mark.parametrize("local_data_available", [True,False])
+    @pytest.mark.parametrize("force_remake", [True,False])
+    def test_get_data(self, remote_open_possible, download, local_data_available, force_remake):
         """
         Test the get_data method of the ClimateDataGetter works correctly when data is
         not already downloaded for both download=True and download=False cases, and when
@@ -204,7 +189,7 @@ class TestGetData:
         data_getter.remote_open_possible = remote_open_possible
 
         def _open_local_data_side_effect():
-            if data_getter._ds is None:
+            if not local_data_available and data_getter._ds is None:
                 raise FileNotFoundError
             data_getter._ds = ["variation"]
 
@@ -237,9 +222,22 @@ class TestGetData:
         data_getter._process_data = MagicMock(side_effect=_process_data_side_effect)
         data_getter._save_processed_data = MagicMock()
         data_getter._delete_temporary = MagicMock()
-        if not download and not remote_open_possible:
+        if force_remake and not download:
             with pytest.raises(ValueError):
-                data_getter.get_data(download=download)
+                data_getter.get_data(download=download, force_remake=force_remake)
+            call_counts_expected = {
+                "_open_local_data": 0,
+                "_find_remote_data": 0,
+                "_subset_remote_data": 0,
+                "_download_remote_data": 0,
+                "_open_temp_data": 0,
+                "_process_data": 0,
+                "_save_processed_data": 0,
+                "_delete_temporary": 0,
+            }
+        elif not local_data_available and not download and not remote_open_possible:
+            with pytest.raises(ValueError):
+                data_getter.get_data(download=download, force_remake=force_remake)
             call_counts_expected = {
                 "_open_local_data": 1,
                 "_find_remote_data": 0,
@@ -251,8 +249,36 @@ class TestGetData:
                 "_delete_temporary": 0,
             }
         else:
-            result = data_getter.get_data(download=download)
-            if download:
+            result = data_getter.get_data(download=download, force_remake=force_remake)
+            if force_remake:
+                assert result == ["variation"]
+                assert data_getter._ds == ["variation"]
+                assert data_getter._ds_temp  == ["googly"]
+                call_counts_expected = {
+                    "_open_local_data": 1,
+                    "_find_remote_data": 1,
+                    "_subset_remote_data": 1,
+                    "_download_remote_data": 1,
+                    "_open_temp_data": 1,
+                    "_process_data": 1,
+                    "_save_processed_data": 1,
+                    "_delete_temporary": 1,
+                }
+            elif local_data_available:
+                assert result == ["variation"]
+                assert data_getter._ds == ["variation"]
+                assert data_getter._ds_temp is None
+                call_counts_expected = {
+                    "_open_local_data": 1,
+                    "_find_remote_data": 0,
+                    "_subset_remote_data": 0,
+                    "_download_remote_data": 0,
+                    "_open_temp_data": 0,
+                    "_process_data": 0,
+                    "_save_processed_data": 0,
+                    "_delete_temporary": 0,
+                }
+            elif download:
                 assert result == ["variation"]
                 assert data_getter._ds == ["variation"]
                 assert data_getter._ds_temp == ["googly"]
@@ -470,27 +496,27 @@ class TestProcessData:
         assert ds_out2["lon_bnds"].attrs == {}
 
     @pytest.mark.parametrize("lon_option", ["dim", "non_dim"])
-    def test_process_data_singleton_lon(self, caplog, lon_option):
+    def test_process_data_singleton_lon_lat(self, caplog, lon_option):
         """
         Test the _process_data method of the ClimateDataGetter class when the longitude
-        coordinate is a singleton (i.e. only one longitude value).
+        and latitude coordinates are singleton.
         """
         if lon_option == "dim":
             ds_in = xr.Dataset(
                 data_vars={
-                    "delivery": xr.DataArray(np.random.rand(1, 1), dims=["lon", "lat"])
+                    "delivery": xr.DataArray(np.random.rand(1), dims=["lon"])
                 },
                 coords={
                     "lon": xr.DataArray([345], dims="lon"),
-                    "lat": xr.DataArray([1], dims="lat"),
+                    "lat": 1,
                 },
             )
         elif lon_option == "non_dim":
             ds_in = xr.Dataset(
-                data_vars={"delivery": xr.DataArray(np.random.rand(1), dims=["lat"])},
+                data_vars={"delivery": xr.DataArray(np.random.rand(1)[0], dims=[])},
                 coords={
                     "lon": 345,
-                    "lat": xr.DataArray([1], dims="lat"),
+                    "lat": 1,
                 },
             )
         ds_in["lon"].attrs = {"long_name": "Longitude", "units": "degrees_east"}
@@ -503,14 +529,22 @@ class TestProcessData:
         ds_out1 = data_getter1._ds
         assert "lon" in ds_out1.dims and "lat" in ds_out1.dims
         assert "lon_bnds" in ds_out1 and "lat_bnds" in ds_out1
-        npt.assert_allclose(ds_out1.lon.values, -15)
+        npt.assert_allclose(ds_out1["lon"].values, -15)
+        npt.assert_allclose(ds_out1["lat"].values, 1)
         npt.assert_allclose(ds_out1["lon_bnds"].values, np.array([[-15.4, -14.6]]))
+        npt.assert_allclose(ds_out1["lat_bnds"].values, np.array([[0.925, 1.075]]))
         assert ds_out1["lon"].attrs == {
             "units": "°E",
             "long_name": "Longitude",
             "bounds": "lon_bnds",
         }
+        assert ds_out1["lat"].attrs == {
+            "units": "°N",
+            "long_name": "Latitude",
+            "bounds": "lat_bnds",
+        }
         assert ds_out1["lon_bnds"].attrs == {}
+        assert ds_out1["lat_bnds"].attrs == {}
         # Case where lon_res is not set, so bounds cannot be calculated
         data_getter2 = ClimateDataGetter()
         data_getter2.lat_res = 0.15
