@@ -194,8 +194,8 @@ class TestSuitabilityModel:
         assert result.vdims[0].pprint_label == "Suitability"
         npt.assert_allclose(
             result.data.suitability.values,
-            (result.data.temperature.values >= 0)
-            & (result.data.temperature.values <= 1),
+            (result.data.index.values >= 0)
+            & (result.data.index.values <= 1),
         )
 
     def test_plot_suitability_region_temp_table(self):
