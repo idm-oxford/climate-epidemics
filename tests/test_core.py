@@ -698,7 +698,9 @@ def test_plot_map():
     thin wrapper around hvplot.quadmesh, only test that this method returns the same
     result as calling hvplot.quadmesh directly in a simple case.
     """
-    ds = generate_dataset(data_var=["temperature", "precipitation"]).isel(time=0)
+    ds = generate_dataset(
+        data_var=["temperature", "precipitation"], lon_0_360=False
+    ).isel(time=0)
     ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
     result = ds.climepi.plot_map("temperature", rasterize=False)
     quadmesh_expected = ds["temperature"].hvplot.quadmesh(
