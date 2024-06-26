@@ -1,5 +1,7 @@
 """Subpackage for climate data."""
+
 from climepi.climdata._examples import (  # noqa
+    EXAMPLES,
     EXAMPLE_NAMES,
     get_example_dataset,
 )
