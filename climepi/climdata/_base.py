@@ -118,7 +118,9 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
             file_name
             for location_curr in subset["location"]
             for file_name in get_climate_data_file_names(
-                data_source, frequency, {**subset, "location": location_curr}
+                data_source=data_source,
+                frequency=frequency,
+                subset={**subset, "location": location_curr},
             )
         ]
     data_getter = _get_data_getter(
@@ -143,7 +145,12 @@ def _get_data_getter(data_source, *args, max_subset_wait_time=None, **kwargs):
 
 
 def _get_climate_data_location_list(
-    data_source, frequency, subset, save_dir, download, force_remake
+    data_source,
+    frequency=None,
+    subset=None,
+    save_dir=None,
+    download=None,
+    force_remake=None,
 ):
     ds_list = []
     for location_curr in subset["location"]:
