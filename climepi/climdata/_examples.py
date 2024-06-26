@@ -211,7 +211,7 @@ def _fetch_formatted_example_dataset(name, data_dir):
         subset=subset,
     )
     url = (
-        "https://github.com/will-s-hart/climate-epidemics/tree/main/data/examples/"
+        "https://github.com/will-s-hart/climate-epidemics/raw/main/data/examples/"
         + name
     )
     pup = pooch.create(
