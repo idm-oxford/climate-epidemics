@@ -4,9 +4,12 @@ Unit tests for the _base module of the climdata subpackage.
 
 from unittest.mock import patch
 
+import numpy as np
 import pytest
+import xarray.testing as xrt
 
 from climepi import climdata
+from climepi.testing.fixtures import generate_dataset
 
 
 class TestGetClimateData:
@@ -181,3 +184,51 @@ def test_get_data_getter(data_source):
     assert result._frequency == frequency
     assert result._subset == subset
     assert str(result._save_dir) == save_dir
+
+
+def test_get_climate_data_location_list():
+    """
+    Test the _get_climate_data_location_list function.
+    """
+    subset = {
+        "location": ["gabba", "waca", "mcg"],
+        "scenarios": ["overcast", "sunny"],
+    }
+    timeout_error = {"gabba": False, "waca": True, "mcg": False}
+
+    ds_all = generate_dataset(data_var=["marnus"], extra_dims={"scenarios": 2})
+    ds_all["marnus"].values = np.random.rand(*ds_all["marnus"].shape)
+    ds_all["scenarios"] = subset["scenarios"]
+
+    location_lat_lon_map = {
+        "gabba": (ds_all["lat"].values[0], ds_all["lon"].values[3]),
+        "waca": (ds_all["lat"].values[3], ds_all["lon"].values[3]),
+        "mcg": (ds_all["lat"].values[2], ds_all["lon"].values[1]),
+    }
+
+    def mock_get_climate_data(*args, **kwargs):
+        location = kwargs["subset"]["location"]
+        if timeout_error[location]:
+            raise TimeoutError
+        assert isinstance(location, str)
+        lat, lon = location_lat_lon_map[location]
+        return ds_all.sel(lat=[lat], lon=[lon], method="nearest")
+
+    with patch.object(climdata._base, "get_climate_data", new=mock_get_climate_data):
+        result = climdata._base._get_climate_data_location_list("test", subset=subset)
+
+    assert "location" in result.dims
+    assert list(result["location"].values) == ["gabba", "mcg"]
+    assert "lon" not in result.dims
+    assert "lat" not in result.dims
+    xrt.assert_identical(result["time_bnds"], ds_all["time_bnds"])
+    for location in ["gabba", "mcg"]:
+        lat, lon = location_lat_lon_map[location]
+        xrt.assert_identical(
+            result[["marnus", "lon_bnds", "lat_bnds"]]
+            .sel(location=location)
+            .drop_vars("location"),
+            ds_all[["marnus", "lon_bnds", "lat_bnds"]].sel(
+                lat=lat, lon=lon, method="nearest"
+            ),
+        )
