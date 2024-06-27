@@ -157,7 +157,12 @@ def _get_climate_data_location_list(
         try:
             subset_curr = {**subset, "location": location_curr}
             ds_curr = get_climate_data(
-                data_source, frequency, subset_curr, save_dir, download, force_remake
+                data_source,
+                frequency=frequency,
+                subset=subset_curr,
+                save_dir=save_dir,
+                download=download,
+                force_remake=force_remake,
             )
             ds_curr["location"] = [location_curr]
             for data_var in ds_curr.data_vars:
