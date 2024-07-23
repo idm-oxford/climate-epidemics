@@ -664,7 +664,8 @@ class ClimEpiDatasetAccessor:
         hvplot object
             The resulting plot object.
         """
-
+        data_var = self._process_data_var_argument(data_var)
+        da_raw = self._obj[data_var].squeeze()
         kwargs_baseline_in = {} if kwargs_baseline is None else kwargs_baseline
         kwargs_area_in = {} if kwargs_area is None else kwargs_area
         kwargs_baseline = {
@@ -672,7 +673,10 @@ class ClimEpiDatasetAccessor:
             **kwargs_baseline_in,
         }
         colors = hv.Cycle().values
-        kwargs_area = {**{"x": "time", "alpha": 0.6}, **kwargs_area_in}
+        kwargs_area = {
+            **{"x": "time", "alpha": 0.6, "ylabel": label_from_attrs(da_raw)},
+            **kwargs_area_in,
+        }
         kwargs_internal = {
             "label": "Internal variability",
             "color": colors[0],
@@ -684,8 +688,6 @@ class ClimEpiDatasetAccessor:
             "color": colors[2],
             **kwargs_area,
         }
-        data_var = self._process_data_var_argument(data_var)
-        da_raw = self._obj[data_var].squeeze()
         # Make "scenario", "model" and "realization" dimensions of the data variable if
         # they are not present or are (singleton) non-dimension coordinates (reduces
         # number of cases to handle; note this partially reverses the effect of the
@@ -704,6 +706,7 @@ class ClimEpiDatasetAccessor:
         da_baseline = da_stat.sel(ensemble_stat="mean", drop=True).mean(
             dim=["scenario", "model"], keep_attrs=True
         )
+        da_stat.attrs = {}  # Long name attribute causes issues with hvplot area
         da_var_decomp = self.var_decomp(
             data_var,
             fraction=False,
@@ -730,8 +733,6 @@ class ClimEpiDatasetAccessor:
                 )
                 ds_plume["internal_lower"] = da_baseline - z * da_std_internal
                 ds_plume["internal_upper"] = da_baseline + z * da_std_internal
-            ds_plume["internal_lower"].attrs = da_baseline.attrs
-            ds_plume["internal_lower"].attrs = da_baseline.attrs
         else:
             ds_plume["internal_lower"] = da_baseline
             ds_plume["internal_upper"] = da_baseline
@@ -757,8 +758,6 @@ class ClimEpiDatasetAccessor:
                 )
                 ds_plume["model_lower"] = da_baseline - z * da_std_internal_model
                 ds_plume["model_upper"] = da_baseline + z * da_std_internal_model
-            ds_plume["model_lower"].attrs = da_baseline.attrs
-            ds_plume["model_lower"].attrs = da_baseline.attrs
         else:
             ds_plume["model_lower"] = ds_plume["internal_lower"]
             ds_plume["model_upper"] = ds_plume["internal_upper"]
@@ -786,8 +785,6 @@ class ClimEpiDatasetAccessor:
                 ds_plume["scenario_upper"] = (
                     da_baseline + z * da_std_internal_model_scenario
                 )
-            ds_plume["scenario_lower"].attrs = da_baseline.attrs
-            ds_plume["scenario_lower"].attrs = da_baseline.attrs
         # Plot confidence intervals
         plot_obj_list = []
         if len(da_raw.scenario) > 1:
@@ -824,6 +821,7 @@ class ClimEpiDatasetAccessor:
         plot_obj_list.append(plot_obj_baseline)
         # Combine the plots
         plot_obj = hv.Overlay(plot_obj_list).collate()
+        plot_obj = plot_obj
         return plot_obj
 
     def _process_data_var_argument(self, data_var_in=None, as_list=False):
