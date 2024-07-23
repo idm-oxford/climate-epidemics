@@ -32,7 +32,7 @@ class TestGetClimateData:
             "lon_range": None,
             "lat_range": None,
         }
-        save_dir = "not/real"
+        save_dir = "."
         download = "probably"
         force_remake = "perhaps"
         max_subset_wait_time = 30
@@ -147,7 +147,7 @@ def test_get_data_getter(data_source):
         "lon_range": None,
         "lat_range": None,
     }
-    save_dir = "not/real"
+    save_dir = "."
     download = "probably"
     force_remake = "perhaps"
     max_subset_wait_time = 30
