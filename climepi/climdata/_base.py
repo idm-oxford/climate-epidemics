@@ -182,5 +182,10 @@ def _get_climate_data_location_list(
             print(f"{exc}")
             print(f"Skipping location '{location_curr}' for now.")
     # Set CF x and y coords?
-    ds = xr.concat(ds_list, dim="location", data_vars="minimal")
-    return ds
+    if len(ds_list) == len(subset["location"]):
+        ds = xr.concat(ds_list, dim="location", data_vars="minimal")
+        return ds
+    raise TimeoutError(
+        "Some locations timed out. Try again later once the server-side subsetting has"
+        "completed."
+    )
