@@ -25,19 +25,23 @@ from climepi import climdata
 #       example dataset is available for direct download. If not specified, it is
 #       assumed to be False.
 EXAMPLES = {
-    "lens2_world": {
+    "isimip_cities": {
+        "data_source": "isimip",
+        "frequency": "monthly",
+        "subset": {
+            "location": [
+                "Los Angeles",
+                "Munich",
+                "Paris",
+                "Islamabad",
+            ],
+        },
+    },
+    "lens2_2020_2060_2100": {
         "data_source": "lens2",
         "frequency": "monthly",
         "subset": {
             "years": [2020, 2060, 2100],
-        },
-    },
-    "lens2_cape_town": {
-        "data_source": "lens2",
-        "frequency": "monthly",
-        "subset": {
-            "years": np.arange(2000, 2101),
-            "location": "Cape Town",
         },
     },
     "lens2_europe_small": {
@@ -50,69 +54,19 @@ EXAMPLES = {
             "realizations": np.arange(2),
         },
     },
-    "isimip_london": {
-        "data_source": "isimip",
+    "lens2_cities": {
+        "data_source": "lens2",
         "frequency": "monthly",
         "subset": {
-            "location": "London",
-        },
-        "formatted_data_downloadable": True,
-    },
-    "isimip_capitals": {
-        "data_source": "isimip",
-        "frequency": "monthly",
-        "subset": {
+            "years": np.arange(2000, 2101),
             "location": [
-                "Beijing",
-                "Tokyo",
-                "Moscow",
-                "Kinshasa",
-                "Jakarta",
-                "Lima",
-                "Cairo",
-                "Seoul",
-                "Mexico City",
-                "London",
-            ],
-        },
-    },
-    "isimip_euro_capitals": {
-        "data_source": "isimip",
-        "frequency": "monthly",
-        "subset": {
-            "location": [
-                "Moscow",
-                "London",
-                "Ankara",
-                "Berlin",
-                "Madrid",
-                "Kyiv",
-                "Rome",
-                "Paris",
-                "Minsk",
-                "Vienna",
-            ],
-        },
-    },
-    "isimip_cities": {
-        "data_source": "isimip",
-        "frequency": "monthly",
-        "subset": {
-            "location": [
-                "New York City",
                 "Los Angeles",
-                "Chicago",
-                "San Francisco",
-                "Lisbon",
-                "Barcelona",
-                "Milan",
-                "Lyon",
                 "Munich",
-                "Cape Town",
-                "Karachi",
-                "Melbourne",
+                "Paris",
+                "Islamabad",
             ],
         },
+        # "formatted_data_downloadable": True,
     },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
@@ -237,7 +191,21 @@ def _make_example_registry(name, data_dir=None):
     pooch.make_registry(data_dir, registry_file_path, recursive=False)
 
 
-if __name__ == "__main__":
+def make_all_examples(force_remake=True):
+    """
+    Create all example datasets by downloading and formatting the relevant data.
+    """
+    exc = None
     for example_name in EXAMPLES:
-        ds = get_example_dataset(example_name, force_remake=True)
-        _make_example_registry(example_name)
+        try:
+            get_example_dataset(example_name, force_remake=force_remake)
+            _make_example_registry(example_name)
+        except TimeoutError as _exc:
+            exc = _exc
+    # Raise a TimeoutError if any of the datasets failed to download
+    if exc:
+        raise TimeoutError("Some downloads timed out. Please try again later.") from exc
+
+
+if __name__ == "__main__":
+    make_all_examples(force_remake=False)
