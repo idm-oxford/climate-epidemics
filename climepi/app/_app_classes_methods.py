@@ -483,14 +483,14 @@ class Controller(param.Parameterized):
     epi_model_name = param.ObjectSelector(precedence=1)
     epi_output_choice = param.ObjectSelector(
         objects=[
-            "Suitability values",
             "Months where suitability exceeds threshold",
+            "Suitability values",
         ],
-        default="Suitability values",
-        precedence=1,
+        default="Months where suitability exceeds threshold",
+        precedence=-1,
     )
     suitabilty_threshold = param.Number(
-        default=0.5, bounds=(0, 1), step=0.01, precedence=-1
+        default=0, bounds=(0, 1), step=0.01, precedence=-1
     )
     epi_model_run_initiator = param.Event(default=False, precedence=1)
     epi_model_ran = param.Boolean(default=False, precedence=-1)
@@ -608,6 +608,7 @@ class Controller(param.Parameterized):
             # Options specific to suitability models
             if isinstance(epi_model, epimod.SuitabilityModel):
                 self.param.epi_output_choice.precedence = 1
+                self._update_suitability_threshold_precedence()
                 if epi_model.temperature_range is not None:
                     self.param.suitabilty_threshold.bounds = (0, 1)
                 else:
