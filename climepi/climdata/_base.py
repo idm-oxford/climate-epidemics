@@ -186,6 +186,6 @@ def _get_climate_data_location_list(
         ds = xr.concat(ds_list, dim="location", data_vars="minimal")
         return ds
     raise TimeoutError(
-        "Some locations timed out. Try again later once the server-side subsetting has"
+        "Some locations timed out. Try again later once the server-side subsetting has "
         "completed."
     )
