@@ -10,14 +10,26 @@ import xarray as xr
 from climepi import epimod
 
 EXAMPLES = {
-    "kaye_ae_aegypti": {  # from https://doi.org/10.1101/2023.08.31.23294902
+    "mordecai_ae_aegypti_niche": {  # from https://doi.org/10.1371/journal.pntd.0005568
+        "temperature_range": [17.8, 34.6],
+    },
+    "mordecai_ae_albopictus_niche": {
+        # from https://doi.org/10.1371/journal.pntd.0005568
+        "temperature_range": [16.2, 31.6],
+    },
+    "ryan_ae_aegypti_niche": {
+        # from https://doi.org/10.1371/journal.pntd.0007213
+        "temperature_range": [21.3, 34.0],
+    },
+    "ryan_ae_albopictus_niche": {
+        # from https://doi.org/10.1371/journal.pntd.0007213
+        "temperature_range": [19.9, 29.4],
+    },
+    "kaye_ae_aegypti_niche": {  # from https://doi.org/10.1101/2023.08.31.23294902
         "suitability_table_path": str(pathlib.Path(__file__).parent)
         + "/example_data/kaye_ae_aegypti_niche.nc",
     },
-    "mordecai_ae_aegypti_range": {  # from https://doi.org/10.1371/journal.pntd.0005568
-        "temperature_range": [17.8, 34.6],
-    },
-    "mordecai_ae_aegypti_table": {  # from https://doi.org/10.1371/journal.pntd.0005568
+    "mordecai_ae_aegypti_suitability": {  # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_vals": np.arange(18, 37),
         "suitability_vals": np.array(
             [
@@ -43,11 +55,7 @@ EXAMPLES = {
             ]
         ),
     },
-    "mordecai_ae_albopictus_range": {
-        # from https://doi.org/10.1371/journal.pntd.0005568
-        "temperature_range": [16.2, 31.6],
-    },
-    "mordecai_ae_albopictus_table": {
+    "mordecai_ae_albopictus_suitability": {
         # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_vals": np.arange(16, 35),
         "suitability_vals": np.array(
@@ -74,27 +82,19 @@ EXAMPLES = {
             ]
         ),
     },
-    "ryan_ae_aegypti_975": {
-        # from https://doi.org/10.1371/journal.pntd.0007213
-        "temperature_range": [21.3, 34.0],
-    },
-    "ryan_ae_albopictus_975": {
-        # from https://doi.org/10.1371/journal.pntd.0007213
-        "temperature_range": [19.9, 29.4],
-    },
-    "villena_an_stephensi_p_falciparum_975": {
+    "villena_an_stephensi_p_falciparum_niche": {
         # from https://doi.org/10.1002/ecy.3685
         "temperature_range": [16.0, 36.5],
     },
-    "villena_an_stephensi_p_vivax_975": {
+    "villena_an_stephensi_p_vivax_niche": {
         # from https://doi.org/10.1002/ecy.3685
         "temperature_range": [16.6, 31.7],
     },
-    "taylor_hlb_range": {
+    "taylor_hlb_range_niche": {
         # from https://doi.org/10.1111/1365-2664.13455
         "temperature_range": [16, 33],
     },
-    "parham_anopheles_range": {  # from https://doi.org/10.1007/978-1-4419-6064-1_13
+    "parham_anopheles_niche": {  # from https://doi.org/10.1007/978-1-4419-6064-1_13
         "temperature_range": [12.1606, 40],
         "precipitation_range": [0.001, 50],
     },
