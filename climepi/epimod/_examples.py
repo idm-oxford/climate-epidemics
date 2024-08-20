@@ -29,6 +29,10 @@ EXAMPLES = {
         "suitability_table_path": str(pathlib.Path(__file__).parent)
         + "/example_data/kaye_ae_aegypti_niche.nc",
     },
+    "yang_ae_aegypti_niche": {  # from https://doi.org/10.1017/S0950268809002040,
+        # range where offspring number is at least 1
+        "temperature_range": [13.6, 36.55],
+    },
     "mordecai_ae_aegypti_suitability": {  # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_vals": np.arange(18, 37),
         "suitability_vals": np.array(
