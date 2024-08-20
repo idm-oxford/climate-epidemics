@@ -181,8 +181,9 @@ def _get_climate_data_location_list(
                 ds_curr["lat"] = ds_curr["lat"].swap_dims({"lat": "location"})
             ds_list.append(ds_curr)
         except TimeoutError as exc:
-            print(f"{exc}")
-            print(f"Skipping location '{location_curr}' for now.")
+            warnings.warn(
+                f"{exc}\nSkipping location '{location_curr}' for now.", stacklevel=2
+            )
     # Set CF x and y coords?
     if len(ds_list) == 0:
         raise TimeoutError(
@@ -192,7 +193,8 @@ def _get_climate_data_location_list(
     if len(ds_list) < len(subset["location"]):
         warnings.warn(
             "Some locations timed out. Returning data for the locations that were "
-            "successfully retrieved.",
+            "successfully retrieved. Try again later once the server-side subsetting "
+            "has completed to retrieve the full dataset.",
             stacklevel=2,
         )
     ds = xr.concat(ds_list, dim="location", data_vars="minimal")
