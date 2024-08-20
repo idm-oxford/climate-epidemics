@@ -1,3 +1,5 @@
+import warnings
+
 import xarray as xr
 
 from climepi.climdata._cesm import CESMDataGetter
@@ -182,10 +184,16 @@ def _get_climate_data_location_list(
             print(f"{exc}")
             print(f"Skipping location '{location_curr}' for now.")
     # Set CF x and y coords?
-    if len(ds_list) == len(subset["location"]):
-        ds = xr.concat(ds_list, dim="location", data_vars="minimal")
-        return ds
-    raise TimeoutError(
-        "Some locations timed out. Try again later once the server-side subsetting has "
-        "completed."
-    )
+    if len(ds_list) == 0:
+        raise TimeoutError(
+            "All locations timed out. Try again later once the server-side subsetting "
+            "has completed."
+        )
+    if len(ds_list) < len(subset["location"]):
+        warnings.warn(
+            "Some locations timed out. Returning data for the locations that were "
+            "successfully retrieved.",
+            stacklevel=2,
+        )
+    ds = xr.concat(ds_list, dim="location", data_vars="minimal")
+    return ds
