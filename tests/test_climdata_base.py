@@ -186,7 +186,8 @@ def test_get_data_getter(data_source):
     assert str(result._save_dir) == save_dir
 
 
-def test_get_climate_data_location_list():
+@pytest.mark.parametrize("timeout_error", ["none", "some", "all"])
+def test_get_climate_data_location_list(timeout_error):
     """
     Test the _get_climate_data_location_list function.
     """
@@ -194,7 +195,12 @@ def test_get_climate_data_location_list():
         "location": ["gabba", "waca", "mcg"],
         "scenarios": ["overcast", "sunny"],
     }
-    timeout_error = {"gabba": False, "waca": True, "mcg": False}
+    if timeout_error == "none":
+        timeout_error_dict = {"gabba": False, "waca": False, "mcg": False}
+    elif timeout_error == "some":
+        timeout_error_dict = {"gabba": False, "waca": True, "mcg": False}
+    elif timeout_error == "all":
+        timeout_error_dict = {"gabba": True, "waca": True, "mcg": True}
 
     ds_all = generate_dataset(data_var=["marnus"], extra_dims={"scenarios": 2})
     ds_all["marnus"].values = np.random.rand(*ds_all["marnus"].shape)
@@ -208,21 +214,36 @@ def test_get_climate_data_location_list():
 
     def mock_get_climate_data(*args, **kwargs):
         location = kwargs["subset"]["location"]
-        if timeout_error[location]:
+        if timeout_error_dict[location]:
             raise TimeoutError
         assert isinstance(location, str)
         lat, lon = location_lat_lon_map[location]
         return ds_all.sel(lat=[lat], lon=[lon], method="nearest")
 
     with patch.object(climdata._base, "get_climate_data", new=mock_get_climate_data):
-        result = climdata._base._get_climate_data_location_list("test", subset=subset)
+        if timeout_error == "all":
+            with pytest.raises(TimeoutError):
+                climdata._base._get_climate_data_location_list("test", subset=subset)
+            return
+        if timeout_error == "some":
+            with pytest.warns(UserWarning):
+                result = climdata._base._get_climate_data_location_list(
+                    "test", subset=subset
+                )
+        else:
+            result = climdata._base._get_climate_data_location_list(
+                "test", subset=subset
+            )
 
     assert "location" in result.dims
-    assert list(result["location"].values) == ["gabba", "mcg"]
+    expected_locations_retrived = [
+        x for x in subset["location"] if not timeout_error_dict[x]
+    ]
+    assert list(result["location"].values) == expected_locations_retrived
     assert "lon" not in result.dims
     assert "lat" not in result.dims
     xrt.assert_identical(result["time_bnds"], ds_all["time_bnds"])
-    for location in ["gabba", "mcg"]:
+    for location in expected_locations_retrived:
         lat, lon = location_lat_lon_map[location]
         xrt.assert_identical(
             result[["marnus", "lon_bnds", "lat_bnds"]]
