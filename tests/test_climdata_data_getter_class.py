@@ -175,9 +175,11 @@ class TestGetData:
 
     @pytest.mark.parametrize("remote_open_possible", [True, False])
     @pytest.mark.parametrize("download", [True, False])
-    @pytest.mark.parametrize("local_data_available", [True,False])
-    @pytest.mark.parametrize("force_remake", [True,False])
-    def test_get_data(self, remote_open_possible, download, local_data_available, force_remake):
+    @pytest.mark.parametrize("local_data_available", [True, False])
+    @pytest.mark.parametrize("force_remake", [True, False])
+    def test_get_data(
+        self, remote_open_possible, download, local_data_available, force_remake
+    ):
         """
         Test the get_data method of the ClimateDataGetter works correctly when data is
         not already downloaded for both download=True and download=False cases, and when
@@ -253,7 +255,7 @@ class TestGetData:
             if force_remake:
                 assert result == ["variation"]
                 assert data_getter._ds == ["variation"]
-                assert data_getter._ds_temp  == ["googly"]
+                assert data_getter._ds_temp == ["googly"]
                 call_counts_expected = {
                     "_open_local_data": 1,
                     "_find_remote_data": 1,
@@ -504,7 +506,12 @@ class TestProcessData:
         if lon_option == "dim":
             ds_in = xr.Dataset(
                 data_vars={
-                    "delivery": xr.DataArray(np.random.rand(1), dims=["lon"])
+                    "delivery": xr.DataArray(
+                        np.random.rand(1, 3), dims=["lon", "time"]
+                    ),
+                    "time_bnds": xr.DataArray(
+                        np.random.rand(3, 2), dims=["time", "bnds"]
+                    ),
                 },
                 coords={
                     "lon": xr.DataArray([345], dims="lon"),
@@ -513,7 +520,13 @@ class TestProcessData:
             )
         elif lon_option == "non_dim":
             ds_in = xr.Dataset(
-                data_vars={"delivery": xr.DataArray(np.random.rand(1)[0], dims=[])},
+                data_vars={
+                    "delivery": xr.DataArray(np.random.rand(3), dims=["time"]),
+                    "bounce": xr.DataArray(np.random.rand(3), dims=["time"]),
+                    "time_bnds": xr.DataArray(
+                        np.random.rand(3, 2), dims=["time", "bnds"]
+                    ),
+                },
                 coords={
                     "lon": 345,
                     "lat": 1,
@@ -528,6 +541,11 @@ class TestProcessData:
         data_getter1._process_data()
         ds_out1 = data_getter1._ds
         assert "lon" in ds_out1.dims and "lat" in ds_out1.dims
+        assert "lon" in ds_out1["delivery"].dims and "lat" in ds_out1["delivery"].dims
+        assert (
+            "lon" not in ds_out1["time_bnds"].dims
+            and "lat" not in ds_out1["time_bnds"].dims
+        )
         assert "lon_bnds" in ds_out1 and "lat_bnds" in ds_out1
         npt.assert_allclose(ds_out1["lon"].values, -15)
         npt.assert_allclose(ds_out1["lat"].values, 1)

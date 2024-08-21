@@ -7,6 +7,8 @@ import pooch
 import xarray as xr
 import xcdat
 
+from climepi.utils import list_non_bnd_data_vars
+
 # Cache directory for storing any temporary files created when downloading data.
 # Note: the code could be improved to ensure that the temporary files are deleted if an
 # error occurs, and to use a different temporary file name each time to avoid
@@ -312,18 +314,25 @@ class ClimateDataGetter:
         # values (which is not possible for single-value coordinates).
         lon_res = self.lon_res
         lat_res = self.lat_res
+        non_bnd_data_vars = list_non_bnd_data_vars(ds_processed)
+        if len(non_bnd_data_vars) == 1:
+            # Assignment below fails with a length-1 list
+            non_bnd_data_vars = non_bnd_data_vars[0]
         if "lon" not in ds_processed.dims:
-            # Ensure lon is a dim so it appears as a dim of the bounds variables
-            ds_processed = ds_processed.expand_dims("lon")
+            # Ensure lon is a dim so it appears as a dim of its bounds variable
+            ds_processed[non_bnd_data_vars] = ds_processed[
+                non_bnd_data_vars
+            ].expand_dims("lon")
         if "lat" not in ds_processed.dims:
-            ds_processed = ds_processed.expand_dims("lat")
+            ds_processed[non_bnd_data_vars] = ds_processed[
+                non_bnd_data_vars
+            ].expand_dims("lat")
         if "lon_bnds" not in ds_processed and lon_res is not None:
             ds_processed["lon_bnds"] = xr.concat(
                 [ds_processed.lon - lon_res / 2, ds_processed.lon + lon_res / 2],
                 dim="bnds",
             ).T
             ds_processed["lon"].attrs.update(bounds="lon_bnds")
-
         if "lat_bnds" not in ds_processed and lat_res is not None:
             ds_processed["lat_bnds"] = xr.concat(
                 [ds_processed.lat - lat_res / 2, ds_processed.lat + lat_res / 2],
