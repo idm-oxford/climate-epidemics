@@ -31,7 +31,6 @@ EXAMPLES = {
         "subset": {
             "location": [
                 "Los Angeles",
-                "Munich",
                 "Paris",
                 "Islamabad",
             ],
@@ -43,6 +42,17 @@ EXAMPLES = {
         "frequency": "daily",
         "subset": {
             "location": "Los Angeles",
+        },
+    },
+    "isimip_cities_daily": {
+        "data_source": "isimip",
+        "frequency": "daily",
+        "subset": {
+            "location": [
+                "Los Angeles",
+                "Paris",
+                "Islamabad",
+            ],
         },
     },
     "lens2_2020_2060_2100": {
