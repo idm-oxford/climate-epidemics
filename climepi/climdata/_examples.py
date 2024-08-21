@@ -36,6 +36,14 @@ EXAMPLES = {
                 "Islamabad",
             ],
         },
+        "formatted_data_downloadable": True,
+    },
+    "isimip_los_angeles_daily": {
+        "data_source": "isimip",
+        "frequency": "daily",
+        "subset": {
+            "location": "Los Angeles",
+        },
     },
     "lens2_2020_2060_2100": {
         "data_source": "lens2",
@@ -66,7 +74,6 @@ EXAMPLES = {
                 "Islamabad",
             ],
         },
-        # "formatted_data_downloadable": True,
     },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
