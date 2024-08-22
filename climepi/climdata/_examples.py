@@ -37,13 +37,6 @@ EXAMPLES = {
         },
         "formatted_data_downloadable": True,
     },
-    "isimip_los_angeles_daily": {
-        "data_source": "isimip",
-        "frequency": "daily",
-        "subset": {
-            "location": "Los Angeles",
-        },
-    },
     "isimip_cities_daily": {
         "data_source": "isimip",
         "frequency": "daily",
@@ -79,7 +72,6 @@ EXAMPLES = {
             "years": np.arange(2000, 2101),
             "location": [
                 "Los Angeles",
-                "Munich",
                 "Paris",
                 "Islamabad",
             ],
