@@ -597,10 +597,10 @@ class Controller(param.Parameterized):
     @param.depends("epi_model_name", watch=True)
     def _get_epi_model(self):
         self._epi_model = None
+        epi_model = None
         try:
             epi_model = _get_epi_model_func(self.epi_model_name)
         except Exception as exc:
-            epi_model = None
             self.epi_model_status = f"Error getting epidemiological model: {exc}"
             raise
         finally:
