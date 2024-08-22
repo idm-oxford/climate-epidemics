@@ -103,7 +103,7 @@ class CESMDataGetter(ClimateDataGetter):
         # Download the remote dataset to a temporary file (printing a progress bar), and
         # store the file name in the _temp_file_names attribute.
         temp_save_dir = self._temp_save_dir
-        temp_file_name = "temporary.nc"
+        temp_file_name = "temp_data.nc"
         temp_save_path = temp_save_dir / temp_file_name
         delayed_obj = self._ds.to_netcdf(temp_save_path, compute=False)
         with dask.diagnostics.ProgressBar():

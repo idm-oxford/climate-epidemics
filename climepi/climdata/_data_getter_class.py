@@ -1,5 +1,6 @@
 import itertools
 import pathlib
+import tempfile
 import warnings
 
 import numpy as np
@@ -110,8 +111,7 @@ class ClimateDataGetter:
         self._frequency = frequency
         self._subset = subset
         self._ds = None
-        self._temp_save_dir = pathlib.Path(CACHE_DIR) / "temp"
-        self._temp_save_dir.mkdir(parents=True, exist_ok=True)
+        self._temp_save_dir = pathlib.Path(tempfile.mkdtemp(suffix="_climepi"))
         self._temp_file_names = None
         self._ds_temp = None
         if save_dir is None:
@@ -149,8 +149,9 @@ class ClimateDataGetter:
             else:
                 base_name_str_list.extend([f"{year}" for year in years])
                 warnings.warn(
-                    "Warning: requesting a large number of non-uniform years may lead "
-                    "to invalid long file names.",
+                    "Requesting a large number of non-uniform years may lead to "
+                    "invalid long file names. Consider separating the request into "
+                    "smaller chunks.",
                     stacklevel=2,
                 )
             if location is not None:
@@ -236,7 +237,7 @@ class ClimateDataGetter:
                 pass
         if not self.remote_open_possible and not download:
             raise ValueError(
-                "It is not possible to lazily load the remote data. Set download=True",
+                "It is not possible to lazily load the remote data. Set download=True ",
                 "to download the data.",
             )
         print("Finding data files on server...")
@@ -376,3 +377,4 @@ class ClimateDataGetter:
         for temp_file_name in temp_file_names:
             temp_save_path = temp_save_dir / temp_file_name
             temp_save_path.unlink()
+        temp_save_dir.rmdir()
