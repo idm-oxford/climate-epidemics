@@ -111,7 +111,7 @@ class ClimateDataGetter:
         self._frequency = frequency
         self._subset = subset
         self._ds = None
-        self._temp_save_dir = pathlib.Path(tempfile.mkdtemp(suffix="_climepi"))
+        self._temp_save_dir = None
         self._temp_file_names = None
         self._ds_temp = None
         if save_dir is None:
@@ -247,6 +247,7 @@ class ClimateDataGetter:
         self._subset_remote_data()
         print("Data subsetted.")
         if download:
+            self._temp_save_dir = pathlib.Path(tempfile.mkdtemp(suffix="_climepi"))
             print("Downloading data...")
             self._download_remote_data()
             print("Data downloaded.")
@@ -378,3 +379,6 @@ class ClimateDataGetter:
             temp_save_path = temp_save_dir / temp_file_name
             temp_save_path.unlink()
         temp_save_dir.rmdir()
+        self._ds_temp = None
+        self._temp_save_dir = None
+        self._temp_file_names = None

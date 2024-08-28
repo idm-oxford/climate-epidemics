@@ -6,6 +6,7 @@ climdata subpackage.
 import itertools
 import logging
 import pathlib
+import tempfile
 from unittest.mock import MagicMock, patch
 
 import dask.array as da
@@ -49,7 +50,7 @@ def test_init():
                 "lat_range": None,
             },
         ),
-        ("_temp_save_dir", CACHE_DIR / "temp"),
+        ("_temp_save_dir", None),
         ("_temp_file_names", None),
         ("_ds_temp", None),
         ("_save_dir", CACHE_DIR),
@@ -193,22 +194,27 @@ class TestGetData:
         def _open_local_data_side_effect():
             if not local_data_available and data_getter._ds is None:
                 raise FileNotFoundError
-            data_getter._ds = ["variation"]
+            data_getter._ds = "variation"
 
         def _find_remote_data_side_effect():
             if data_getter.remote_open_possible:
-                data_getter._ds = ["stock"]
+                data_getter._ds = "stock"
 
         def _subset_remote_data_side_effect():
             if data_getter.remote_open_possible:
-                data_getter._ds = ["topspinner"]
+                data_getter._ds = "topspinner"
 
         def _open_temp_data_side_effect():
-            data_getter._ds_temp = ["googly"]
-            data_getter._ds = ["googly"]
+            data_getter._ds_temp = "googly"
+            data_getter._ds = "googly"
 
         def _process_data_side_effect():
-            data_getter._ds = ["flipper"]
+            data_getter._ds = "flipper"
+
+        def _delete_temp_side_effect():
+            data_getter._temp_save_dir.rmdir()
+            data_getter._temp_save_dir = None
+            data_getter._ds_temp = "deleted"
 
         data_getter._open_local_data = MagicMock(
             side_effect=_open_local_data_side_effect
@@ -223,7 +229,8 @@ class TestGetData:
         data_getter._open_temp_data = MagicMock(side_effect=_open_temp_data_side_effect)
         data_getter._process_data = MagicMock(side_effect=_process_data_side_effect)
         data_getter._save_processed_data = MagicMock()
-        data_getter._delete_temporary = MagicMock()
+        data_getter._delete_temporary = MagicMock(side_effect=_delete_temp_side_effect)
+
         if force_remake and not download:
             with pytest.raises(ValueError):
                 data_getter.get_data(download=download, force_remake=force_remake)
@@ -253,9 +260,9 @@ class TestGetData:
         else:
             result = data_getter.get_data(download=download, force_remake=force_remake)
             if force_remake:
-                assert result == ["variation"]
-                assert data_getter._ds == ["variation"]
-                assert data_getter._ds_temp == ["googly"]
+                assert result == "variation"
+                assert data_getter._ds == "variation"
+                assert data_getter._ds_temp == "deleted"
                 call_counts_expected = {
                     "_open_local_data": 1,
                     "_find_remote_data": 1,
@@ -267,8 +274,8 @@ class TestGetData:
                     "_delete_temporary": 1,
                 }
             elif local_data_available:
-                assert result == ["variation"]
-                assert data_getter._ds == ["variation"]
+                assert result == "variation"
+                assert data_getter._ds == "variation"
                 assert data_getter._ds_temp is None
                 call_counts_expected = {
                     "_open_local_data": 1,
@@ -281,9 +288,9 @@ class TestGetData:
                     "_delete_temporary": 0,
                 }
             elif download:
-                assert result == ["variation"]
-                assert data_getter._ds == ["variation"]
-                assert data_getter._ds_temp == ["googly"]
+                assert result == "variation"
+                assert data_getter._ds == "variation"
+                assert data_getter._ds_temp == "deleted"
                 call_counts_expected = {
                     "_open_local_data": 2,
                     "_find_remote_data": 1,
@@ -295,8 +302,8 @@ class TestGetData:
                     "_delete_temporary": 1,
                 }
             else:
-                assert result == ["flipper"]
-                assert data_getter._ds == ["flipper"]
+                assert result == "flipper"
+                assert data_getter._ds == "flipper"
                 assert data_getter._ds_temp is None
                 call_counts_expected = {
                     "_open_local_data": 1,
@@ -313,6 +320,7 @@ class TestGetData:
                 f"Method {method} called {getattr(data_getter, method).call_count} "
                 f"times, expected {count_expected}."
             )
+        assert data_getter._temp_save_dir is None
 
 
 def test_open_local_data():
@@ -600,9 +608,9 @@ def test_save_processed_data():
             "years": [2015, 2016, 2018, 2100],
             "location": "gabba",
         },
+        save_dir="outside/edge",
     )
     data_getter.data_source = "broad"
-    data_getter._save_dir = pathlib.Path("outside/edge")
     data_getter._ds = ds
 
     to_netcdf_called_datasets = []
@@ -639,25 +647,27 @@ def test_delete_temporary():
     """
     Test the _delete_temporary method of the ClimateDataGetter class.
     """
-    data_getter = ClimateDataGetter()
-    data_getter._temp_save_dir = pathlib.Path("not/a/real/path")
-    data_getter._temp_file_names = [
+    temp_save_dir = pathlib.Path(tempfile.mkdtemp(suffix="_climepi_test"))
+    temp_file_names = [
+        "temporary_0.nc",
         "temporary_1.nc",
         "temporary_2.nc",
-        "temporary_3.nc",
     ]
-    data_getter._ds_temp = xr.Dataset()
+    temp_file_paths = [temp_save_dir / f for f in temp_file_names]
+    for file_no, file_path in enumerate(temp_file_paths):
+        ds = xr.Dataset(
+            data_vars={"delivery": (["number"], np.random.rand(1))},
+            coords={"number": ("number", [file_no])},
+        )
+        ds.to_netcdf(file_path)
+    data_getter = ClimateDataGetter()
+    data_getter._temp_save_dir = temp_save_dir
+    data_getter._temp_file_names = temp_file_names
+    data_getter._ds_temp = xr.open_mfdataset(temp_file_paths)
 
-    mock_unlinked_paths = []
-
-    def _mock_unlink(path, *args, **kwargs):
-        mock_unlinked_paths.append(str(path))
-
-    with patch.object(pathlib.Path, "unlink", new=_mock_unlink):
-        data_getter._delete_temporary()
-
-    assert mock_unlinked_paths == [
-        "not/a/real/path/temporary_1.nc",
-        "not/a/real/path/temporary_2.nc",
-        "not/a/real/path/temporary_3.nc",
-    ]
+    assert any(temp_save_dir.iterdir())
+    data_getter._delete_temporary()
+    assert not temp_save_dir.is_dir()
+    assert data_getter._temp_save_dir is None
+    assert data_getter._temp_file_names is None
+    assert data_getter._ds_temp is None
