@@ -138,7 +138,9 @@ class ClimateDataGetter:
             lon_range = self._subset["lon_range"]
             lat_range = self._subset["lat_range"]
             base_name_str_list = [self.data_source, self._frequency]
-            if all(np.diff(years) == 1):
+            if np.size(years) == 1:
+                base_name_str_list.append(f"{np.atleast_1d(years)[0]}")
+            elif all(np.diff(years) == 1):
                 base_name_str_list.extend([f"{years[0]}", "to", f"{years[-1]}"])
             elif np.size(years) <= 10:
                 base_name_str_list.extend([f"{year}" for year in years])

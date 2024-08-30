@@ -121,7 +121,7 @@ def test_get_climate_data_file_names():
         data_source, frequency=frequency, subset=subset
     )
     expected = [
-        "isimip_monthly_2015_to_2015_" + comb + ".nc"
+        "isimip_monthly_2015_" + comb + ".nc"
         for comb in [
             "gabba_overcast_length_3",
             "gabba_overcast_inswinger_3",

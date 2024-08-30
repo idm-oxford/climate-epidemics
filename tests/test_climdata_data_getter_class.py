@@ -63,7 +63,7 @@ def test_init():
 @pytest.mark.parametrize(
     "years,year_str_expected,warning",
     [
-        ([2015], "2015_to_2015", False),
+        ([2015], "2015", False),
         ([2015, 2016], "2015_to_2016", False),
         (np.arange(2015, 2200), "2015_to_2199", False),
         ([2015, 2016, 2018, 2100], "2015_2016_2018_2100", False),
