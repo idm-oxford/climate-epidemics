@@ -200,7 +200,7 @@ def _make_example_registry(name, data_dir=None):
     pooch.make_registry(data_dir, registry_file_path, recursive=False)
 
 
-def make_all_examples(force_remake=True):
+def make_all_examples(force_remake=False):
     """
     Create all example datasets by downloading and formatting the relevant data.
     """
@@ -217,4 +217,4 @@ def make_all_examples(force_remake=True):
 
 
 if __name__ == "__main__":
-    make_all_examples(force_remake=False)
+    make_all_examples(force_remake=False)  # pragma: no cover
