@@ -90,6 +90,7 @@ class CESMDataGetter(ClimateDataGetter):
                             ds_subset.sel(lon=slice(lon_range[0] % 360, 360)),
                         ],
                         dim="lon",
+                        data_vars="minimal",
                     )
                 else:
                     ds_subset = ds_subset.sel(
