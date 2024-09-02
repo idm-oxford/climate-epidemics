@@ -3,15 +3,19 @@ Unit tests for the CESMDataGetter class in the _cesm.py module of the climdata
 subpackage.
 """
 
+import pathlib
+import tempfile
 from unittest.mock import patch
 
 import intake_esm
+import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
 import pytest
 import xarray as xr
 import xarray.testing as xrt
 
 from climepi.climdata._cesm import CESMDataGetter
+from climepi.testing.fixtures import generate_dataset
 
 
 def test_find_remote_data():
@@ -78,10 +82,10 @@ def test_subset_remote_data(year_opt, lon_opt):
             "gus": xr.DataArray(
                 np.random.rand(36, 4, 3, 5), dims=["time", "member_id", "lat", "lon"]
             ),
-            "time_bnds": time_bnds,
         },
         coords={
             "time": time,
+            "time_bnds": time_bnds,
             "member_id": xr.DataArray(["id1", "id2", "id3", "id4"], dims="member_id"),
             "lat": xr.DataArray([-30, 15, 60], dims="lat"),
             "lon": xr.DataArray([0, 50, 180, 230, 359], dims="lon"),
@@ -131,3 +135,69 @@ def test_subset_remote_data(year_opt, lon_opt):
             member_id=[0, 2],
         ),
     )
+
+
+@patch.object(xr.Dataset, "to_netcdf", autospec=True)
+def test_download_remote_data(mock_to_netcdf):
+    """
+    Unit test for the _download_remote_data method of the CESMDataGetter class. The
+    download is mocked to avoid actually downloading the remote data.
+    """
+    ds = xr.Dataset(data_vars={"chris": xr.DataArray(np.random.rand(6), dims=["ball"])})
+    data_getter = CESMDataGetter()
+    data_getter._temp_save_dir = pathlib.Path(".")
+    data_getter._ds = ds
+    data_getter._download_remote_data()
+    assert data_getter._temp_file_names == ["temp_data.nc"]
+    mock_to_netcdf.assert_called_once_with(
+        ds, pathlib.Path("temp_data.nc"), compute=False
+    )
+    mock_to_netcdf.return_value.compute.assert_called_once_with()
+
+
+def test_open_temp_data():
+    """
+    Unit test for the _open_temp_data method of the CESMDataGetter class. Checks that
+    chunking is preserved when the temporary dataset is opened.
+    """
+    time_lb = xr.cftime_range(
+        start="2001-01-01", periods=12, freq="MS", calendar="noleap"
+    )
+    time_rb = xr.cftime_range(
+        start="2001-02-01", periods=12, freq="MS", calendar="noleap"
+    )
+    time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "nbnd"))
+    time = time_bnds.mean(dim="nbnd")
+    ds = xr.Dataset(
+        data_vars={
+            "mark": xr.DataArray(np.random.rand(12, 4), dims=["time", "member_id"]),
+        },
+        coords={
+            "time": time,
+            "time_bnds": time_bnds,
+            "member_id": xr.DataArray(["id1", "id2", "id3", "id4"], dims="member_id"),
+        },
+    )
+    ds.time.attrs = {"bounds": "time_bnds"}
+    ds.time.encoding = {"calendar": "noleap", "units": "days since 2000-01-01"}
+    ds["mark"] = ds["mark"].chunk({"time": 1, "member_id": 2})
+
+    with tempfile.TemporaryDirectory() as _temp_dir:
+        temp_save_dir = pathlib.Path(_temp_dir)
+        ds.to_netcdf(temp_save_dir / "temp_data.nc")
+
+        data_getter = CESMDataGetter()
+        data_getter._ds = ds
+        data_getter._temp_save_dir = temp_save_dir
+        data_getter._temp_file_names = ["temp_data.nc"]
+        data_getter._open_temp_data()
+        xrt.assert_identical(data_getter._ds, ds)
+        xrt.assert_identical(data_getter._ds_temp, ds)
+        assert data_getter._ds.chunks.mapping == {
+            "time": (1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+            "member_id": (2, 2),
+        }
+        assert (
+            "nbnd" in data_getter._ds_temp.chunks
+        )  # time_bnds chunked in _ds_temp but not in _ds
+        data_getter._ds_temp.close()
