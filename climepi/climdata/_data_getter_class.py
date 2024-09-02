@@ -161,7 +161,12 @@ class ClimateDataGetter:
             else:
                 if lon_range is not None:
                     base_name_str_list.extend(
-                        ["lon", f"{lon_range[0]}", "to", f"{lon_range[1]}"]
+                        [
+                            "lon",
+                            f"{lon_range[0]}".replace(".", "_"),
+                            "to",
+                            f"{lon_range[1]}".replace(".", "_"),
+                        ]
                     )
                 if lat_range is not None:
                     base_name_str_list.extend(
@@ -267,14 +272,13 @@ class ClimateDataGetter:
         # files are not found), and store the dataset in the _ds attribute.
         save_dir = self._save_dir
         file_names = self.file_names
-        _ds = xcdat.open_mfdataset(
+        ds = xcdat.open_mfdataset(
             [save_dir / file_name for file_name in file_names], chunks={}
         )
-        if "time_bnds" in _ds:
-            # Load time bounds to avoid bug saving to file caused by encoding not being
-            # set [REVISIT IN FUTURE]
-            _ds.time_bnds.load()
-        self._ds = _ds
+        if "time_bnds" in ds:
+            # Load time bounds to avoid errors saving to file (since no encoding set)
+            ds.time_bnds.load()
+        self._ds = ds
 
     def _find_remote_data(self):
         # Method for finding the data on the remote server to be implemented in
@@ -305,7 +309,10 @@ class ClimateDataGetter:
             temp_save_dir / temp_file_name for temp_file_name in temp_file_names
         ]
         self._ds_temp = xr.open_mfdataset(temp_file_paths, **kwargs)
-        self._ds = self._ds_temp
+        self._ds = self._ds_temp.copy()
+        if "time_bnds" in self._ds:
+            # Load time bounds to avoid errors saving to file (since no encoding set)
+            self._ds.time_bnds.load()
 
     def _process_data(self):
         # Process the downloaded dataset, and store the processed dataset in the _ds
