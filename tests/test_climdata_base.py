@@ -222,7 +222,7 @@ def test_get_climate_data_location_list(timeout_error):
 
     with patch.object(climdata._base, "get_climate_data", new=mock_get_climate_data):
         if timeout_error == "all":
-            with pytest.raises(TimeoutError):
+            with pytest.raises(TimeoutError), pytest.warns(UserWarning):
                 climdata._base._get_climate_data_location_list("test", subset=subset)
             return
         if timeout_error == "some":
