@@ -10,6 +10,7 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import dask.array as da
+import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
 import numpy.testing as npt
 import pytest
