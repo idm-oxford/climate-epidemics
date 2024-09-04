@@ -65,8 +65,8 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        location : str
-            Name of the location to select.
+        location : str or list of str
+            Name(s) of the location(s) to select.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the geocode method of the Nominatim
             geocoder.
@@ -76,24 +76,30 @@ class ClimEpiDatasetAccessor:
         xarray.Dataset
             A new dataset containing the data for the specified location.
         """
+        if isinstance(location, list):
+            ds_list = [
+                self.sel_geo(location_curr, **kwargs) for location_curr in location
+            ]
+            concat_vars = [var for var in self._obj.data_vars if var != "time_bnds"]
+            ds_new = xr.concat(
+                ds_list, dim="location", data_vars=concat_vars, coords=["lat", "lon"]
+            )
+            return ds_new
         location_geopy = geolocator.geocode(location, **kwargs)
         lat = location_geopy.latitude
-        lon = location_geopy.longitude
-        if max(self._obj.lon) > 180.001:
-            # Deals with the case where the longitude co-ordinates are in the range
-            # [0, 360] (slightly crude)
+        lon = location_geopy.longitude  # in the range [-180, 180]
+        lon_min = min(self._obj.lon)
+        lon_max = max(self._obj.lon)
+        if lon_max > 180.0001:
+            # Deals with the case where the longitude co-ordinates of the datasetare in
+            # the range [0, 360] (slightly crude)
             lon = lon % 360
-        if (
-            lat < min(self._obj.lat)
-            or lat > max(self._obj.lat)
-            or lon < min(self._obj.lon)
-            or lon > max(self._obj.lon)
-        ):
-            print(
-                "Warning: The requested location is outside the range of the",
-                "dataset. Returning the nearest grid point.",
-            )
+        if lon > lon_max and (lon_min - (lon - 360)) < (lon - lon_max):
+            lon = lon - 360
+        elif lon < lon_min and ((lon + 360) - lon_max) < (lon_min - lon):
+            lon = lon + 360
         ds_new = self._obj.sel(lat=lat, lon=lon, method="nearest")
+        ds_new = ds_new.assign_coords(location=location)
         return ds_new
 
     def temporal_group_average(self, data_var=None, frequency="yearly", **kwargs):
