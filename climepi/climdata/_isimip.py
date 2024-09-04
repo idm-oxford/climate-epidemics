@@ -1,6 +1,8 @@
 import pathlib
 import time
+import warnings
 import zipfile
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -106,13 +108,15 @@ class ISIMIPDataGetter(ClimateDataGetter):
     def _subset_remote_data(self):
         # Request server-side subsetting of the data to the requested location(s) and
         # update the _client_results attribute with the results of the subsetting.
-        location = self._subset["location"]
+        locations = self._subset["locations"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         client_results = self._client_results
         max_subset_wait_time = self._max_subset_wait_time
-        if location is not None:
-            location_geopy = geolocator.geocode(location)
+        if locations is not None:
+            if isinstance(locations, list):
+                return self._subset_remote_data_location_list()
+            location_geopy = geolocator.geocode(locations)
             lat = location_geopy.latitude
             lon = location_geopy.longitude
             bbox = [lat, lat, lon, lon]
@@ -124,7 +128,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 lon_range = ((np.array(lon_range) + 180) % 360) - 180
             if lat_range is None:
                 lat_range = [-90, 90]
-            bbox = [lat_range[0], lat_range[1], lon_range[0], lon_range[1]]
+            bbox = [str(x) for x in list(lat_range) + list(lon_range)]
         # Request server to subset the data
         client_file_paths = [file["path"] for file in client_results]
         paths_by_cutout_request = [
@@ -166,6 +170,26 @@ class ISIMIPDataGetter(ClimateDataGetter):
                     )
                 time.sleep(10)
         self._client_results = client_results_new
+
+    def _subset_remote_data_location_list(self):
+        # Request server-side subsetting of the data to a list of locations
+        locations = self._subset["locations"]
+        client_results = []
+        any_timeout_error = False
+        for location_curr in locations:
+            print(f"Initiating subsetting request for location: {location_curr}")
+            data_getter_curr = deepcopy(self)
+            data_getter_curr._subset["locations"] = location_curr
+            try:
+                data_getter_curr._subset_remote_data()
+                client_results += data_getter_curr._client_results
+            except TimeoutError as exc:
+                any_timeout_error = True
+                warnings.warn(f"{exc}\n", stacklevel=2)
+                print("Continuing to initiate subsetting for remaining locations.")
+        if any_timeout_error:
+            raise TimeoutError("Subsetting for at least one location timed out.")
+        self._client_results = client_results
 
     def _download_remote_data(self):
         # Download the remote data to temporary files using (printing a progress bar),
@@ -236,12 +260,18 @@ class ISIMIPDataGetter(ClimateDataGetter):
         super()._open_temp_data(**kwargs)
 
     def _process_data(self):
-        # Extends the parent method to add temporal subsetting, time bounds, renaming,
-        # unit conversion and (depending on the requested data frequency) temporal
-        # averaging.
+        # Extends the parent method to add subsetting, time bounds, renaming, unit
+        # conversion and (depending on the requested data frequency) temporal averaging.
         ds_processed = self._ds.copy()
         frequency = self._frequency
         years = self._subset["years"]
+        locations = self._subset["locations"]
+        # Ensure the data are indexed by location string if locations are provided (use
+        # atleast_1d to ensure "location" is made a dimension)
+        if locations is not None:
+            ds_processed = ds_processed.climepi.sel_geo(
+                np.atleast_1d(locations).tolist()
+            )
         # Subset the data to the requested years
         ds_processed = ds_processed.isel(time=ds_processed.time.dt.year.isin(years))
         # Add time bounds using xcdat

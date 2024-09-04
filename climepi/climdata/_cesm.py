@@ -45,11 +45,12 @@ class CESMDataGetter(ClimateDataGetter):
             "https://raw.githubusercontent.com/NCAR/cesm2-le-aws"
             + "/main/intake-catalogs/aws-cesm2-le.json"
         )
-        print("\n\n")
+        print("\n")
         catalog_subset = catalog.search(
             variable=["TREFHT", "PRECC", "PRECL"], frequency=frequency
         )
         ds_dict_in = catalog_subset.to_dataset_dict(storage_options={"anon": True})
+        print("\n")
         ds_cmip6_in = xr.concat(
             [
                 ds_dict_in["atm.historical.monthly.cmip6"],
@@ -72,14 +73,18 @@ class CESMDataGetter(ClimateDataGetter):
         # location(s), and store the subsetted dataset in the _ds attribute.
         years = self._subset["years"]
         realizations = self._subset["realizations"]
-        location = self._subset["location"]
+        locations = self._subset["locations"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         ds_subset = self._ds.copy()
         ds_subset = ds_subset.isel(member_id=realizations)
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
-        if location is not None:
-            ds_subset = ds_subset.climepi.sel_geo(location)
+        if locations is not None:
+            # Use the climepi package to find the nearest grid points to the provided
+            # locations, and subset the data accordingly (ensure locations is a list
+            # so "location" is made a dimension coordinate).
+            locations = np.atleast_1d(locations).tolist()
+            ds_subset = ds_subset.climepi.sel_geo(locations)
         else:
             if lon_range is not None:
                 # Note the remote data are stored with longitudes in the range 0 to 360.

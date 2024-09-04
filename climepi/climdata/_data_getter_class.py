@@ -66,7 +66,7 @@ class ClimateDataGetter:
             realizations : list or array-like of int, optional
                 Realizations for which to retrieve data. If not provided, all available
                 realizations are retrieved.
-            location : str or list of str, optional
+            locations : str or list of str, optional
                 Name of one or more locations for which to retrieve data (for each
                 provided location, `geopy` is used to query the corresponding longitude
                 and latitude, and data for the nearest grid point are retrieved). If
@@ -103,7 +103,7 @@ class ClimateDataGetter:
             "scenarios": self.available_scenarios,
             "models": self.available_models,
             "realizations": self.available_realizations,
-            "location": None,
+            "locations": None,
             "lon_range": None,
             "lat_range": None,
         }
@@ -118,23 +118,23 @@ class ClimateDataGetter:
             save_dir = CACHE_DIR
         self._save_dir = pathlib.Path(save_dir)
         self._save_dir.mkdir(parents=True, exist_ok=True)
-        self._file_name_dict = None
+        self._file_name_da = None
         self._file_names = None
 
     @property
-    def file_name_dict(self):
+    def file_name_da(self):
         """
-        Gets a dictionary mapping each scenario/model/realization combination to a file
-        name for saving and retrieving the corresponding data (without the directory
-        path). The file names are determined based on the provided data subsetting
-        options.
+        Gets an xarray data array mapping each scenario/model/realization combination to
+        a file name for saving and retrieving the corresponding data (without the
+        directory path). The file names are determined based on the provided data
+        subsetting options.
         """
-        if self._file_name_dict is None:
+        if self._file_name_da is None:
             years = self._subset["years"]
             scenarios = self._subset["scenarios"]
             models = self._subset["models"]
             realizations = self._subset["realizations"]
-            location = self._subset["location"]
+            locations = self._subset["locations"]
             lon_range = self._subset["lon_range"]
             lat_range = self._subset["lat_range"]
             base_name_str_list = [self.data_source, self._frequency]
@@ -156,59 +156,67 @@ class ClimateDataGetter:
                     "smaller chunks.",
                     stacklevel=2,
                 )
-            if location is not None:
-                base_name_str_list.append(location.replace(" ", "_"))
+            if locations is not None:
+                locations = np.atleast_1d(locations)
             else:
+                location_str_list = []
                 if lon_range is not None:
-                    base_name_str_list.extend(
-                        [
-                            "lon",
-                            f"{lon_range[0]}".replace(".", "_"),
-                            "to",
-                            f"{lon_range[1]}".replace(".", "_"),
-                        ]
+                    location_str_list.append(
+                        f"lon_{lon_range[0]}_to_{lon_range[1]}".replace(
+                            ".", "_"
+                        ).replace("-", "m")
                     )
                 if lat_range is not None:
-                    base_name_str_list.extend(
-                        ["lat", f"{lat_range[0]}", "to", f"{lat_range[1]}"]
+                    location_str_list.append(
+                        f"lat_{lat_range[0]}_to_{lat_range[1]}".replace(
+                            ".", "_"
+                        ).replace("-", "m")
                     )
-            file_name_dict = {
-                scenario: {
-                    model: {realization: None for realization in realizations}
-                    for model in models
-                }
-                for scenario in scenarios
-            }
-            for scenario, model, realization in itertools.product(
-                scenarios, models, realizations
+                location_str = "_".join(location_str_list)
+                locations = [location_str]
+            file_name_da = xr.DataArray(
+                data=np.empty(
+                    (len(locations), len(scenarios), len(models), len(realizations)),
+                    dtype=object,
+                ),
+                dims=["location", "scenario", "model", "realization"],
+                coords={
+                    "location": locations,
+                    "scenario": scenarios,
+                    "model": models,
+                    "realization": realizations,
+                },
+            )
+            for location, scenario, model, realization in itertools.product(
+                locations, scenarios, models, realizations
             ):
                 name_str_list = base_name_str_list + [
+                    location.replace(" ", "_"),
                     scenario,
                     model,
                     f"{realization}.nc",
                 ]
                 name_str = "_".join(name_str_list)
-                file_name_dict[scenario][model][realization] = name_str
-            self._file_name_dict = file_name_dict
-        return self._file_name_dict
+                file_name_da.loc[
+                    {
+                        "location": location,
+                        "scenario": scenario,
+                        "model": model,
+                        "realization": realization,
+                    }
+                ] = name_str
+            self._file_name_da = file_name_da
+        return self._file_name_da
 
     @property
     def file_names(self):
         """
         Gets a list of file names for saving and retrieving the data for the included
-        scenario/model/realization combinations (see 'file_name_dict' property).
+        scenario/model/realization combinations (see 'file_name_da' property).
         """
         if self._file_names is None:
-            scenarios = self._subset["scenarios"]
-            models = self._subset["models"]
-            realizations = self._subset["realizations"]
-            file_name_dict = self.file_name_dict
-            self._file_names = [
-                file_name_dict[scenario][model][realization]
-                for scenario, model, realization in itertools.product(
-                    scenarios, models, realizations
-                )
-            ]
+            file_name_da = self.file_name_da
+            self._file_names = file_name_da.values.flatten().tolist()
         return self._file_names
 
     def get_data(self, download=True, force_remake=False):
@@ -325,19 +333,6 @@ class ClimateDataGetter:
         # values (which is not possible for single-value coordinates).
         lon_res = self.lon_res
         lat_res = self.lat_res
-        non_bnd_data_vars = list_non_bnd_data_vars(ds_processed)
-        if len(non_bnd_data_vars) == 1:
-            # Assignment below fails with a length-1 list
-            non_bnd_data_vars = non_bnd_data_vars[0]
-        if "lon" not in ds_processed.dims:
-            # Ensure lon is a dim so it appears as a dim of its bounds variable
-            ds_processed[non_bnd_data_vars] = ds_processed[
-                non_bnd_data_vars
-            ].expand_dims("lon")
-        if "lat" not in ds_processed.dims:
-            ds_processed[non_bnd_data_vars] = ds_processed[
-                non_bnd_data_vars
-            ].expand_dims("lat")
         if "lon_bnds" not in ds_processed and lon_res is not None:
             ds_processed["lon_bnds"] = xr.concat(
                 [ds_processed.lon - lon_res / 2, ds_processed.lon + lon_res / 2],
@@ -351,11 +346,6 @@ class ClimateDataGetter:
             ).T
             ds_processed["lat"].attrs.update(bounds="lat_bnds")
         ds_processed = ds_processed.bounds.add_missing_bounds(axes=["X", "Y"])
-        # Convert the longitude coordinate to the range -180 to 180 (MAY REMOVE IN
-        # FUTURE) - note this should be done after adding bounds to avoid issues on
-        # the boundaries
-        ds_processed = xcdat.swap_lon_axis(ds_processed, to=(-180, 180))
-        # Use degree symbol for units of latitude and longitude (for nicer plotting)
         ds_processed["lon"].attrs.update(units="°E")
         ds_processed["lat"].attrs.update(units="°N")
         self._ds = ds_processed
@@ -366,17 +356,46 @@ class ClimateDataGetter:
         scenarios = self._subset["scenarios"]
         models = self._subset["models"]
         realizations = self._subset["realizations"]
+        locations = self._subset["locations"]
         save_dir = self._save_dir
-        file_name_dict = self.file_name_dict
+        file_name_da = self.file_name_da
         ds_all = self._ds
-        for scenario, model, realization in itertools.product(
-            scenarios, models, realizations
-        ):
-            ds_curr = ds_all.sel(
-                realization=[realization], scenario=[scenario], model=[model]
-            )
-            save_path = save_dir / file_name_dict[scenario][model][realization]
-            ds_curr.to_netcdf(save_path)
+        if locations is not None:
+            for location, scenario, model, realization in itertools.product(
+                np.atleast_1d(locations), scenarios, models, realizations
+            ):
+                ds_curr = ds_all.sel(
+                    location=[location],
+                    realization=[realization],
+                    scenario=[scenario],
+                    model=[model],
+                )
+                save_path = (
+                    save_dir
+                    / file_name_da.sel(
+                        location=location,
+                        scenario=scenario,
+                        model=model,
+                        realization=realization,
+                    ).values.flatten()[0]
+                )
+                ds_curr.to_netcdf(save_path)
+        else:
+            for scenario, model, realization in itertools.product(
+                scenarios, models, realizations
+            ):
+                ds_curr = ds_all.sel(
+                    realization=[realization], scenario=[scenario], model=[model]
+                )
+                save_path = (
+                    save_dir
+                    / file_name_da.sel(
+                        scenario=scenario,
+                        model=model,
+                        realization=realization,
+                    ).values.flatten()[0]
+                )
+                ds_curr.to_netcdf(save_path)
 
     def _delete_temporary(self):
         # Delete the temporary file(s) created when downloading the data (once the data

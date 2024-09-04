@@ -29,7 +29,7 @@ EXAMPLES = {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
-            "location": [
+            "locations": [
                 "Los Angeles",
                 "Paris",
                 "Islamabad",
@@ -41,7 +41,7 @@ EXAMPLES = {
         "data_source": "isimip",
         "frequency": "daily",
         "subset": {
-            "location": [
+            "locations": [
                 "Los Angeles",
                 "Paris",
                 "Islamabad",
@@ -70,7 +70,7 @@ EXAMPLES = {
         "frequency": "monthly",
         "subset": {
             "years": np.arange(2000, 2101),
-            "location": [
+            "locations": [
                 "Los Angeles",
                 "Paris",
                 "Islamabad",
