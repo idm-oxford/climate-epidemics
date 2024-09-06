@@ -172,6 +172,8 @@ class ClimateDataGetter:
                             ".", "_"
                         ).replace("-", "m")
                     )
+                if lon_range is None and lat_range is None:
+                    location_str_list.append("all")
                 location_str = "_".join(location_str_list)
                 locations = [location_str]
             file_name_da = xr.DataArray(
