@@ -22,7 +22,7 @@ def test_find_remote_data():
     """
     Test the _find_remote_data method of the CESMDataGetter class. The conversion of
     the intake_esm catalog to a dataset dictionary is mocked to avoid opening the
-    actual remote data.
+    actual remote dataset.
     """
 
     frequency = "monthly"
@@ -37,39 +37,48 @@ def test_find_remote_data():
         },
     )
 
-    def _mock_to_dataset_dict(catalog_subset, storage_options=None):
-        assert sorted(catalog_subset.df.path.tolist()) == sorted(
-            [
-                "s3://ncar-cesm2-lens/atm/"
-                + f"{frequency}/cesm2LE-{forcing}-{assumption}-{var}.zarr"
-                for forcing in ["historical", "ssp370"]
-                for assumption in ["cmip6", "smbb"]
-                for var in ["TREFHT", "PRECC", "PRECL"]
-            ]
+    mock_to_dataset_dict_return_value = {
+        "atm." + forcing + ".monthly." + assumption: ds.isel(
+            time=3 * (forcing == "ssp370") + np.arange(3),
+            member_id=2 * (assumption == "smbb") + np.arange(2),
         )
-        assert storage_options == {"anon": True}
-        return {
-            "atm." + forcing + ".monthly." + assumption: ds.isel(
-                time=3 * (forcing == "ssp370") + np.arange(3),
-                member_id=2 * (assumption == "smbb") + np.arange(2),
-            )
-            for forcing in ["historical", "ssp370"]
-            for assumption in ["cmip6", "smbb"]
-        }
+        for forcing in ["historical", "ssp370"]
+        for assumption in ["cmip6", "smbb"]
+    }
 
-    data_getter = CESMDataGetter(frequency="monthly")
+    data_getter = CESMDataGetter(frequency=frequency)
 
     with patch.object(
-        intake_esm.core.esm_datastore, "to_dataset_dict", _mock_to_dataset_dict
-    ):
+        intake_esm.core.esm_datastore,
+        "to_dataset_dict",
+        return_value=mock_to_dataset_dict_return_value,
+        autospec=True,
+    ) as mock_to_dataset_dict:
         data_getter._find_remote_data()
 
+    mock_to_dataset_dict.assert_called_once()
+    call_catalog_subset = mock_to_dataset_dict.call_args.args[0]
+    call_kwargs = mock_to_dataset_dict.call_args.kwargs
+    assert isinstance(call_catalog_subset, intake_esm.core.esm_datastore)
+    assert sorted(call_catalog_subset.df.path.tolist()) == sorted(
+        [
+            "s3://ncar-cesm2-lens/atm/"
+            + f"{frequency}/cesm2LE-{forcing}-{assumption}-{var}.zarr"
+            for forcing in ["historical", "ssp370"]
+            for assumption in ["cmip6", "smbb"]
+            for var in ["TREFHT", "PRECC", "PRECL"]
+        ]
+    )
+    assert call_kwargs == {"storage_options": {"anon": True}}
     xrt.assert_identical(data_getter._ds, ds)
 
 
-@pytest.mark.parametrize("year_opt", ["single", "multiple"])
-@pytest.mark.parametrize("lon_opt", ["single", "range_0_360", "range_180_180"])
-def test_subset_remote_data(year_opt, lon_opt):
+@pytest.mark.parametrize("year_mode", ["single", "multiple"])
+@pytest.mark.parametrize(
+    "location_mode",
+    ["single_named", "multiple_named", "grid_lon_0_360", "grid_lon_180_180"],
+)
+def test_subset_remote_data(year_mode, location_mode):
     """
     Test the _subset_remote_data method of the CESMDataGetter class.
     """
@@ -92,26 +101,28 @@ def test_subset_remote_data(year_opt, lon_opt):
         },
     )
 
-    if year_opt == "single":
+    if year_mode == "single":
         years = 2002
         time_inds_expected = slice(12, 24)
-    elif year_opt == "multiple":
+    elif year_mode == "multiple":
         years = [2002, 2003]
         time_inds_expected = slice(12, 36)
-    if lon_opt == "single":
-        location = "Los Angeles"
+    if location_mode == "single_named":
+        locations = "Los Angeles"
         lat_range = None
         lon_range = None
-        lat_inds_expected = 1
-        lon_inds_expected = 3
-    elif lon_opt == "range_0_360":
-        location = None
+    elif location_mode == "multiple_named":
+        locations = ["Los Angeles", "Tokyo"]
+        lat_range = None
+        lon_range = None
+    elif location_mode == "grid_lon_0_360":
+        locations = None
         lat_range = [10, 60]
         lon_range = [15, 240]
         lat_inds_expected = [1, 2]
         lon_inds_expected = [1, 2, 3]
-    elif lon_opt == "range_180_180":
-        location = None
+    elif location_mode == "grid_lon_180_180":
+        locations = None
         lat_range = [-20, 30]
         lon_range = [-30, 60]
         lat_inds_expected = [1]
@@ -119,22 +130,30 @@ def test_subset_remote_data(year_opt, lon_opt):
     subset = {
         "years": years,
         "realizations": [0, 2],
-        "location": location,
+        "locations": locations,
         "lat_range": lat_range,
         "lon_range": lon_range,
     }
     data_getter = CESMDataGetter(frequency="monthly", subset=subset)
     data_getter._ds = ds_all
     data_getter._subset_remote_data()
-    xrt.assert_identical(
-        data_getter._ds,
-        ds_all.isel(
-            time=time_inds_expected,
-            lat=lat_inds_expected,
-            lon=lon_inds_expected,
-            member_id=[0, 2],
-        ),
-    )
+    if location_mode in ["grid_lon_0_360", "grid_lon_180_180"]:
+        xrt.assert_identical(
+            data_getter._ds,
+            ds_all.isel(
+                time=time_inds_expected,
+                lat=lat_inds_expected,
+                lon=lon_inds_expected,
+                member_id=[0, 2],
+            ),
+        )
+    else:
+        xrt.assert_identical(
+            data_getter._ds,
+            ds_all.isel(time=time_inds_expected, member_id=[0, 2]).climepi.sel_geo(
+                np.atleast_1d(locations).tolist()
+            ),
+        )
 
 
 @patch.object(xr.Dataset, "to_netcdf", autospec=True)

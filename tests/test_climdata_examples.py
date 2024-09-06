@@ -98,7 +98,7 @@ def test_get_data_dir():
             "data_source": "lens2",
             "frequency": "ball",
             "subset": {
-                "location": ["cover"],
+                "locations": ["cover"],
                 "years": [2015],
                 "scenarios": ["full"],
                 "models": ["root"],

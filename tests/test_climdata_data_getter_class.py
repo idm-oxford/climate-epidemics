@@ -7,6 +7,7 @@ import itertools
 import logging
 import pathlib
 import tempfile
+from contextlib import nullcontext
 from unittest.mock import MagicMock, patch
 
 import dask.array as da
@@ -17,6 +18,7 @@ import pytest
 import xarray as xr
 import xarray.testing as xrt
 
+import climepi  # noqa
 from climepi.climdata._data_getter_class import CACHE_DIR, ClimateDataGetter
 from climepi.testing.fixtures import generate_dataset
 
@@ -27,7 +29,7 @@ def test_init():
     """
     data_getter = ClimateDataGetter(
         frequency="daily",
-        subset={"models": ["googly"], "location": "gabba"},
+        subset={"models": ["googly"], "locations": "gabba"},
     )
     for attr, value in (
         ("data_source", None),
@@ -46,7 +48,7 @@ def test_init():
                 "scenarios": None,
                 "models": ["googly"],
                 "realizations": None,
-                "location": "gabba",
+                "locations": "gabba",
                 "lon_range": None,
                 "lat_range": None,
             },
@@ -55,14 +57,14 @@ def test_init():
         ("_temp_file_names", None),
         ("_ds_temp", None),
         ("_save_dir", CACHE_DIR),
-        ("_file_name_dict", None),
+        ("_file_name_da", None),
         ("_file_names", None),
     ):
         assert getattr(data_getter, attr) == value, f"Attribute {attr} is not {value}."
 
 
 @pytest.mark.parametrize(
-    "years,year_str_expected,warning",
+    "years,year_str_expected,warning_expected",
     [
         ([2015], "2015", False),
         ([2015, 2016], "2015_to_2016", False),
@@ -77,20 +79,28 @@ def test_init():
     ],
 )
 @pytest.mark.parametrize(
-    "location,lon_range,lat_range,loc_str_expected",
+    "locations,lon_range,lat_range,loc_strs_expected",
     [
-        ("gabba", None, None, "gabba"),
-        ("Trent Bridge", [8, 15], None, "Trent_Bridge"),
-        (None, [8, 15], None, "lon_8_to_15"),
-        (None, None, [7, 44], "lat_7_to_44"),
-        (None, [7, 72], [6, 17], "lon_7_to_72_lat_6_to_17"),
+        (None, None, None, ("all",)),
+        ("gabba", None, None, ("gabba",)),
+        (["mcg"], None, None, ("mcg",)),
+        (["gabba", "mcg", "waca"], None, [8, 15], ("gabba", "mcg")),
+        (None, [8, 15], None, ("lon_8_to_15",)),
+        (None, None, [7, 44], ("lat_7_to_44",)),
+        (None, [7.5, 72], [-6, 17.33], ("lon_7_5_to_72_lat_m6_to_17_33",)),
     ],
 )
-def test_file_name_dict(
-    years, year_str_expected, warning, location, lon_range, lat_range, loc_str_expected
+def test_file_name_da(
+    years,
+    year_str_expected,
+    warning_expected,
+    locations,
+    lon_range,
+    lat_range,
+    loc_strs_expected,
 ):
     """
-    Test the _file_name_dict method of the ClimateDataGetter class.
+    Test the file_name_da property of the ClimateDataGetter class.
     """
     scenarios = ["overcast", "sunny"]
     models = ["length", "inswinger", "bouncer"]
@@ -101,45 +111,49 @@ def test_file_name_dict(
             "models": models,
             "realizations": realizations,
             "years": years,
-            "location": location,
+            "locations": locations,
             "lon_range": lon_range,
             "lat_range": lat_range,
         },
     )
     data_getter.data_source = "broad"
-    assert data_getter._file_name_dict is None
-    if warning:
-        with pytest.warns(UserWarning):
-            result = data_getter.file_name_dict
+    assert data_getter._file_name_da is None
+    with pytest.warns(UserWarning) if warning_expected else nullcontext():
+        result = data_getter.file_name_da
+    xrt.assert_identical(data_getter._file_name_da, result)
+    if locations is not None:
+        location_dim_expected = np.atleast_1d(locations).tolist()
     else:
-        result = data_getter.file_name_dict
-    assert data_getter._file_name_dict == result
-    for scenario, model, realization in itertools.product(
-        scenarios, models, realizations
+        location_dim_expected = list(loc_strs_expected)
+    npt.assert_equal(result["location"].values, np.array(location_dim_expected))
+    npt.assert_equal(result["scenario"].values, np.array(scenarios))
+    npt.assert_equal(result["model"].values, np.array(models))
+    npt.assert_equal(result["realization"].values, np.array(realizations))
+    for (location, loc_str_expected), scenario, model, realization in itertools.product(
+        zip(location_dim_expected, loc_strs_expected), scenarios, models, realizations
     ):
-        file_name_result = result[scenario][model][realization]
+        file_name_result = result.sel(
+            location=location, scenario=scenario, model=model, realization=realization
+        ).item()
         file_name_expected = (
             f"broad_monthly_{year_str_expected}_{loc_str_expected}"
             + f"_{scenario}_{model}_{realization}.nc"
         )
-        assert file_name_result == file_name_expected, (
-            f"File name is {file_name_result}, expected filename is "
-            f"{file_name_expected}."
-        )
+        assert file_name_result == file_name_expected
 
 
 def test_file_names():
     """
-    Test the file_names method of the ClimateDataGetter class.
+    Test the file_names property of the ClimateDataGetter class.
     """
     data_getter = ClimateDataGetter(
         frequency="monthly",
         subset={
             "scenarios": ["overcast", "sunny"],
-            "models": ["length", "inswinger"],
+            "models": ["length"],
             "realizations": np.arange(1, 3),
             "years": [2015, 2016, 2018, 2100],
-            "location": "gabba",
+            "locations": ["gabba", "mcg"],
         },
     )
     data_getter.data_source = "broad"
@@ -147,24 +161,28 @@ def test_file_names():
     result = data_getter.file_names
     assert data_getter._file_names == result
     expected = [
-        "broad_monthly_2015_2016_2018_2100_gabba_" + comb + ".nc"
+        "broad_monthly_2015_2016_2018_2100_" + comb + ".nc"
         for comb in [
-            "overcast_length_1",
-            "overcast_length_2",
-            "overcast_inswinger_1",
-            "overcast_inswinger_2",
-            "sunny_length_1",
-            "sunny_length_2",
-            "sunny_inswinger_1",
-            "sunny_inswinger_2",
+            "gabba_overcast_length_1",
+            "gabba_overcast_length_2",
+            "gabba_sunny_length_1",
+            "gabba_sunny_length_2",
+            "mcg_sunny_length_1",
+            "mcg_sunny_length_2",
+            "mcg_overcast_length_1",
+            "mcg_overcast_length_2",
         ]
     ]
     assert sorted(result) == sorted(expected)
 
 
-class TestGetData:
+@pytest.mark.parametrize("remote_open_possible", [True, False])
+@pytest.mark.parametrize("download", [True, False])
+@pytest.mark.parametrize("local_data_available", [True, False])
+@pytest.mark.parametrize("force_remake", [True, False])
+def test_get_data(remote_open_possible, download, local_data_available, force_remake):
     """
-    Class to test the get_data method of the ClimateDataGetter class.
+    Unit test for the get_data method of the ClimateDataGetter class.
     """
 
     subset = {
@@ -175,79 +193,92 @@ class TestGetData:
     }
     data_source = "warner"
 
-    @pytest.mark.parametrize("remote_open_possible", [True, False])
-    @pytest.mark.parametrize("download", [True, False])
-    @pytest.mark.parametrize("local_data_available", [True, False])
-    @pytest.mark.parametrize("force_remake", [True, False])
-    def test_get_data(
-        self, remote_open_possible, download, local_data_available, force_remake
-    ):
-        """
-        Test the get_data method of the ClimateDataGetter works correctly when data is
-        not already downloaded for both download=True and download=False cases, and when
-        remote_open_possible is True and False.
-        """
+    data_getter = ClimateDataGetter(subset=subset)
+    data_getter.data_source = data_source
+    data_getter.remote_open_possible = remote_open_possible
 
-        data_getter = ClimateDataGetter(subset=self.subset)
-        data_getter.data_source = self.data_source
-        data_getter.remote_open_possible = remote_open_possible
+    def _open_local_data_side_effect():
+        if not local_data_available and data_getter._ds is None:
+            raise FileNotFoundError
+        data_getter._ds = "variation"
 
-        def _open_local_data_side_effect():
-            if not local_data_available and data_getter._ds is None:
-                raise FileNotFoundError
-            data_getter._ds = "variation"
+    def _find_remote_data_side_effect():
+        if data_getter.remote_open_possible:
+            data_getter._ds = "stock"
 
-        def _find_remote_data_side_effect():
-            if data_getter.remote_open_possible:
-                data_getter._ds = "stock"
+    def _subset_remote_data_side_effect():
+        if data_getter.remote_open_possible:
+            data_getter._ds = "topspinner"
 
-        def _subset_remote_data_side_effect():
-            if data_getter.remote_open_possible:
-                data_getter._ds = "topspinner"
+    def _open_temp_data_side_effect():
+        data_getter._ds_temp = "googly"
+        data_getter._ds = "googly"
 
-        def _open_temp_data_side_effect():
-            data_getter._ds_temp = "googly"
-            data_getter._ds = "googly"
+    def _process_data_side_effect():
+        data_getter._ds = "flipper"
 
-        def _process_data_side_effect():
-            data_getter._ds = "flipper"
+    def _delete_temp_side_effect():
+        data_getter._temp_save_dir.rmdir()
+        data_getter._temp_save_dir = None
+        data_getter._ds_temp = "deleted"
 
-        def _delete_temp_side_effect():
-            data_getter._temp_save_dir.rmdir()
-            data_getter._temp_save_dir = None
-            data_getter._ds_temp = "deleted"
+    data_getter._open_local_data = MagicMock(side_effect=_open_local_data_side_effect)
+    data_getter._find_remote_data = MagicMock(side_effect=_find_remote_data_side_effect)
+    data_getter._subset_remote_data = MagicMock(
+        side_effect=_subset_remote_data_side_effect
+    )
+    data_getter._download_remote_data = MagicMock()
+    data_getter._open_temp_data = MagicMock(side_effect=_open_temp_data_side_effect)
+    data_getter._process_data = MagicMock(side_effect=_process_data_side_effect)
+    data_getter._save_processed_data = MagicMock()
+    data_getter._delete_temporary = MagicMock(side_effect=_delete_temp_side_effect)
 
-        data_getter._open_local_data = MagicMock(
-            side_effect=_open_local_data_side_effect
-        )
-        data_getter._find_remote_data = MagicMock(
-            side_effect=_find_remote_data_side_effect
-        )
-        data_getter._subset_remote_data = MagicMock(
-            side_effect=_subset_remote_data_side_effect
-        )
-        data_getter._download_remote_data = MagicMock()
-        data_getter._open_temp_data = MagicMock(side_effect=_open_temp_data_side_effect)
-        data_getter._process_data = MagicMock(side_effect=_process_data_side_effect)
-        data_getter._save_processed_data = MagicMock()
-        data_getter._delete_temporary = MagicMock(side_effect=_delete_temp_side_effect)
-
-        if force_remake and not download:
-            with pytest.raises(ValueError):
-                data_getter.get_data(download=download, force_remake=force_remake)
+    if force_remake and not download:
+        with pytest.raises(ValueError):
+            data_getter.get_data(download=download, force_remake=force_remake)
+        call_counts_expected = {
+            "_open_local_data": 0,
+            "_find_remote_data": 0,
+            "_subset_remote_data": 0,
+            "_download_remote_data": 0,
+            "_open_temp_data": 0,
+            "_process_data": 0,
+            "_save_processed_data": 0,
+            "_delete_temporary": 0,
+        }
+    elif not local_data_available and not download and not remote_open_possible:
+        with pytest.raises(ValueError):
+            data_getter.get_data(download=download, force_remake=force_remake)
+        call_counts_expected = {
+            "_open_local_data": 1,
+            "_find_remote_data": 0,
+            "_subset_remote_data": 0,
+            "_download_remote_data": 0,
+            "_open_temp_data": 0,
+            "_process_data": 0,
+            "_save_processed_data": 0,
+            "_delete_temporary": 0,
+        }
+    else:
+        result = data_getter.get_data(download=download, force_remake=force_remake)
+        if force_remake:
+            assert result == "variation"
+            assert data_getter._ds == "variation"
+            assert data_getter._ds_temp == "deleted"
             call_counts_expected = {
-                "_open_local_data": 0,
-                "_find_remote_data": 0,
-                "_subset_remote_data": 0,
-                "_download_remote_data": 0,
-                "_open_temp_data": 0,
-                "_process_data": 0,
-                "_save_processed_data": 0,
-                "_delete_temporary": 0,
+                "_open_local_data": 1,
+                "_find_remote_data": 1,
+                "_subset_remote_data": 1,
+                "_download_remote_data": 1,
+                "_open_temp_data": 1,
+                "_process_data": 1,
+                "_save_processed_data": 1,
+                "_delete_temporary": 1,
             }
-        elif not local_data_available and not download and not remote_open_possible:
-            with pytest.raises(ValueError):
-                data_getter.get_data(download=download, force_remake=force_remake)
+        elif local_data_available:
+            assert result == "variation"
+            assert data_getter._ds == "variation"
+            assert data_getter._ds_temp is None
             call_counts_expected = {
                 "_open_local_data": 1,
                 "_find_remote_data": 0,
@@ -258,70 +289,40 @@ class TestGetData:
                 "_save_processed_data": 0,
                 "_delete_temporary": 0,
             }
+        elif download:
+            assert result == "variation"
+            assert data_getter._ds == "variation"
+            assert data_getter._ds_temp == "deleted"
+            call_counts_expected = {
+                "_open_local_data": 2,
+                "_find_remote_data": 1,
+                "_subset_remote_data": 1,
+                "_download_remote_data": 1,
+                "_open_temp_data": 1,
+                "_process_data": 1,
+                "_save_processed_data": 1,
+                "_delete_temporary": 1,
+            }
         else:
-            result = data_getter.get_data(download=download, force_remake=force_remake)
-            if force_remake:
-                assert result == "variation"
-                assert data_getter._ds == "variation"
-                assert data_getter._ds_temp == "deleted"
-                call_counts_expected = {
-                    "_open_local_data": 1,
-                    "_find_remote_data": 1,
-                    "_subset_remote_data": 1,
-                    "_download_remote_data": 1,
-                    "_open_temp_data": 1,
-                    "_process_data": 1,
-                    "_save_processed_data": 1,
-                    "_delete_temporary": 1,
-                }
-            elif local_data_available:
-                assert result == "variation"
-                assert data_getter._ds == "variation"
-                assert data_getter._ds_temp is None
-                call_counts_expected = {
-                    "_open_local_data": 1,
-                    "_find_remote_data": 0,
-                    "_subset_remote_data": 0,
-                    "_download_remote_data": 0,
-                    "_open_temp_data": 0,
-                    "_process_data": 0,
-                    "_save_processed_data": 0,
-                    "_delete_temporary": 0,
-                }
-            elif download:
-                assert result == "variation"
-                assert data_getter._ds == "variation"
-                assert data_getter._ds_temp == "deleted"
-                call_counts_expected = {
-                    "_open_local_data": 2,
-                    "_find_remote_data": 1,
-                    "_subset_remote_data": 1,
-                    "_download_remote_data": 1,
-                    "_open_temp_data": 1,
-                    "_process_data": 1,
-                    "_save_processed_data": 1,
-                    "_delete_temporary": 1,
-                }
-            else:
-                assert result == "flipper"
-                assert data_getter._ds == "flipper"
-                assert data_getter._ds_temp is None
-                call_counts_expected = {
-                    "_open_local_data": 1,
-                    "_find_remote_data": 1,
-                    "_subset_remote_data": 1,
-                    "_download_remote_data": 0,
-                    "_open_temp_data": 0,
-                    "_process_data": 1,
-                    "_save_processed_data": 0,
-                    "_delete_temporary": 0,
-                }
-        for method, count_expected in call_counts_expected.items():
-            assert getattr(data_getter, method).call_count == count_expected, (
-                f"Method {method} called {getattr(data_getter, method).call_count} "
-                f"times, expected {count_expected}."
-            )
-        assert data_getter._temp_save_dir is None
+            assert result == "flipper"
+            assert data_getter._ds == "flipper"
+            assert data_getter._ds_temp is None
+            call_counts_expected = {
+                "_open_local_data": 1,
+                "_find_remote_data": 1,
+                "_subset_remote_data": 1,
+                "_download_remote_data": 0,
+                "_open_temp_data": 0,
+                "_process_data": 1,
+                "_save_processed_data": 0,
+                "_delete_temporary": 0,
+            }
+    for method, count_expected in call_counts_expected.items():
+        assert getattr(data_getter, method).call_count == count_expected, (
+            f"Method {method} called {getattr(data_getter, method).call_count} "
+            f"times, expected {count_expected}."
+        )
+    assert data_getter._temp_save_dir is None
 
 
 def test_open_local_data():
@@ -366,7 +367,7 @@ def test_open_local_data():
             "models": models,
             "realizations": realizations,
             "years": [2015, 2016, 2018, 2100],
-            "location": "gabba",
+            "locations": "gabba",
         },
     )
     data_getter.data_source = "watto"
@@ -416,8 +417,9 @@ def test_download_remote_data():
         data_getter._download_remote_data()
 
 
+@patch("xarray.open_mfdataset", autospec=True)
 @pytest.mark.parametrize("include_data_vars_kwarg", [True, False])
-def test_open_temp_data(include_data_vars_kwarg):
+def test_open_temp_data(mock_xr_open_mfdataset, include_data_vars_kwarg):
     """
     Test the _open_temp_data method of the ClimateDataGetter class.
     """
@@ -429,163 +431,122 @@ def test_open_temp_data(include_data_vars_kwarg):
         "temporary_3.nc",
     ]
 
-    def _mock_xr_open_mfdataset(file_path_list, **kwargs):
-        return [str(x) + "_" + kwargs["data_vars"] for x in file_path_list]
+    open_paths_expected = [
+        pathlib.Path("not/a/real/path/temporary_1.nc"),
+        pathlib.Path("not/a/real/path/temporary_2.nc"),
+        pathlib.Path("not/a/real/path/temporary_3.nc"),
+    ]
 
     if include_data_vars_kwarg:
-        with patch("xarray.open_mfdataset", _mock_xr_open_mfdataset):
-            data_getter._open_temp_data(data_vars="all")
-        expected = [
-            "not/a/real/path/temporary_1.nc_all",
-            "not/a/real/path/temporary_2.nc_all",
-            "not/a/real/path/temporary_3.nc_all",
-        ]
+        data_getter._open_temp_data(data_vars="all")
+        mock_xr_open_mfdataset.assert_called_once_with(
+            open_paths_expected, data_vars="all", chunks={}
+        )
     else:
-        with patch("xarray.open_mfdataset", _mock_xr_open_mfdataset):
-            data_getter._open_temp_data()
-        expected = [
-            "not/a/real/path/temporary_1.nc_minimal",
-            "not/a/real/path/temporary_2.nc_minimal",
-            "not/a/real/path/temporary_3.nc_minimal",
-        ]
-    assert data_getter._ds_temp == expected
-    assert data_getter._ds == expected
+        data_getter._open_temp_data()
+        mock_xr_open_mfdataset.assert_called_once_with(
+            open_paths_expected, data_vars="minimal", chunks={}
+        )
+
+    assert data_getter._ds_temp == mock_xr_open_mfdataset.return_value
+    assert data_getter._ds == mock_xr_open_mfdataset.return_value.copy.return_value
 
 
-class TestProcessData:
+@pytest.mark.parametrize(
+    "location_mode",
+    ["single_named", "multiple_named", "single_lat_lon", "grid_lat_lon"],
+)
+@pytest.mark.parametrize("lon_res_set", [True, False])
+def test_process_data(location_mode, lon_res_set):
     """
-    Class to test the _process_data method of the ClimateDataGetter class.
+    Unit test for the _process_data method of the ClimateDataGetter class. Focuses
+    on checking that longitude/latitude bounds correctly are added to the dataset.
     """
-
-    def test_process_data_main(self):
-        """
-        Main test for the _process_data method of the ClimateDataGetter class. Focuses
-        on checking that longitude/latitude bounds are added to the dataset, and that
-        longitude values are converted to the range -180 to 180 if necessary.
-        """
-        lon_res = 0.8
-        lat_res = 0.15
+    # Set up the input dataset
+    lon_res = 0.8
+    lat_res = 0.15
+    if location_mode in ["single_named", "single_lat_lon"]:
+        no_lons = 1
+        no_lats = 1
+    elif location_mode in ["multiple_named", "grid_lat_lon"]:
+        no_lons = 4
+        no_lats = 4
+    if location_mode in ["single_lat_lon", "grid_lat_lon"]:
+        lon_vals = 179 + lon_res * np.arange(no_lons)
+        lat_vals = -20 + lat_res * np.arange(no_lats)
         ds_in = xr.Dataset(
             data_vars={
-                "delivery": xr.DataArray(np.random.rand(4, 5), dims=["lon", "lat"])
+                "delivery": xr.DataArray(
+                    np.random.rand(no_lons, no_lats), dims=["lon", "lat"]
+                )
             },
             coords={
-                "lon": xr.DataArray(179 + lon_res * np.arange(4), dims="lon"),
-                "lat": xr.DataArray(-20 + lat_res * np.arange(5), dims="lat"),
+                "lon": xr.DataArray(lon_vals, dims="lon"),
+                "lat": xr.DataArray(lat_vals, dims="lat"),
             },
         )
-        ds_in["lon"].attrs = {"long_name": "Longitude", "units": "degrees_east"}
-        ds_in["lat"].attrs = {"long_name": "Latitude", "units": "degrees_north"}
-        # Case where lon_res and lat_res are not set, so xcdat add_missing_bounds is
-        # used to add bounds to the longitude and latitude coordinates
-        data_getter1 = ClimateDataGetter()
-        data_getter1._ds = ds_in
-        data_getter1._process_data()
-        ds_out1 = data_getter1._ds
-        assert "lon_bnds" in ds_out1 and "lat_bnds" in ds_out1
-        npt.assert_allclose(
-            ds_out1["lon"].values, np.array([-179.4, -178.6, 179, 179.8])
+    elif location_mode in ["single_named", "multiple_named"]:
+        assert no_lons == no_lats
+        lon_vals = np.random.choice(np.arange(179), no_lons, replace=False)
+        lat_vals = np.random.choice(np.arange(-20, 40), no_lats, replace=False)
+        location_vals = np.random.choice(
+            ["gabba", "mcg", "waca", "scg"], no_lons, replace=False
         )
-        assert ds_out1["lon"].attrs == {
-            "units": "°E",
-            "long_name": "Longitude",
-            "bounds": "lon_bnds",
-        }
-        assert ds_out1["lon_bnds"].attrs == {"xcdat_bounds": "True"}
-        # Case where lon_res and lat_res are set, so bounds are calculated manually
-        data_getter2 = ClimateDataGetter()
-        data_getter2.lon_res = lon_res
-        data_getter2.lat_res = lat_res
-        data_getter2._ds = ds_in
-        data_getter2._process_data()
-        ds_out2 = data_getter2._ds
-        xrt.assert_identical(
-            ds_out1["delivery"],
-            ds_out2["delivery"],
+        ds_in = xr.Dataset(
+            data_vars={
+                "delivery": xr.DataArray(np.random.rand(no_lons), dims=["location"])
+            },
+            coords={
+                "location": location_vals,
+                "lon": xr.DataArray(lon_vals, dims=["location"]),
+                "lat": xr.DataArray(lat_vals, dims=["location"]),
+            },
         )
-        xrt.assert_allclose(ds_out1["lon_bnds"], ds_out2["lon_bnds"])
-        assert ds_out2["lon_bnds"].attrs == {}
-
-    @pytest.mark.parametrize("lon_option", ["dim", "non_dim"])
-    def test_process_data_singleton_lon_lat(self, caplog, lon_option):
-        """
-        Test the _process_data method of the ClimateDataGetter class when the longitude
-        and latitude coordinates are singleton.
-        """
-        if lon_option == "dim":
-            ds_in = xr.Dataset(
-                data_vars={
-                    "delivery": xr.DataArray(
-                        np.random.rand(1, 3), dims=["lon", "time"]
-                    ),
-                    "time_bnds": xr.DataArray(
-                        np.random.rand(3, 2), dims=["time", "bnds"]
-                    ),
-                },
-                coords={
-                    "lon": xr.DataArray([345], dims="lon"),
-                    "lat": 1,
-                },
-            )
-        elif lon_option == "non_dim":
-            ds_in = xr.Dataset(
-                data_vars={
-                    "delivery": xr.DataArray(np.random.rand(3), dims=["time"]),
-                    "bounce": xr.DataArray(np.random.rand(3), dims=["time"]),
-                    "time_bnds": xr.DataArray(
-                        np.random.rand(3, 2), dims=["time", "bnds"]
-                    ),
-                },
-                coords={
-                    "lon": 345,
-                    "lat": 1,
-                },
-            )
-        ds_in["lon"].attrs = {"long_name": "Longitude", "units": "degrees_east"}
-        ds_in["lat"].attrs = {"long_name": "Latitude", "units": "degrees_north"}
-        data_getter1 = ClimateDataGetter()
-        data_getter1.lon_res = 0.8
-        data_getter1.lat_res = 0.15
-        data_getter1._ds = ds_in
-        data_getter1._process_data()
-        ds_out1 = data_getter1._ds
-        assert "lon" in ds_out1.dims and "lat" in ds_out1.dims
-        assert "lon" in ds_out1["delivery"].dims and "lat" in ds_out1["delivery"].dims
-        assert (
-            "lon" not in ds_out1["time_bnds"].dims
-            and "lat" not in ds_out1["time_bnds"].dims
-        )
-        assert "lon_bnds" in ds_out1 and "lat_bnds" in ds_out1
-        npt.assert_allclose(ds_out1["lon"].values, -15)
-        npt.assert_allclose(ds_out1["lat"].values, 1)
-        npt.assert_allclose(ds_out1["lon_bnds"].values, np.array([[-15.4, -14.6]]))
-        npt.assert_allclose(ds_out1["lat_bnds"].values, np.array([[0.925, 1.075]]))
-        assert ds_out1["lon"].attrs == {
-            "units": "°E",
-            "long_name": "Longitude",
-            "bounds": "lon_bnds",
-        }
-        assert ds_out1["lat"].attrs == {
-            "units": "°N",
-            "long_name": "Latitude",
-            "bounds": "lat_bnds",
-        }
-        assert ds_out1["lon_bnds"].attrs == {}
-        assert ds_out1["lat_bnds"].attrs == {}
-        # Case where lon_res is not set, so bounds cannot be calculated
-        data_getter2 = ClimateDataGetter()
-        data_getter2.lat_res = 0.15
-        data_getter2._ds = ds_in
-        with caplog.at_level(logging.WARNING):
-            data_getter2._process_data()
-        assert "Cannot generate bounds" in caplog.text
-        ds_out2 = data_getter2._ds
-        assert "lon" in ds_out2.dims and "lat" in ds_out2.dims
-        assert "lat_bnds" in ds_out2
-        assert "lon_bnds" not in ds_out2
+    ds_in["lon"].attrs = {"long_name": "Longitude", "units": "degrees_east"}
+    ds_in["lat"].attrs = {"long_name": "Latitude", "units": "degrees_north"}
+    # Run the _process_data method
+    data_getter = ClimateDataGetter()
+    data_getter.lat_res = lat_res
+    if lon_res_set:
+        data_getter.lon_res = lon_res
+    data_getter._ds = ds_in
+    data_getter._process_data()
+    ds_out = data_getter._ds
+    # Check the output dataset
+    lat_bnds_vals_expected = np.stack(
+        [lat_vals - lat_res / 2, lat_vals + lat_res / 2], axis=1
+    )
+    lon_bnds_vals_expected = np.stack(
+        [lon_vals - lon_res / 2, lon_vals + lon_res / 2], axis=1
+    )
+    npt.assert_allclose(ds_out["lat_bnds"], lat_bnds_vals_expected)
+    if lon_res_set or location_mode == "grid_lat_lon":
+        npt.assert_allclose(ds_out["lon_bnds"], lon_bnds_vals_expected)
+        xrt.assert_equal(ds_out.drop_vars(["lon_bnds", "lat_bnds"]), ds_in)
+    else:
+        assert "lon_bnds" not in ds_out
+        xrt.assert_equal(ds_out.drop_vars("lat_bnds"), ds_in)
+    # Check attributes of the output dataset
+    assert ds_out["lat"].attrs == {
+        "long_name": "Latitude",
+        "units": "°N",
+        "bounds": "lat_bnds",
+    }
+    assert ds_out["lon"].attrs["units"] == "°E"
+    assert ds_out["lon"].attrs["long_name"] == "Longitude"
+    if lon_res_set:
+        assert ds_out["lon"].attrs["bounds"] == "lon_bnds"
+        assert ds_out["lon_bnds"].attrs == {}
+    elif location_mode == "grid_lat_lon":
+        assert ds_out["lon"].attrs["bounds"] == "lon_bnds"
+        assert ds_out["lon_bnds"].attrs == {"xcdat_bounds": "True"}
+    else:
+        assert "bounds" not in ds_out["lon"].attrs
 
 
-def test_save_processed_data():
+@patch.object(xr.Dataset, "to_netcdf", autospec=True)
+@pytest.mark.parametrize("named_locations", [True, False])
+def test_save_processed_data(mock_to_netcdf, named_locations):
     """
     Test the _save_processed_data method of the ClimateDataGetter class.
     """
@@ -600,6 +561,11 @@ def test_save_processed_data():
             "realization": realizations,
         },
     )
+    ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+    if named_locations:
+        locations = ["lords", "gabba"]
+        ds = ds.climepi.sel_geo(locations)
+
     data_getter = ClimateDataGetter(
         frequency="monthly",
         subset={
@@ -607,41 +573,42 @@ def test_save_processed_data():
             "models": models,
             "realizations": realizations,
             "years": [2015, 2016, 2018, 2100],
-            "location": "gabba",
+            "locations": locations if named_locations else None,
         },
         save_dir="outside/edge",
     )
     data_getter.data_source = "broad"
     data_getter._ds = ds
 
-    to_netcdf_called_datasets = []
-    to_netcdf_called_paths = []
+    data_getter._save_processed_data()
 
-    def _mock_to_netcdf(ds, *args, **kwargs):
-        to_netcdf_called_datasets.append(ds)
-        to_netcdf_called_paths.append(str(args[0]))
-
-    with patch.object(xr.Dataset, "to_netcdf", new=_mock_to_netcdf):
-        data_getter._save_processed_data()
-
-    called_paths_expected = [
-        "outside/edge/broad_monthly_2015_2016_2018_2100_gabba_" + comb + ".nc"
-        for comb in [
-            "overcast_inswinger_1",
-            "overcast_inswinger_2",
-            "overcast_length_1",
-            "overcast_length_2",
-            "sunny_inswinger_1",
-            "sunny_inswinger_2",
-            "sunny_length_1",
-            "sunny_length_2",
-        ]
-    ]
-    assert to_netcdf_called_paths == called_paths_expected
-    for path, ds in zip(to_netcdf_called_paths, to_netcdf_called_datasets):
-        assert ds.scenario == path.split("_")[-3]
-        assert ds.model == path.split("_")[-2]
-        assert ds.realization == int(path.split("_")[-1].split(".")[0])
+    if named_locations:
+        for scenario, model, realization, location in itertools.product(
+            scenarios, models, realizations, locations
+        ):
+            mock_to_netcdf.assert_any_call(
+                ds.sel(
+                    scenario=[scenario],
+                    model=[model],
+                    realization=[realization],
+                    location=[location],
+                ),
+                pathlib.Path(
+                    "outside/edge/broad_monthly_2015_2016_2018_2100_"
+                    + f"{location}_{scenario}_{model}_{realization}.nc"
+                ),
+            )
+    else:
+        for scenario, model, realization in itertools.product(
+            scenarios, models, realizations
+        ):
+            mock_to_netcdf.assert_any_call(
+                ds.sel(scenario=[scenario], model=[model], realization=[realization]),
+                pathlib.Path(
+                    "outside/edge/broad_monthly_2015_2016_2018_2100_"
+                    + f"all_{scenario}_{model}_{realization}.nc"
+                ),
+            )
 
 
 def test_delete_temporary():
