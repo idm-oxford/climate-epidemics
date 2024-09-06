@@ -8,8 +8,6 @@ import pooch
 import xarray as xr
 import xcdat
 
-from climepi.utils import list_non_bnd_data_vars
-
 # Cache directory for storing any temporary files created when downloading data.
 # Note: the code could be improved to ensure that the temporary files are deleted if an
 # error occurs, and to use a different temporary file name each time to avoid
