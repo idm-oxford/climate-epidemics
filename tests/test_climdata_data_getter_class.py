@@ -4,7 +4,6 @@ climdata subpackage.
 """
 
 import itertools
-import logging
 import pathlib
 import tempfile
 from contextlib import nullcontext
