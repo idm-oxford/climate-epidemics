@@ -10,12 +10,12 @@ from unittest.mock import patch
 import intake_esm
 import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
+import numpy.testing as npt
 import pytest
 import xarray as xr
 import xarray.testing as xrt
 
 from climepi.climdata._cesm import CESMDataGetter
-from climepi.testing.fixtures import generate_dataset
 
 
 def test_find_remote_data():
@@ -25,7 +25,7 @@ def test_find_remote_data():
     actual remote dataset.
     """
 
-    frequency = "monthly"
+    frequency = "yearly"  # here, monthly data should be found (and averaged later)
     ds = xr.Dataset(
         data_vars={
             var: xr.DataArray(np.random.rand(6, 4), dims=["time", "member_id"])
@@ -220,3 +220,100 @@ def test_open_temp_data():
             "nbnd" in data_getter._ds_temp.chunks
         )  # time_bnds chunked in _ds_temp but not in _ds
         data_getter._ds_temp.close()
+
+
+@pytest.mark.parametrize("frequency", ["monthly", "yearly"])
+def test_process_data(frequency):
+    """
+    Test the _process_data method of the CESMDataGetter class.
+    """
+    time_lb = xr.cftime_range(
+        start="2001-01-01", periods=36, freq="MS", calendar="noleap"
+    )
+    time_rb = xr.cftime_range(
+        start="2001-02-01", periods=36, freq="MS", calendar="noleap"
+    )
+    time_bnds_in = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "nbnd"))
+    time_in = time_bnds_in.mean(dim="nbnd").assign_attrs(bounds="time_bnds")
+    time_in.encoding = {"calendar": "noleap", "units": "days since 2000-01-01"}
+    ds_unprocessed = xr.Dataset(
+        data_vars={
+            "TREFHT": xr.DataArray(
+                np.random.rand(36, 2, 1, 1), dims=["time", "member_id", "lat", "lon"]
+            ),
+            "PRECC": xr.DataArray(
+                np.random.rand(36, 2, 1, 1), dims=["time", "member_id", "lat", "lon"]
+            ),
+            "PRECL": xr.DataArray(
+                np.random.rand(36, 2, 1, 1), dims=["time", "member_id", "lat", "lon"]
+            ),
+        },
+        coords={
+            "time": time_in,
+            "time_bnds": time_bnds_in,
+            "member_id": xr.DataArray(["id1", "id2"], dims="member_id"),
+            "lat": xr.DataArray([30], dims="lat"),
+            "lon": xr.DataArray([150], dims="lon"),
+        },
+    )
+    data_getter = CESMDataGetter(frequency=frequency, subset={"realizations": [0, 1]})
+    data_getter._ds = ds_unprocessed
+    data_getter._process_data()
+    ds_processed = data_getter._ds
+    # Check changes in dimensions/coords
+    npt.assert_equal(
+        ds_processed.temperature.dims,
+        ["scenario", "model", "time", "realization", "lat", "lon"],
+    )
+    npt.assert_equal(ds_processed["realization"].values, [0, 1])
+    npt.assert_equal(ds_processed["scenario"].values, "ssp370")
+    npt.assert_equal(ds_processed["model"].values, "cesm2")
+    assert "time_bnds" not in ds_processed.coords
+    npt.assert_equal(
+        ds_processed.time_bnds.dims,
+        ["time", "bnds"],
+    )
+    # Check unit conversion and (if necessary) temporal averaging
+    if frequency == "yearly":
+        ds_unprocessed_avg = ds_unprocessed.climepi.yearly_average()
+    else:
+        ds_unprocessed_avg = ds_unprocessed
+    temp_vals_expected = ds_unprocessed_avg["TREFHT"].values - 273.15
+    prec_vals_expected = (
+        ds_unprocessed_avg["PRECC"].values + ds_unprocessed_avg["PRECL"].values
+    ) * 8.64e7
+    npt.assert_allclose(
+        ds_processed.temperature.values.squeeze(), temp_vals_expected.squeeze()
+    )
+    npt.assert_allclose(
+        ds_processed.precipitation.values.squeeze(), prec_vals_expected.squeeze()
+    )
+    # Check attributes
+    assert ds_processed.temperature.attrs["long_name"] == "Temperature"
+    assert ds_processed.temperature.attrs["units"] == "°C"
+    assert ds_processed.precipitation.attrs["long_name"] == "Precipitation"
+    assert ds_processed.precipitation.attrs["units"] == "mm/day"
+    assert ds_processed.time.attrs == {
+        "bounds": "time_bnds",
+        "long_name": "Time",
+        "axis": "T",
+    }
+    assert ds_processed.lon.attrs == {
+        "long_name": "Longitude",
+        "units": "°E",
+        "axis": "X",
+        "bounds": "lon_bnds",
+    }
+    assert ds_processed.lat.attrs == {
+        "long_name": "Latitude",
+        "units": "°N",
+        "axis": "Y",
+        "bounds": "lat_bnds",
+    }
+    # Check addition of longitude and latitude bounds using known grid spacing
+    npt.assert_allclose(
+        ds_processed.lon_bnds.values.squeeze(), [150 - 0.625, 150 + 0.625]
+    )
+    npt.assert_allclose(
+        ds_processed.lat_bnds.values.squeeze(), [30 - 180 / 382, 30 + 180 / 382]
+    )
