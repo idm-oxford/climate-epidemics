@@ -38,28 +38,86 @@ def test_run_epi_model():
     xrt.assert_identical(result, expected)
 
 
-@pytest.mark.parametrize("lon_0_360", [True, False])
-@pytest.mark.parametrize(
-    "location,lat,lon", [("Miami", 25.7617, -80.1918), ("Cape Town", -33.9221, 18.4231)]
-)
-def test_sel_geo(lon_0_360, location, lat, lon):
-    """Test the sel_geo method of the ClimEpiDatasetAccessor class."""
-    ds = xr.Dataset(
-        {
-            "hello": (("lat", "lon", "there"), np.ones((9, 36, 3))),
-        },
-        coords={"lat": np.arange(0, 90, 10), "lon": np.arange(-90, 90, 5)},
-    )
-    if lon_0_360:
-        ds["lon"] = np.sort(ds["lon"].values % 360)
-        lon = lon % 360
-    result = ds.climepi.sel_geo(location=location)
-    lat_result = result.lat.values
-    lon_result = result.lon.values
-    lat_expected = ds.lat.sel(lat=lat, method="nearest").values
-    lon_expected = ds.lon.sel(lon=lon, method="nearest").values
-    npt.assert_allclose(lat_result, lat_expected)
-    npt.assert_allclose(lon_result, lon_expected)
+class TestSelGeo:
+    """
+    Class defining tests for the sel_geo method of the ClimEpiDatasetAccessor class.
+    """
+
+    @pytest.mark.parametrize("location", ["Miami", "Cape Town"])
+    @pytest.mark.parametrize("lon_0_360", [False, True])
+    def test_sel_geo_main(self, location, lon_0_360):
+        """
+        Main test. Checks cases where the location's longitude is outside the dataset's
+        longitude grid, in which case the closer of the left/right edges of the grid
+        should be selected.
+        """
+        ds1 = xr.Dataset(
+            {
+                "hello": (("lat", "lon", "there"), np.random.rand(9, 72, 2)),
+            },
+            coords={"lat": np.arange(0, 90, 10), "lon": np.arange(-180, 180, 5)},
+        )
+        ds2 = ds1.sel(lon=slice(160, 180))
+        ds3 = ds1.sel(lon=slice(-180, -160))
+        if location == "Miami":
+            # True lat = 25.8, lon = -80.2
+            lat_expected = 30
+            lon_expected1 = -80
+            lon_expected2 = 175
+            lon_expected3 = -160
+        elif location == "Cape Town":
+            # True lat = -33.9, lon = 18.4
+            lat_expected = 0
+            lon_expected1 = 20
+            lon_expected2 = 160
+            lon_expected3 = -180
+        for ds, lon_expected in zip(
+            [ds1, ds2, ds3], [lon_expected1, lon_expected2, lon_expected3]
+        ):
+            if lon_0_360:
+                ds["lon"] = np.sort(ds["lon"].values % 360)
+                lon_expected = lon_expected % 360
+            result = ds.climepi.sel_geo(location=location)
+            npt.assert_equal(result.lat.values, lat_expected)
+            npt.assert_equal(result.lon.values, lon_expected)
+            npt.assert_equal(result["location"].values, location)
+            npt.assert_equal(
+                result["hello"].values,
+                ds["hello"].sel(lon=lon_expected, lat=lat_expected).values,
+            )
+
+    @pytest.mark.parametrize("location_list", [["Miami", "Cape Town"], ["Miami"]])
+    def test_sel_geo_location_list(self, location_list):
+        """
+        Test the sel_geo method of the ClimEpiDatasetAccessor class with a list of
+        locations.
+        """
+        ds = (
+            generate_dataset(data_var="beamer", extra_dims={"covers": 2})
+            .drop_vars(("lat_bnds", "lon_bnds"))
+            .assign_coords(
+                lat=np.array([-90, -30, 30, 90]), lon=np.array([90, 120, 150, 180])
+            )
+        )
+        ds["beamer"].values = np.random.rand(*ds["beamer"].shape)
+        result = ds.climepi.sel_geo(location=location_list)
+        assert "location" in result.dims
+        npt.assert_equal(result["location"].values, location_list)
+        assert "location" not in result["time_bnds"].dims
+        xrt.assert_identical(result["time_bnds"], ds["time_bnds"])
+        for location in location_list:
+            if location == "Miami":
+                # True lat = 25.8, lon = -80.2
+                lat_expected = 30
+                lon_expected = 180
+            elif location == "Cape Town":
+                # True lat = -33.9, lon = 18.4
+                lat_expected = -30
+                lon_expected = 90
+            xrt.assert_identical(
+                result.sel(location=location, drop=True),
+                ds.sel(lat=lat_expected, lon=lon_expected, drop=True),
+            )
 
 
 @pytest.mark.parametrize("frequency", ["yearly", "monthly", "daily"])
