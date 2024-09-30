@@ -82,8 +82,11 @@ class ClimEpiDatasetAccessor:
             ]
             concat_vars = [var for var in self._obj.data_vars if var != "time_bnds"]
             ds_new = xr.concat(
-                ds_list, dim="location", data_vars=concat_vars, coords=["lat", "lon"]
-            )
+                ds_list,
+                dim="location_dim",  # if "location", time_bnds seems to be concatenated
+                data_vars=concat_vars,
+                coords=["lat", "lon", "location"],
+            ).swap_dims(location_dim="location")
             return ds_new
         location_geopy = geolocator.geocode(location, **kwargs)
         lat = location_geopy.latitude
