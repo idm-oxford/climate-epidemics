@@ -18,14 +18,15 @@ import xarray.testing as xrt
 from climepi.climdata._cesm import CESMDataGetter
 
 
-def test_find_remote_data():
+@pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
+def test_find_remote_data(frequency):
     """
     Test the _find_remote_data method of the CESMDataGetter class. The conversion of
     the intake_esm catalog to a dataset dictionary is mocked to avoid opening the
     actual remote dataset.
     """
+    remote_frequency = "monthly" if frequency == "yearly" else frequency
 
-    frequency = "yearly"  # here, monthly data should be found (and averaged later)
     ds = xr.Dataset(
         data_vars={
             var: xr.DataArray(np.random.rand(6, 4), dims=["time", "member_id"])
@@ -38,7 +39,7 @@ def test_find_remote_data():
     )
 
     mock_to_dataset_dict_return_value = {
-        "atm." + forcing + ".monthly." + assumption: ds.isel(
+        "atm." + forcing + "." + remote_frequency + "." + assumption: ds.isel(
             time=3 * (forcing == "ssp370") + np.arange(3),
             member_id=2 * (assumption == "smbb") + np.arange(2),
         )
@@ -63,7 +64,7 @@ def test_find_remote_data():
     assert sorted(call_catalog_subset.df.path.tolist()) == sorted(
         [
             "s3://ncar-cesm2-lens/atm/"
-            + f"{frequency}/cesm2LE-{forcing}-{assumption}-{var}.zarr"
+            + f"{remote_frequency}/cesm2LE-{forcing}-{assumption}-{var}.zarr"
             for forcing in ["historical", "ssp370"]
             for assumption in ["cmip6", "smbb"]
             for var in ["TREFHT", "PRECC", "PRECL"]

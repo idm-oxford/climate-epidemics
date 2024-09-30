@@ -53,15 +53,15 @@ class CESMDataGetter(ClimateDataGetter):
         print("\n")
         ds_cmip6_in = xr.concat(
             [
-                ds_dict_in["atm.historical.monthly.cmip6"],
-                ds_dict_in["atm.ssp370.monthly.cmip6"],
+                ds_dict_in[f"atm.historical.{frequency}.cmip6"],
+                ds_dict_in[f"atm.ssp370.{frequency}.cmip6"],
             ],
             dim="time",
         )
         ds_smbb_in = xr.concat(
             [
-                ds_dict_in["atm.historical.monthly.smbb"],
-                ds_dict_in["atm.ssp370.monthly.smbb"],
+                ds_dict_in[f"atm.historical.{frequency}.smbb"],
+                ds_dict_in[f"atm.ssp370.{frequency}.smbb"],
             ],
             dim="time",
         )
