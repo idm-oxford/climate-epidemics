@@ -616,6 +616,12 @@ class ClimEpiDatasetAccessor:
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )
+        ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
+            label_from_attrs(ds_var_decomp[data_var])  # so first get ylabel from attrs
+            .replace("[", "(")
+            .replace("]", ")")
+        )
+        ds_var_decomp[data_var] = ds_var_decomp[data_var].drop_attrs()
         ds_plot = xr.Dataset(
             {
                 "Internal": ds_var_decomp[data_var].sel(var_type="internal", drop=True),
@@ -626,9 +632,7 @@ class ClimEpiDatasetAccessor:
         kwargs_hvplot = {
             "x": "time",
             "y": ["Internal", "Model", "Scenario"],
-            "ylabel": label_from_attrs(ds_var_decomp[data_var])
-            .replace("[", "(")
-            .replace("]", ")"),
+            "ylabel": ylabel,
             "group_label": "Uncertainty type",
             **kwargs,
         }
