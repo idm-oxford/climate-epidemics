@@ -802,7 +802,7 @@ def test_plot_var_decomp(fraction):
         result["Internal"].data.Baseline.values, internal_lower_expected
     )
     npt.assert_allclose(
-        result["Internal"].data.value.values,
+        result["Internal"].data.Internal.values,
         internal_upper_expected,
     )
     npt.assert_allclose(
@@ -810,7 +810,7 @@ def test_plot_var_decomp(fraction):
         model_lower_expected,
     )
     npt.assert_allclose(
-        result["Model"].data.value.values,
+        result["Model"].data.Model.values,
         model_upper_expected,
     )
     npt.assert_allclose(
@@ -818,7 +818,7 @@ def test_plot_var_decomp(fraction):
         scenario_lower_expected,
     )
     npt.assert_allclose(
-        result["Scenario"].data.value.values,
+        result["Scenario"].data.Scenario.values,
         scenario_upper_expected,
     )
     if fraction:
