@@ -695,9 +695,9 @@ class ClimEpiDatasetAccessor:
             "color": colors[0],
             **kwargs_area,
         }
-        kwargs_model = {"label": "Model spread", "color": colors[1], **kwargs_area}
+        kwargs_model = {"label": "Model uncertainty", "color": colors[1], **kwargs_area}
         kwargs_scenario = {
-            "label": "Scenario spread",
+            "label": "Scenario uncertainty",
             "color": colors[2],
             **kwargs_area,
         }
