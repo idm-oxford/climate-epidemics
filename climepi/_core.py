@@ -624,14 +624,20 @@ class ClimEpiDatasetAccessor:
         ds_var_decomp[data_var] = ds_var_decomp[data_var].drop_attrs()
         ds_plot = xr.Dataset(
             {
-                "Internal": ds_var_decomp[data_var].sel(var_type="internal", drop=True),
-                "Model": ds_var_decomp[data_var].sel(var_type="model", drop=True),
-                "Scenario": ds_var_decomp[data_var].sel(var_type="scenario", drop=True),
+                "Internal variability": ds_var_decomp[data_var].sel(
+                    var_type="internal", drop=True
+                ),
+                "Model uncertainty": ds_var_decomp[data_var].sel(
+                    var_type="model", drop=True
+                ),
+                "Scenario uncertainty": ds_var_decomp[data_var].sel(
+                    var_type="scenario", drop=True
+                ),
             }
         ).squeeze()
         kwargs_hvplot = {
             "x": "time",
-            "y": ["Internal", "Model", "Scenario"],
+            "y": ["Internal variability", "Model uncertainty", "Scenario uncertainty"],
             "ylabel": ylabel,
             "group_label": "Uncertainty type",
             **kwargs,
