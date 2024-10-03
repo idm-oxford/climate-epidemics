@@ -30,6 +30,7 @@ EXAMPLES = {
         "frequency": "monthly",
         "subset": {
             "locations": [
+                "London",
                 "Los Angeles",
                 "Paris",
                 "Islamabad",
@@ -42,6 +43,7 @@ EXAMPLES = {
         "frequency": "daily",
         "subset": {
             "locations": [
+                "London",
                 "Los Angeles",
                 "Paris",
                 "Islamabad",
@@ -71,6 +73,7 @@ EXAMPLES = {
         "subset": {
             "years": np.arange(2000, 2101),
             "locations": [
+                "London",
                 "Los Angeles",
                 "Paris",
                 "Islamabad",
