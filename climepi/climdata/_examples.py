@@ -33,23 +33,24 @@ EXAMPLES = {
                 "London",
                 "Los Angeles",
                 "Paris",
-                "Islamabad",
+                "Cape Town",
+                "Istanbul",
             ],
         },
         "formatted_data_downloadable": True,
     },
-    "isimip_cities_daily": {
-        "data_source": "isimip",
-        "frequency": "daily",
-        "subset": {
-            "locations": [
-                "London",
-                "Los Angeles",
-                "Paris",
-                "Islamabad",
-            ],
-        },
-    },
+    # "isimip_cities_daily": {
+    #     "data_source": "isimip",
+    #     "frequency": "daily",
+    #     "subset": {
+    #         "locations": [
+    #             "London",
+    #             "Los Angeles",
+    #             "Paris",
+    #             "Islamabad",
+    #         ],
+    #     },
+    # },
     "lens2_2020_2060_2100": {
         "data_source": "lens2",
         "frequency": "monthly",
