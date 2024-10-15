@@ -8,16 +8,14 @@ packages = ["climepi"]
 [project]
 name = "climepi"
 version = "0.0.0"
-authors = [
-  { name="William Hart", email="william.hart@maths.ox.ac.uk" },
-]
+authors = [{ name = "William Hart", email = "william.hart@maths.ox.ac.uk" }]
 description = "Combining climate and epidemiological models"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Operating System :: OS Independent",
 ]
 dependencies = [
   "xcdat",
@@ -27,11 +25,10 @@ dependencies = [
   "hvplot",
   "geoviews",
   "nc-time-axis",
-  "panel",
   "pooch",
   "intake-esm",
   "s3fs",
-  "isimip-client"
+  "isimip-client",
 ]
 
 [project.urls]
@@ -39,6 +36,4 @@ dependencies = [
 "Bug Tracker" = "https://github.com/will-s-hart/climate-epidemics/issues"
 
 [tool.pytest.ini_options]
-addopts = [
-    "--import-mode=importlib",
-]
+addopts = ["--import-mode=importlib"]

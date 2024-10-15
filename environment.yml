@@ -4,7 +4,7 @@ channels:
   - nodefaults
 dependencies:
   # Core
-  - python>=3.8
+  - python
   - pip
   # climepi dependencies (should match dependencies in pyproject.toml)
   - xcdat
