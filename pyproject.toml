@@ -5,6 +5,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["climepi*"]
 
+[tool.setuptools.package-data]
+"climepi.climdata._example_registry_files" = ["*.txt"]
+"climepi.epimod._example_data" = ["*.nc"]
+
 [project]
 name = "climepi"
 version = "0.0.0"
