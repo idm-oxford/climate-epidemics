@@ -27,7 +27,7 @@ EXAMPLES = {
     },
     "kaye_ae_aegypti_niche": {  # from https://doi.org/10.1101/2023.08.31.23294902
         "suitability_table_path": str(pathlib.Path(__file__).parent)
-        + "/example_data/kaye_ae_aegypti_niche.nc",
+        + "/_example_data/kaye_ae_aegypti_niche.nc",
     },
     "yang_ae_aegypti_niche": {  # from https://doi.org/10.1017/S0950268809002040,
         # range where offspring number is at least 1
