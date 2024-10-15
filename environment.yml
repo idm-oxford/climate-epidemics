@@ -7,17 +7,25 @@ dependencies:
   - python
   - pip
   # climepi dependencies (should match dependencies in pyproject.toml)
-  - xcdat
   - bottleneck
+  - dask
   - flox
   - geopy
+  - geoviews  
   - hvplot
-  - geoviews
+  - intake
+  - intake-esm  
   - nc-time-axis
+  - numpy
+  - pandas
   - panel
+  - param
   - pooch
-  - intake-esm
+  - requests
   - s3fs # needed when using intake-esm to access CESM data on AWS server
+  - urllib3
+  - xarray
+  - xcdat
   - pip:
     - isimip-client
   # This package
