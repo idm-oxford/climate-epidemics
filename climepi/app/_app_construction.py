@@ -2,11 +2,18 @@
 Module defining the layout of the climepi app and providing a method to run it.
 """
 
+import functools
+
 import panel as pn
 
 from climepi.app._app_classes_methods import Controller
 
 
+def get_app(
+    clim_dataset_example_base_dir=None,
+    clim_dataset_example_names=None,
+    epi_model_example_names=None,
+):
 def get_app(
     clim_dataset_example_base_dir=None,
     clim_dataset_example_names=None,
@@ -20,6 +27,9 @@ def get_app(
     clim_dataset_example_base_dir: str or pathlib.Path
         Base directory for the example climate datasets, optional. If None, the datasets
         will be downloaded to and accessed from the OS cache.
+    clim_dataset_example_base_dir: str or pathlib.Path
+        Base directory for the example climate datasets, optional. If None, the datasets
+        will be downloaded to and accessed from the OS cache.
     clim_dataset_example_names: list of str
         List of example names for climate datasets, optional. If None, the default list
         in climdata.EXAMPLE_NAMES is used.
@@ -30,6 +40,7 @@ def get_app(
     template = pn.template.BootstrapTemplate(title="climepi app")
 
     controller = Controller(
+        clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
         epi_model_example_names=epi_model_example_names,
@@ -65,11 +76,25 @@ def run_app(
     clim_dataset_example_names=None,
     epi_model_example_names=None,
 ):
+def run_app(
+    clim_dataset_example_base_dir=None,
+    clim_dataset_example_names=None,
+    epi_model_example_names=None,
+):
     """
     Method to run the climepi `Panel` app locally in a browser.
 
     Parameters:
     -----------
+    clim_dataset_example_base_dir: str or pathlib.Path
+        Base directory for the example climate datasets, optional. If None, the datasets
+        will be downloaded to and accessed from the OS cache.
+    clim_dataset_example_names: list of str
+        List of example names for climate datasets, optional. If None, the default list
+        in climdata.EXAMPLE_NAMES is used.
+    epi_model_example_names: list of str
+        List of example names for epidemiological models, optional. If None, the default
+        list in epimod.EXAMPLE_NAMES is used.
     clim_dataset_example_base_dir: str or pathlib.Path
         Base directory for the example climate datasets, optional. If None, the datasets
         will be downloaded to and accessed from the OS cache.
