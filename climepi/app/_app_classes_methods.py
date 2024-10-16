@@ -17,9 +17,9 @@ from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 # Pure functions
 
 
-def _load_clim_data_func(clim_dataset_name):
+def _load_clim_data_func(clim_dataset_name, base_dir):
     # Load climate data from the data source.
-    ds_clim = climdata.get_example_dataset(clim_dataset_name)
+    ds_clim = climdata.get_example_dataset(clim_dataset_name, base_dir=base_dir)
     return ds_clim
 
 
@@ -504,6 +504,7 @@ class Controller(param.Parameterized):
 
     def __init__(
         self,
+        clim_dataset_example_base_dir=None,
         clim_dataset_example_names=None,
         epi_model_example_names=None,
         **params,
@@ -519,6 +520,7 @@ class Controller(param.Parameterized):
         )
         self.param.epi_model_name.default = self.param.epi_model_name.objects[0]
         self.epi_model_name = self.param.epi_model_name.default
+        self._clim_dataset_example_base_dir = clim_dataset_example_base_dir
         self._ds_clim = None
         self._epi_model = None
         self._ds_epi = None
@@ -582,7 +584,9 @@ class Controller(param.Parameterized):
             return
         try:
             self.clim_data_status = "Loading data..."
-            ds_clim = _load_clim_data_func(self.clim_dataset_name)
+            ds_clim = _load_clim_data_func(
+                self.clim_dataset_name, base_dir=self._clim_dataset_example_base_dir
+            )
             self._ds_clim = ds_clim
             self.clim_plot_controller.initialize(ds_clim)
             self.clim_data_status = "Data loaded"
