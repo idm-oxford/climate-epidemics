@@ -64,12 +64,6 @@ def get_app(
 
     return template
 
-
-def run_app(
-    clim_dataset_example_base_dir=None,
-    clim_dataset_example_names=None,
-    epi_model_example_names=None,
-):
 def run_app(
     clim_dataset_example_base_dir=None,
     clim_dataset_example_names=None,
