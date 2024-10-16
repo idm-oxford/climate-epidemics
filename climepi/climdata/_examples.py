@@ -29,6 +29,7 @@ EXAMPLES = {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
+            "years": np.arange(2015, 2101),
             "locations": [
                 "London",
                 "Los Angeles",
@@ -39,18 +40,20 @@ EXAMPLES = {
         },
         "formatted_data_downloadable": True,
     },
-    # "isimip_cities_daily": {
-    #     "data_source": "isimip",
-    #     "frequency": "daily",
-    #     "subset": {
-    #         "locations": [
-    #             "London",
-    #             "Los Angeles",
-    #             "Paris",
-    #             "Islamabad",
-    #         ],
-    #     },
-    # },
+    "isimip_cities_daily": {
+        "data_source": "isimip",
+        "frequency": "daily",
+        "subset": {
+            "years": np.arange(2030, 2101),
+            "locations": [
+                "London",
+                "Los Angeles",
+                "Paris",
+                "Cape Town",
+                "Istanbul",
+            ],
+        },
+    },
     "lens2_2020_2060_2100": {
         "data_source": "lens2",
         "frequency": "monthly",
@@ -72,12 +75,13 @@ EXAMPLES = {
         "data_source": "lens2",
         "frequency": "monthly",
         "subset": {
-            "years": np.arange(2000, 2101),
+            "years": np.arange(2030, 2101),
             "locations": [
                 "London",
                 "Los Angeles",
                 "Paris",
-                "Islamabad",
+                "Istanbul",
+                "Cape Town",
             ],
         },
     },
@@ -85,7 +89,7 @@ EXAMPLES = {
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
-def get_example_dataset(name, data_dir=None, force_remake=False):
+def get_example_dataset(name, base_dir=None, force_remake=False):
     """
     Load an example climate dataset if it exists locally, download the formatted example
     dataset if possible, or retrieve/download/format the raw underlying data from the
@@ -100,11 +104,11 @@ def get_example_dataset(name, data_dir=None, force_remake=False):
         "lens2_europe_small" (CESM LENS2 monthly data for Europe for 2020 and 2100,
         with a small subset of realizations), and "isimip_london" (ISIMIP monthly data
         for London for 2000-2100).
-    data_dir : str or pathlib.Path, optional
-        Data directory in which to look for the example dataset at, or download the
-        dataset to. If not specified, the directory 'data/examples/{name}' within the
-        parent directory of the climepi package will be used if 'data/examples' exists,
-        otherwise the OS cache will be used.
+    base_dir : str or pathlib.Path, optional
+        Base directory in which example datasets are stored. The example dataset will be
+        downloaded to and accessed from a subdirectory of this directory with the same
+        name as the `name` argument. If not specified, a directory within the OS cache
+        will be used.
     force_remake : bool, optional
         If True, force the download/formatting of the raw underlying data, even if the
         formatted dataset already exists locally and/or is available for direct
@@ -116,7 +120,7 @@ def get_example_dataset(name, data_dir=None, force_remake=False):
     xarray.Dataset
         Example dataset.
     """
-    data_dir = _get_data_dir(name, data_dir)
+    data_dir = _get_data_dir(name, base_dir)
     example_details = _get_example_details(name)
     # If the formatted example dataset is available for direct download, download it
     # if neccessary
@@ -151,17 +155,16 @@ def _get_example_details(name):
     return example_details
 
 
-def _get_data_dir(name, data_dir):
+def _get_data_dir(name, base_dir):
     # Helper function for getting the directory where the example dataset is to be
-    # downloaded/accessed. If no directory is specified, then if a directory named
-    # 'data/examples' exists in the parent directory of the climepi package, the example
-    # datasets will be downloaded to and accessed from 'data/examples/{name}'.
-    # Otherwise, the datasets will be downloaded to and accessed from the OS cache.
-    if data_dir is None:
+    # downloaded/accessed. If no directory is specified, the datasets will be downloaded
+    # to and accessed from the OS cache (unless a version of the source code including
+    # a data directory in its parent directory is being used).
+    if base_dir is None:
         base_dir = pathlib.Path(__file__).parents[2] / "data/examples"
         if not base_dir.exists():
             base_dir = pooch.os_cache("climepi/examples")
-        data_dir = base_dir / name
+    data_dir = pathlib.Path(base_dir) / name
     return data_dir
 
 
@@ -196,23 +199,35 @@ def _get_registry_file_path(name):
     return pathlib.Path(__file__).parent / "_example_registry_files" / f"{name}.txt"
 
 
-def _make_example_registry(name, data_dir=None):
+def _make_example_registry(name, base_dir):
     # Create a registry file for the example dataset to be used by a pooch instance for
     # downloading the dataset.
-    data_dir = _get_data_dir(name, data_dir)
+    data_dir = _get_data_dir(name, base_dir)
     registry_file_path = _get_registry_file_path(name)
     pooch.make_registry(data_dir, registry_file_path, recursive=False)
 
 
-def make_all_examples(force_remake=False):
+def make_all_examples(base_dir=None, force_remake=False):
     """
     Create all example datasets by downloading and formatting the relevant data.
+
+    Parameters
+    ----------
+    base_dir : str or pathlib.Path, optional
+        Base directory in which to save the example datasets. If not specified, a
+        directory within the OS cache will be used.
+    force_remake : bool, optional
+        If True, force the download/formatting of the raw underlying data for all
+        datasets, even if the formatted datasets already exist locally and/or are
+        available for direct download (default is False).
     """
     exc = None
     for example_name in EXAMPLES:
         try:
-            get_example_dataset(example_name, force_remake=force_remake)
-            _make_example_registry(example_name)
+            get_example_dataset(
+                example_name, base_dir=base_dir, force_remake=force_remake
+            )
+            _make_example_registry(example_name, base_dir=base_dir)
         except TimeoutError as _exc:
             exc = _exc
     # Raise a TimeoutError if any of the datasets failed to download

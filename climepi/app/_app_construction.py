@@ -7,12 +7,19 @@ import panel as pn
 from climepi.app._app_classes_methods import Controller
 
 
-def get_app(clim_dataset_example_names=None, epi_model_example_names=None):
+def get_app(
+    clim_dataset_example_base_dir=None,
+    clim_dataset_example_names=None,
+    epi_model_example_names=None,
+):
     """
-    Method to get a `Panel' template object defining the layout of the climepi app.
+    Method to get a `Panel` template object defining the layout of the climepi app.
 
     Parameters:
     -----------
+    clim_dataset_example_base_dir: str or pathlib.Path
+        Base directory for the example climate datasets, optional. If None, the datasets
+        will be downloaded to and accessed from the OS cache.
     clim_dataset_example_names: list of str
         List of example names for climate datasets, optional. If None, the default list
         in climdata.EXAMPLE_NAMES is used.
@@ -23,6 +30,7 @@ def get_app(clim_dataset_example_names=None, epi_model_example_names=None):
     template = pn.template.BootstrapTemplate(title="climepi app")
 
     controller = Controller(
+        clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
         epi_model_example_names=epi_model_example_names,
     )
@@ -52,16 +60,36 @@ def get_app(clim_dataset_example_names=None, epi_model_example_names=None):
     return template
 
 
-def run_app():
+def run_app(
+    clim_dataset_example_base_dir=None,
+    clim_dataset_example_names=None,
+    epi_model_example_names=None,
+):
     """
     Method to run the climepi `Panel` app locally in a browser.
 
     Parameters:
     -----------
-    None
+    clim_dataset_example_base_dir: str or pathlib.Path
+        Base directory for the example climate datasets, optional. If None, the datasets
+        will be downloaded to and accessed from the OS cache.
+    clim_dataset_example_names: list of str
+        List of example names for climate datasets, optional. If None, the default list
+        in climdata.EXAMPLE_NAMES is used.
+    epi_model_example_names: list of str
+        List of example names for epidemiological models, optional. If None, the default
+        list in epimod.EXAMPLE_NAMES is used.
 
     Returns:
     --------
     None
     """
-    pn.serve({"/climepi_app": get_app})
+
+    def _get_app():
+        return get_app(
+            clim_dataset_example_base_dir=clim_dataset_example_base_dir,
+            clim_dataset_example_names=clim_dataset_example_names,
+            epi_model_example_names=epi_model_example_names,
+        )
+
+    pn.serve({"/climepi_app": _get_app})
