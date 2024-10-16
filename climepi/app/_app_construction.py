@@ -2,11 +2,10 @@
 Module defining the layout of the climepi app and providing a method to run it.
 """
 
-import functools
-
 import panel as pn
 
 from climepi.app._app_classes_methods import Controller
+
 
 def get_app(
     clim_dataset_example_base_dir=None,
@@ -35,7 +34,6 @@ def get_app(
 
     controller = Controller(
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
-        clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
         epi_model_example_names=epi_model_example_names,
     )
@@ -63,6 +61,7 @@ def get_app(
     pn.state.on_session_destroyed(_cleanup_temp_file)
 
     return template
+
 
 def run_app(
     clim_dataset_example_base_dir=None,
