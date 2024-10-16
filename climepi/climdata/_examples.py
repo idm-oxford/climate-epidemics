@@ -54,20 +54,6 @@ EXAMPLES = {
             ],
         },
     },
-    "isimip_cities_daily": {
-        "data_source": "isimip",
-        "frequency": "daily",
-        "subset": {
-            "years": np.arange(2030, 2101),
-            "locations": [
-                "London",
-                "Los Angeles",
-                "Paris",
-                "Cape Town",
-                "Istanbul",
-            ],
-        },
-    },
     "lens2_2020_2060_2100": {
         "data_source": "lens2",
         "frequency": "monthly",
@@ -90,7 +76,6 @@ EXAMPLES = {
         "frequency": "monthly",
         "subset": {
             "years": np.arange(2030, 2101),
-            "years": np.arange(2030, 2101),
             "locations": [
                 "London",
                 "Los Angeles",
@@ -104,7 +89,6 @@ EXAMPLES = {
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
-def get_example_dataset(name, base_dir=None, force_remake=False):
 def get_example_dataset(name, base_dir=None, force_remake=False):
     """
     Load an example climate dataset if it exists locally, download the formatted example
@@ -141,7 +125,6 @@ def get_example_dataset(name, base_dir=None, force_remake=False):
     xarray.Dataset
         Example dataset.
     """
-    data_dir = _get_data_dir(name, base_dir)
     data_dir = _get_data_dir(name, base_dir)
     example_details = _get_example_details(name)
     # If the formatted example dataset is available for direct download, download it
