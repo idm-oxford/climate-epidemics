@@ -15,33 +15,43 @@
     {% include head-custom.html %}
 
     <style>
-        /* Add margins and responsive styling for iframe */
+        /* Style the iframe and ensure it's responsive with no extra margin/padding */
         iframe {
             width: 100%;
-            max-width: 100%;
-            height: 85vh;
-            /* Adjust height to ensure the iframe fits */
-            margin-bottom: 20px;
-            /* Add some margin at the bottom */
+            height: 100vh;
+            /* Fill 100% of viewport height */
             border: none;
+            margin: 0;
+            /* Remove any margin */
+            padding: 0;
+            /* Remove any padding */
         }
 
+        /* Adjust container to ensure minimal margins */
         .container {
-            padding: 20px;
-            /* Add some padding around the main content */
+            padding: 0;
+            /* No padding */
+            margin: 0;
+            /* No margins */
         }
 
-        /* Additional styling to ensure the page fills the window properly */
+        /* Ensure body and html don't have extra margin or padding */
         body,
         html {
             margin: 0;
             padding: 0;
             min-height: 100vh;
             font-family: "Open Sans", sans-serif;
+            overflow-y: scroll;
+            /* Ensure vertical scrolling is allowed */
         }
 
-        .spacer {
-            height: 30px;
+        /* Overall main content with minimal margins */
+        .main-content {
+            margin-left: 5px;
+            /* Minimal left margin */
+            margin-right: 5px;
+            /* Minimal right margin */
         }
     </style>
 </head>
