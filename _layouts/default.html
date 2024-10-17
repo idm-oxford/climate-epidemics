@@ -14,46 +14,31 @@
             box-sizing: border-box;
         }
 
+        /* Container ensures small margins around iframe */
         .container {
             max-width: 100%;
             padding: 10px;
-            /* Add a bit of padding for spacing */
         }
 
-        h1 {
-            font-size: 2em;
-            margin-bottom: 10px;
-        }
-
+        /* iframe fully responsive with padding around it */
         iframe {
             width: calc(100% - 20px);
-            /* 10px margin on both sides */
-            height: 80vh;
-            /* Makes sure iframe doesn't exceed the height of the page */
+            /* 10px padding on both sides */
+            height: 85vh;
+            /* Ensures iframe fills most of the viewport */
             border: none;
-            margin-top: 10px;
         }
 
-        /* Title and description styling */
-        .site-header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .site-description {
-            font-size: 1.2em;
-            margin-bottom: 20px;
+        /* Add enough space below iframe for scrolling */
+        .spacer {
+            height: 30px;
+            /* Small spacer at the bottom for smooth scrolling */
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <header class="site-header">
-            <h1>{{ site.title }}</h1>
-            <p class="site-description">{{ site.description }}</p>
-        </header>
-
         <main>
             {{ content }}
         </main>
