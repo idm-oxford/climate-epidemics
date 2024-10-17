@@ -13,28 +13,33 @@ Web app:
 </div>
 
 <style>
-    /* Ensure the body and HTML take the full width and height of the viewport */
-    body, html {
+    /* Reset margins and padding across all elements */
+    * {
         margin: 0;
         padding: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden; /* Prevent scrolling */
+        box-sizing: border-box;
     }
 
-    /* Full width and height container for the iframe */
+    /* Ensure the page takes up the full viewport */
+    html, body {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevent default scrolling */
+    }
+
+    /* Ensure that the iframe container takes the full viewport */
     .embed-container {
         position: relative;
-        width: 100vw;  /* Full viewport width */
-        height: 100vh; /* Full viewport height */
+        width: 100vw;
+        height: 100vh;
         background-color: #f0f0f0;
+        overflow: hidden;
     }
 
-    /* The iframe should stretch to fill the container */
+    /* Fullscreen iframe with no borders */
     .embed-container iframe {
-        position: absolute;
-        top: 0;
-        left: 0;
         width: 100%;
         height: 100%;
         border: none;
@@ -52,12 +57,16 @@ Web app:
         left: 50%;
         transform: translate(-50%, -50%);
         z-index: 10;
-        display: block;
+    }
+
+    /* Allow scrolling when content overflows */
+    .embed-container, #app-frame {
+        overflow: auto;
     }
 </style>
 
 <script>
-    // Hide the loading message when the iframe finishes loading
+    // Hide the loading message once the iframe has loaded
     const iframe = document.getElementById('app-frame');
     iframe.onload = function() {
         document.getElementById('loading-message').style.display = 'none';
