@@ -20,41 +20,44 @@
             box-sizing: border-box;
         }
 
-        /* Style the iframe to fill the available space */
-        iframe {
-            width: calc(100% - 4px);
-            /* Subtract margin from both sides (2px left + 2px right) */
-            height: 100vh;
-            /* Fill 100% of viewport height */
-            border: none;
-            margin: 0;
-            padding: 0;
-        }
-
-        /* Ensure container stretches fully with no extra margins */
-        .container {
-            width: 100%;
-            padding: 0;
-            margin: 0;
-        }
-
-        /* Ensure body and html don't have extra margin or padding */
+        /* Ensure body and html have no extra margin or padding */
         body,
         html {
             margin: 0;
             padding: 0;
-            min-height: 100vh;
+            height: 100vh;
+            /* Full height for body */
             font-family: "Open Sans", sans-serif;
-            overflow-y: scroll;
-            /* Ensure vertical scrolling is allowed */
         }
 
-        /* Ensure main content has minimal margins */
+        /* Main content flex container to fill the available space */
         .main-content {
-            margin-left: 2px;
-            /* Minimal left margin */
-            margin-right: 2px;
-            /* Minimal right margin */
+            display: flex;
+            /* Enable flexbox layout */
+            flex-direction: column;
+            /* Stack children vertically */
+            height: 100%;
+            /* Full height */
+            margin-left: 0;
+            /* Remove left margin */
+            margin-right: 0;
+            /* Remove right margin */
+        }
+
+        /* Style the iframe to fill the available space */
+        iframe {
+            flex-grow: 1;
+            /* Allow iframe to grow and fill the available space */
+            width: 100%;
+            /* Full width of the container */
+            height: 100%;
+            /* Full height of the container */
+            border: none;
+            /* Remove border */
+            margin: 0;
+            /* Remove any margin */
+            padding: 0;
+            /* Remove any padding */
         }
     </style>
 </head>
