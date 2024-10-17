@@ -4,6 +4,9 @@ Python package documentation: [https://climate-epidemics.readthedocs.io/en/lates
 
 Web app:
 
+<div class="loading-message">
+    The app is waking up, please wait...
+</div>
 <div class="embed-container">
     <iframe src="https://will-s-hart-climepi-web-app.hf.space" width="100%" height="600" allowfullscreen></iframe>
 </div>
