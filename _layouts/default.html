@@ -15,6 +15,11 @@
     {% include head-custom.html %}
 
     <style>
+        /* Apply border-box so padding/margin are included in width calculations */
+        * {
+            box-sizing: border-box;
+        }
+
         /* Style the iframe and ensure it's responsive with no extra margin/padding */
         iframe {
             width: 100%;
@@ -55,11 +60,7 @@
             /* Minimal right margin */
         }
 
-        /* Set the container to take full viewport width */
-        .container {
-            width: 100vw;
-            /* Make container fill the viewport width */
-        }
+        /* Remove explicit 100vw to avoid overflow */
     </style>
 </head>
 
