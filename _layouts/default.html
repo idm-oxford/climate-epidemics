@@ -20,25 +20,22 @@
             box-sizing: border-box;
         }
 
-        /* Style the iframe and ensure it's responsive with no extra margin/padding */
+        /* Style the iframe to fill the available space */
         iframe {
-            width: 100%;
-            /* Make iframe fill the entire width of its container */
+            width: calc(100% - 4px);
+            /* Subtract margin from both sides (2px left + 2px right) */
             height: 100vh;
             /* Fill 100% of viewport height */
             border: none;
             margin: 0;
-            /* Remove any margin */
             padding: 0;
-            /* Remove any padding */
         }
 
-        /* Adjust container to ensure minimal margins */
+        /* Ensure container stretches fully with no extra margins */
         .container {
+            width: 100%;
             padding: 0;
-            /* No padding */
             margin: 0;
-            /* No margins */
         }
 
         /* Ensure body and html don't have extra margin or padding */
@@ -52,15 +49,13 @@
             /* Ensure vertical scrolling is allowed */
         }
 
-        /* Overall main content with minimal margins */
+        /* Ensure main content has minimal margins */
         .main-content {
             margin-left: 2px;
             /* Minimal left margin */
             margin-right: 2px;
             /* Minimal right margin */
         }
-
-        /* Remove explicit 100vw to avoid overflow */
     </style>
 </head>
 
