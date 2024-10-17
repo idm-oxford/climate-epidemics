@@ -1,30 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page.title | escape }}</title>
+    <title>{{ page.title | escape }} - {{ site.title | escape }}</title>
     <link rel="stylesheet" href="{{ '/assets/main.css' | relative_url }}">
     <style>
-        body, html {
+        body,
+        html {
             margin: 0;
             padding: 0;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
+            box-sizing: border-box;
         }
 
-        /* Full width and height iframe */
+        .container {
+            max-width: 100%;
+            padding: 10px;
+            /* Add a bit of padding for spacing */
+        }
+
+        h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
         iframe {
-            width: 100vw;
-            height: 100vh;
+            width: calc(100% - 20px);
+            /* 10px margin on both sides */
+            height: 80vh;
+            /* Makes sure iframe doesn't exceed the height of the page */
             border: none;
+            margin-top: 10px;
+        }
+
+        /* Title and description styling */
+        .site-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .site-description {
+            font-size: 1.2em;
+            margin-bottom: 20px;
         }
     </style>
 </head>
+
 <body>
-    <main>
-        {{ content }}
-    </main>
+    <div class="container">
+        <header class="site-header">
+            <h1>{{ site.title }}</h1>
+            <p class="site-description">{{ site.description }}</p>
+        </header>
+
+        <main>
+            {{ content }}
+        </main>
+    </div>
 </body>
+
 </html>
