@@ -1,5 +1,5 @@
-title: climepi  # This sets the site-wide title
-theme: jekyll-theme-cayman  # Ensure the Cayman theme is applied
+title: climepi
+theme: jekyll-theme-cayman
 description: "Python package and web app for integrating climate data into epidemiological models"
 navigation:
   - name: Home

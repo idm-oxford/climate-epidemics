@@ -4,7 +4,7 @@ title: Web app
 ---
 
 <style>
-    /* Ensure the iframe fits the screen width and height */
+    /* Ensure the body and html have no margins and padding */
     body,
     html {
         margin: 0;
@@ -12,41 +12,55 @@ title: Web app
         height: 100%;
     }
 
+    /* Ensure the iframe container takes up full width without unnecessary gaps */
     .embed-container {
-        position: relative;
-        padding-top: 60px;
-        /* Adjust this based on the height of your header */
-        height: calc(100vh - 60px);
-        /* Full height minus header height */
-        width: 100vw;
-    }
-
-    iframe {
         position: absolute;
-        top: 0;
+        top: 60px;
+        /* Adjust this based on header height */
         left: 0;
-        width: 100%;
-        height: 100%;
-        border: none;
-        display: none;
-        /* Hide the iframe until it's fully loaded */
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        /* Full viewport width */
+        height: calc(100vh - 60px);
+        /* Full height minus header */
+        margin: 0;
+        padding: 0;
+        overflow: auto;
+        /* Allow scrolling if necessary, but prevent overflow issues */
     }
 
-    /* Style for the loading message */
+    /* Ensure the iframe takes up the full width and height of the container */
+    iframe {
+        width: 100vw;
+        /* Full width of the viewport */
+        height: 100%;
+        /* Full height */
+        border: none;
+        /* No border */
+        display: none;
+        /* Hidden initially until it loads */
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Loading message while iframe is loading */
     .loading-message {
         display: flex;
         justify-content: center;
         align-items: center;
         position: absolute;
         top: 60px;
-        /* Matches header height */
+        /* Align with header */
         left: 0;
         width: 100vw;
         height: calc(100vh - 60px);
+        /* Full height minus header */
         font-size: 1.5em;
         color: #555;
         background-color: #f0f0f0;
-        /* Light background while loading */
+        z-index: 10;
+        /* Keep above iframe */
     }
 </style>
 
@@ -54,19 +68,17 @@ title: Web app
     <!-- Loading message -->
     <div id="loading" class="loading-message">Loading the app, please wait...</div>
 
-    <!-- The iframe that embeds the external app -->
+    <!-- The iframe embedding the web app -->
     <iframe id="appFrame" src="https://will-s-hart-climepi-web-app.hf.space" allowfullscreen></iframe>
 </div>
 
 <script>
-    // Wait for the iframe to load
     const iframe = document.getElementById('appFrame');
     const loadingMessage = document.getElementById('loading');
 
+    // Show the iframe after it has fully loaded
     iframe.onload = function () {
-        // Hide the loading message when the iframe has fully loaded
         loadingMessage.style.display = 'none';
-        // Show the iframe
         iframe.style.display = 'block';
     };
 </script>
