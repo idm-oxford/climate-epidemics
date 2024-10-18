@@ -15,15 +15,11 @@ title: Web app
     /* Ensure the iframe container takes up full width without unnecessary gaps */
     .embed-container {
         position: absolute;
-        top: 150px;
-        /* Adjust this based on header height */
+        top: 250px;
         left: 0;
         right: 0;
-        bottom: 0;
         width: 100vw;
-        /* Full viewport width */
         height: 100vh;
-        /* Full height minus header */
         margin: 0;
         padding: 0;
     }
@@ -31,9 +27,7 @@ title: Web app
     /* Ensure the iframe takes up the full width and height of the container */
     iframe {
         width: 100vw;
-        /* Full width of the viewport */
-        height: 100%;
-        /* Full height */
+        height: 100vh;
         border: none;
         /* No border */
         display: none;
@@ -60,6 +54,13 @@ title: Web app
         z-index: 10;
         /* Keep above iframe */
     }
+
+    /* Spacer to push the footer below the iframe */
+    .spacer {
+        height: 100vh;
+        /* This will add space equal to the visible height */
+        background: transparent;
+    }
 </style>
 
 <div class="embed-container">
@@ -69,6 +70,9 @@ title: Web app
     <!-- The iframe embedding the web app -->
     <iframe id="appFrame" src="https://will-s-hart-climepi-web-app.hf.space" allowfullscreen></iframe>
 </div>
+
+<!-- Spacer to ensure footer is not overlapped -->
+<div class="spacer"></div>
 
 <script>
     const iframe = document.getElementById('appFrame');
