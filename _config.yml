@@ -5,6 +5,6 @@ navigation:
   - name: Home
     link: /
   - name: Web app
-    link: /embed.html
+    link: /app.html
   - name: Python package documentation
     link: https://climate-epidemics.readthedocs.io/en/latest/
