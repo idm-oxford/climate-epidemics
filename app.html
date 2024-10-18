@@ -4,12 +4,12 @@ layout: default
 
 <style>
     /* Ensure the body and html have no margins and padding */
-    body,
+    /* body,
     html {
         margin: 0;
         padding: 0;
         height: 100%;
-    }
+    } */
 
     /* Spacer to push the footer below the iframe */
     .spacer {
@@ -35,7 +35,6 @@ layout: default
         width: 100vw;
         height: 100vh;
         border: none;
-        /* No border */
         display: none;
         /* Hidden initially until it loads */
         margin: 0;
@@ -48,12 +47,10 @@ layout: default
         justify-content: center;
         align-items: center;
         position: absolute;
-        top: 100px;
-        /* Align with header */
+        top: 400px;
         left: 0;
         width: 100vw;
-        height: calc(100vh - 60px);
-        /* Full height minus header */
+        height: 100vh;
         font-size: 1.5em;
         color: #555;
         background-color: #f0f0f0;
@@ -66,18 +63,13 @@ layout: default
 <div class="spacer"></div>
 
 <div class="embed-container">
-    <!-- Loading message -->
     <div id="loading" class="loading-message">Loading the app, please wait...</div>
-
-    <!-- The iframe embedding the web app -->
     <iframe id="appFrame" src="https://will-s-hart-climepi-web-app.hf.space" allowfullscreen></iframe>
 </div>
 
 <script>
     const iframe = document.getElementById('appFrame');
     const loadingMessage = document.getElementById('loading');
-
-    // Show the iframe after it has fully loaded
     iframe.onload = function () {
         loadingMessage.style.display = 'none';
         iframe.style.display = 'block';
