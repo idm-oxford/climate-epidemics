@@ -3,29 +3,20 @@ layout: default
 ---
 
 <style>
-    /* Ensure the body and html have no margins and padding */
-    /* body,
-    html {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-    } */
-
     /* Spacer to push the footer below the iframe */
     .spacer {
-        position: relative;
-        height: calc(100vh + 400px);
+        height: calc(100vh + 15px);
         background: transparent;
     }
 
     /* Ensure the iframe container takes up full width without unnecessary gaps */
     .embed-container {
+        width: 100vw;
+        height: 100vh;
         position: absolute;
         top: 400px;
         left: 0;
         right: 0;
-        width: 100vw;
-        height: 100vh;
         margin: 0;
         padding: 0;
     }
