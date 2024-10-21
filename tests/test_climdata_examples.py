@@ -83,6 +83,7 @@ def test_get_example_details():
         climdata._examples._get_example_details("googly")
 
 
+@patch("climepi.__version__", "4.2.0")
 def test_get_data_dir():
     """
     Test the _get_data_dir method.
@@ -93,12 +94,23 @@ def test_get_data_dir():
     )
     with patch("pathlib.Path.exists", return_value=False):
         assert climdata._examples._get_data_dir("leave", None) == pooch.os_cache(
-            "climepi/examples/leave"
+            "climepi/4.2.0/examples/leave"
         )
     with patch("pathlib.Path.exists", return_value=True):
         assert str(climdata._examples._get_data_dir("leave", None)).endswith(
             "data/examples/leave"
         )
+
+
+def test_get_climepi_version():
+    """
+    Test the _get_climepi_version method. Should default to "main" for development
+    versions.
+    """
+    with patch("climepi.__version__", "4.2.0"):
+        assert climdata._examples._get_climepi_version() == "4.2.0"
+    with patch("climepi.__version__", "4.2.0+10.8dl8dh9"):
+        assert climdata._examples._get_climepi_version() == "main"
 
 
 @patch.dict(
@@ -120,6 +132,7 @@ def test_get_data_dir():
     clear=True,
 )
 @patch("pooch.core.Pooch", autospec=True)
+@patch("climepi.__version__", "4.2.0")
 def test_fetch_formatted_example_dataset(mock_pooch):
     """
     Test the _fetch_formatted_example_dataset method.
@@ -132,7 +145,7 @@ def test_fetch_formatted_example_dataset(mock_pooch):
     mock_pooch.assert_called_once()
     assert mock_pooch.call_args.kwargs["base_url"] == (
         "https://github.com/will-s-hart/climate-epidemics/"
-        + "raw/main/data/examples/leave/"
+        + "raw/4.2.0/data/examples/leave/"
     )
     assert str(mock_pooch.call_args.kwargs["path"]) == data_dir
     mock_pooch.return_value.load_registry.assert_called_once()
