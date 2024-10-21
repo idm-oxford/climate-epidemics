@@ -799,26 +799,26 @@ def test_plot_var_decomp(fraction):
         da_var_decomp.sel(var_type="scenario").values
     )
     npt.assert_allclose(
-        result["Internal"].data.Baseline.values, internal_lower_expected
+        result["Internal variability"].data.Baseline.values, internal_lower_expected
     )
     npt.assert_allclose(
-        result["Internal"].data.Internal.values,
+        result["Internal variability"].data["Internal variability"].values,
         internal_upper_expected,
     )
     npt.assert_allclose(
-        result["Model"].data.Baseline.values,
+        result["Model uncertainty"].data.Baseline.values,
         model_lower_expected,
     )
     npt.assert_allclose(
-        result["Model"].data.Model.values,
+        result["Model uncertainty"].data["Model uncertainty"].values,
         model_upper_expected,
     )
     npt.assert_allclose(
-        result["Scenario"].data.Baseline.values,
+        result["Scenario uncertainty"].data.Baseline.values,
         scenario_lower_expected,
     )
     npt.assert_allclose(
-        result["Scenario"].data.Scenario.values,
+        result["Scenario uncertainty"].data["Scenario uncertainty"].values,
         scenario_upper_expected,
     )
     if fraction:
@@ -866,19 +866,19 @@ class TestPlotCiPlume:
             result.Area.Internal_variability.data[["internal_lower", "internal_upper"]],
             np.array([internal_lower_expected, internal_upper_expected]).T,
         )
-        npt.assert_allclose(  # Lower portion due to model spread
-            result.Area.Model_spread.data[["model_lower", "internal_lower"]],
+        npt.assert_allclose(  # Lower portion due to model uncertainty
+            result.Area.Model_uncertainty.data[["model_lower", "internal_lower"]],
             np.array([model_lower_expected, internal_lower_expected]).T,
         )
-        npt.assert_allclose(  # Upper portion due to model spread
+        npt.assert_allclose(  # Upper portion due to model uncertainty
             result.Area.II.data[["internal_upper", "model_upper"]],
             np.array([internal_upper_expected, model_upper_expected]).T,
         )
-        npt.assert_allclose(  # Lower portion due to scenario spread
-            result.Area.Scenario_spread.data[["model_lower", "scenario_lower"]],
+        npt.assert_allclose(  # Lower portion due to scenario uncertainty
+            result.Area.Scenario_uncertainty.data[["model_lower", "scenario_lower"]],
             np.array([model_lower_expected, scenario_lower_expected]).T,
         )
-        npt.assert_allclose(  # Upper portion due to scenario spread
+        npt.assert_allclose(  # Upper portion due to scenario uncertainty
             result.Area.I.data[["model_upper", "scenario_upper"]],
             np.array([model_upper_expected, scenario_upper_expected]).T,
         )
@@ -925,7 +925,7 @@ class TestPlotCiPlume:
         lower_expected = ds["temperature"].quantile(0.05, dim="model").values
         upper_expected = ds["temperature"].quantile(0.95, dim="model").values
         npt.assert_allclose(
-            result.Area.Model_spread.data[["model_lower", "internal_lower"]],
+            result.Area.Model_uncertainty.data[["model_lower", "internal_lower"]],
             np.array([lower_expected, np.zeros(lower_expected.shape)]).T,
             atol=1e-7,
         )
@@ -954,7 +954,7 @@ class TestPlotCiPlume:
         lower_expected = ds["temperature"].quantile(0.05, dim="scenario").values
         upper_expected = ds["temperature"].quantile(0.95, dim="scenario").values
         npt.assert_allclose(
-            result.Area.Scenario_spread.data[["scenario_lower", "model_lower"]],
+            result.Area.Scenario_uncertainty.data[["scenario_lower", "model_lower"]],
             np.array([lower_expected, np.zeros(lower_expected.shape)]).T,
             atol=1e-7,
         )

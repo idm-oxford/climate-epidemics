@@ -2,6 +2,7 @@
 Unit tests for the _examples.py module of the epimod subpackage.
 """
 
+import pathlib
 from unittest.mock import patch
 
 import pooch
@@ -37,20 +38,24 @@ def test_get_example_dataset(
     """
     Test the get_example_dataset method.
     """
-    data_dir = "not/a/real/dir"
+    base_dir = "not/a/real/dir"
     ds = climdata.get_example_dataset(
-        name, data_dir=data_dir, force_remake=force_remake
+        name, base_dir=base_dir, force_remake=force_remake
     )
+
+    data_dir_expected = pathlib.Path(base_dir) / name
     assert ds == "not real"
     if name != "shot" or force_remake:
         mock_fetch_formatted_example_dataset.assert_not_called()
     else:
-        mock_fetch_formatted_example_dataset.assert_called_once_with(name, data_dir)
+        mock_fetch_formatted_example_dataset.assert_called_once_with(
+            name, data_dir_expected
+        )
     mock_get_climate_data.assert_called_once_with(
         data_source="bat",
         frequency="ball",
         subset="cover",
-        save_dir=data_dir,
+        save_dir=data_dir_expected,
         download=True,
         force_remake=force_remake,
     )
@@ -83,11 +88,16 @@ def test_get_data_dir():
     Test the _get_data_dir method.
     """
     assert (
-        climdata._examples._get_data_dir("leave", "not/a/real/dir") == "not/a/real/dir"
+        str(climdata._examples._get_data_dir("leave", "not/a/real/dir"))
+        == "not/a/real/dir/leave"
     )
     with patch("pathlib.Path.exists", return_value=False):
         assert climdata._examples._get_data_dir("leave", None) == pooch.os_cache(
             "climepi/examples/leave"
+        )
+    with patch("pathlib.Path.exists", return_value=True):
+        assert str(climdata._examples._get_data_dir("leave", None)).endswith(
+            "data/examples/leave"
         )
 
 
@@ -161,10 +171,12 @@ def test_make_example_registry(mock_pooch_make_registry):
     Test the _make_example_registry method.
     """
     name = "leave"
-    data_dir = "not/a/real/dir"
-    climdata._examples._make_example_registry(name, data_dir=data_dir)
+    base_dir = "not/a/real/dir"
+    climdata._examples._make_example_registry(name, base_dir=base_dir)
+
+    data_dir_expected = pathlib.Path(base_dir) / name
     mock_pooch_make_registry.assert_called_once()
-    assert str(mock_pooch_make_registry.call_args.args[0]) == data_dir
+    assert str(mock_pooch_make_registry.call_args.args[0]) == str(data_dir_expected)
     assert str(mock_pooch_make_registry.call_args.args[1]).endswith(
         "climepi/climdata/_example_registry_files/leave.txt"
     )
@@ -188,15 +200,25 @@ def test_make_all_examples(
             raise TimeoutError
 
     mock_get_example_dataset.side_effect = _mock_get_example_dataset_side_effect
+
+    base_dir = "not/a/real/dir"
     if force_remake:
         with pytest.raises(TimeoutError):
-            climdata._examples.make_all_examples(force_remake=force_remake)
-        mock_make_example_registry.assert_called_once_with("shot")
+            climdata._examples.make_all_examples(
+                base_dir=base_dir, force_remake=force_remake
+            )
+        mock_make_example_registry.assert_called_once_with("shot", base_dir=base_dir)
     else:
-        climdata._examples.make_all_examples(force_remake=force_remake)
+        climdata._examples.make_all_examples(
+            base_dir=base_dir, force_remake=force_remake
+        )
         assert mock_make_example_registry.call_count == 2
-        mock_make_example_registry.assert_any_call("shot")
-        mock_make_example_registry.assert_any_call("leave")
+        mock_make_example_registry.assert_any_call("shot", base_dir=base_dir)
+        mock_make_example_registry.assert_any_call("leave", base_dir=base_dir)
     assert mock_get_example_dataset.call_count == 2
-    mock_get_example_dataset.assert_any_call("shot", force_remake=force_remake)
-    mock_get_example_dataset.assert_any_call("leave", force_remake=force_remake)
+    mock_get_example_dataset.assert_any_call(
+        "shot", base_dir=base_dir, force_remake=force_remake
+    )
+    mock_get_example_dataset.assert_any_call(
+        "leave", base_dir=base_dir, force_remake=force_remake
+    )
