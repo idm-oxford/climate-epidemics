@@ -29,7 +29,7 @@ EXAMPLES = {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
-            "years": np.arange(2015, 2101),
+            "years": np.arange(2030, 2101),
             "locations": [
                 "London",
                 "Los Angeles",
@@ -54,23 +54,6 @@ EXAMPLES = {
             ],
         },
     },
-    "lens2_2020_2060_2100": {
-        "data_source": "lens2",
-        "frequency": "monthly",
-        "subset": {
-            "years": [2020, 2060, 2100],
-        },
-    },
-    "lens2_europe_small": {
-        "data_source": "lens2",
-        "frequency": "monthly",
-        "subset": {
-            "years": [2020, 2100],
-            "lat_range": [35, 72],
-            "lon_range": [-25, 65],
-            "realizations": np.arange(2),
-        },
-    },
     "lens2_cities": {
         "data_source": "lens2",
         "frequency": "monthly",
@@ -83,6 +66,13 @@ EXAMPLES = {
                 "Istanbul",
                 "Cape Town",
             ],
+        },
+    },
+    "lens2_2030_2060_2090": {
+        "data_source": "lens2",
+        "frequency": "monthly",
+        "subset": {
+            "years": [2030, 2060, 2090],
         },
     },
 }
@@ -99,11 +89,11 @@ def get_example_dataset(name, base_dir=None, force_remake=False):
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        "lens2_world" (CESM LENS2 global monthly data for 2020, 2060, and 2100),
-        "lens2_cape_town" (CESM LENS2 monthly data for Cape Town for 2000-2100),
-        "lens2_europe_small" (CESM LENS2 monthly data for Europe for 2020 and 2100,
-        with a small subset of realizations), and "isimip_london" (ISIMIP monthly data
-        for London for 2000-2100).
+        "isimip_cities" (ISIMIP monthly data for London, Los Angeles, Paris, Cape Town,
+        and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP daily data for the
+        same cities and years), "lens2_cities" (CESM LENS2 monthly data for the same
+        cities and years), and "lens2_2030_2060_2090" (CESM LENS2 monthly data for 2030,
+        2060 and 2090).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same
@@ -241,4 +231,4 @@ def make_all_examples(base_dir=None, force_remake=False):
 
 
 if __name__ == "__main__":
-    make_all_examples(force_remake=False)  # pragma: no cover
+    make_all_examples(force_remake=True)  # pragma: no cover
