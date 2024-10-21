@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "versioneer[toml]==0.29"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -9,9 +9,16 @@ include = ["climepi*"]
 "climepi.climdata._example_registry_files" = ["*.txt"]
 "climepi.epimod._example_data" = ["*.nc"]
 
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "climepi/_version.py"
+versionfile_build = "climepi/_version.py"
+tag_prefix = ""
+
 [project]
 name = "climepi"
-version = "0.0.0"
+dynamic = ["version"]
 authors = [{ name = "William Hart", email = "william.hart@maths.ox.ac.uk" }]
 description = "Combining climate and epidemiological models"
 readme = "README.md"

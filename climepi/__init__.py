@@ -2,9 +2,7 @@
 Python package for incorporating climate data into epidemiological models.
 """
 
-from importlib.metadata import version
-
 from climepi._core import ClimEpiDatasetAccessor  # noqa
+from climepi import _version
 
-# read version from installed package
-__version__ = version("climepi")
+__version__ = _version.get_versions()["version"]
