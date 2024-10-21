@@ -840,7 +840,6 @@ class ClimEpiDatasetAccessor:
         plot_obj_list.append(plot_obj_baseline)
         # Combine the plots
         plot_obj = hv.Overlay(plot_obj_list).collate()
-        plot_obj = plot_obj
         return plot_obj
 
     def _process_data_var_argument(self, data_var_in=None, as_list=False):
