@@ -16,8 +16,6 @@ from urllib3.util import Retry
 
 from climepi.climdata._data_getter_class import ClimateDataGetter
 
-geolocator = Nominatim(user_agent="climepi")
-
 FILES_API_URL = "https://files.isimip.org/api/v1"
 requests_session = Session()
 requests_session.mount(
@@ -116,7 +114,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
         if locations is not None:
             if isinstance(locations, list):
                 return self._subset_remote_data_location_list()
-            location_geopy = geolocator.geocode(locations)
+            location_geopy = Nominatim(user_agent="climepi").geocode(locations)
             lat = location_geopy.latitude
             lon = location_geopy.longitude
             bbox = [lat, lat, lon, lon]

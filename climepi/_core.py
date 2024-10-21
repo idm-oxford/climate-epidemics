@@ -18,8 +18,6 @@ from climepi.utils import (
     list_non_bnd_data_vars,
 )
 
-geolocator = Nominatim(user_agent="climepi")
-
 
 @xr.register_dataset_accessor("climepi")
 class ClimEpiDatasetAccessor:
@@ -88,7 +86,7 @@ class ClimEpiDatasetAccessor:
                 coords=["lat", "lon", "location"],
             ).swap_dims(location_dim="location")
             return ds_new
-        location_geopy = geolocator.geocode(location, **kwargs)
+        location_geopy = Nominatim(user_agent="climepi").geocode(location, **kwargs)
         lat = location_geopy.latitude
         lon = location_geopy.longitude  # in the range [-180, 180]
         lon_min = min(self._obj.lon)
