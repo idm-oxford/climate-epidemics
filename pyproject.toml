@@ -48,7 +48,6 @@ dependencies = [
   "urllib3",
   "xarray",
   "xcdat",
-  "isimip-client",
 ]
 
 [project.urls]
