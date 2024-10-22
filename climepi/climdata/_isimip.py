@@ -1,27 +1,18 @@
 import pathlib
 import time
-import warnings
 import zipfile
 from copy import deepcopy
 
 import numpy as np
 import pandas as pd
 import pooch
+import requests
 import xcdat  # noqa
 from geopy.geocoders import Nominatim
-from isimip_client.client import ISIMIPClient
-from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 from climepi.climdata._data_getter_class import ClimateDataGetter
-
-FILES_API_URL = "https://files.isimip.org/api/v1"
-requests_session = Session()
-requests_session.mount(
-    FILES_API_URL,
-    HTTPAdapter(max_retries=Retry(total=5, allowed_methods={"GET", "POST"})),
-)
 
 
 class ISIMIPDataGetter(ClimateDataGetter):
@@ -74,21 +65,30 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # scenarios and years, and store a list of results (each entry of which
         # comprises a dictionary containing details of a single data file) in the
         # _client_results attribute.
+        years = self._subset["years"]
         scenarios = self._subset["scenarios"]
         models = self._subset["models"]
-        years = self._subset["years"]
-        response = ISIMIPClient().files(
-            simulation_round="ISIMIP3b",
-            climate_variable=["tas", "pr"],
-            climate_scenario=scenarios,
-            climate_forcing=models,
+        data_url = "https://data.isimip.org/api/v1/files/"
+        requests_session = requests.Session()
+        requests_session.mount(
+            data_url,
+            HTTPAdapter(max_retries=Retry(total=5, allowed_methods={"GET", "POST"})),
         )
+        response = requests_session.get(
+            data_url,
+            params={
+                "simulation_round": "ISIMIP3b",
+                "climate_variable": ["tas", "pr"],
+                "climate_scenario": scenarios,
+                "climate_forcing": models,
+            },
+        ).json()
         client_results = response["results"]
         while response["next"] is not None:
             response = requests_session.get(response["next"]).json()
             client_results.extend(response["results"])
+        requests_session.close()
         # Filter the results to only include files that are within the requested years
-        # Get paths for files that are within the requested years
         client_results = [
             result
             for result in client_results
@@ -135,10 +135,16 @@ class ISIMIPDataGetter(ClimateDataGetter):
         ]
         subsetting_completed = False
         subset_start_time = time.time()
+        files_api_url = "https://files.isimip.org/api/v1"
+        requests_session = requests.Session()
+        requests_session.mount(
+            files_api_url,
+            HTTPAdapter(max_retries=Retry(total=5, allowed_methods={"GET", "POST"})),
+        )
         while not subsetting_completed:
             client_results_new = [
                 requests_session.post(
-                    FILES_API_URL,
+                    files_api_url,
                     json={"task": "cutout_bbox", "paths": paths, "bbox": bbox},
                 ).json()
                 for paths in paths_by_cutout_request
@@ -167,6 +173,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
                         + "out."
                     )
                 time.sleep(10)
+        requests_session.close()
         self._client_results = client_results_new
 
     def _subset_remote_data_location_list(self):
@@ -183,8 +190,10 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 client_results += data_getter_curr._client_results
             except TimeoutError as exc:
                 any_timeout_error = True
-                warnings.warn(f"{exc}\n", stacklevel=2)
-                print("Continuing to initiate subsetting for remaining locations.")
+                print(
+                    f"{exc}\n. Continuing to initiate subsetting for remaining "
+                    "locations."
+                )
         if any_timeout_error:
             raise TimeoutError("Subsetting for at least one location timed out.")
         self._client_results = client_results
