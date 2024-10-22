@@ -26,8 +26,6 @@ dependencies:
   - urllib3
   - xarray
   - xcdat
-  - pip:
-    - isimip-client
   # This package
   - pip:
     - -e .
