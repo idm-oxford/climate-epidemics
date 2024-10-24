@@ -54,6 +54,31 @@ time_monthly = xr.DataArray(
         "standard_name": "time",
     },
 )
+time_daily = xr.DataArray(
+    data=np.array(
+        [
+            cftime.DatetimeGregorian(2000, 1, 28, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 1, 29, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 1, 30, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 1, 31, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 2, 1, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 2, 2, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 2, 3, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 2, 4, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 2, 5, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 2, 6, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 2, 7, 12, 0, 0, 0, has_year_zero=False),
+            cftime.DatetimeGregorian(2000, 2, 8, 12, 0, 0, 0, has_year_zero=False),
+        ],
+        dtype=object,
+    ),
+    dims=["time"],
+    attrs={
+        "axis": "T",
+        "long_name": "time",
+        "standard_name": "time",
+    },
+)
 
 time_bnds_yearly = xr.DataArray(
     name="time_bnds",
@@ -152,6 +177,67 @@ time_bnds_monthly = xr.DataArray(
     },
 )
 
+time_bnds_daily = xr.DataArray(
+    name="time_bnds",
+    data=np.array(
+        [
+            [
+                cftime.DatetimeGregorian(2000, 1, 28, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 1, 29, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 1, 29, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 1, 30, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 1, 30, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 1, 31, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 1, 31, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 1, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 2, 1, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 2, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 2, 2, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 3, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 2, 3, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 4, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 2, 4, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 5, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 2, 5, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 6, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 2, 6, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 7, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 2, 7, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 8, 0, 0, 0, 0, has_year_zero=False),
+            ],
+            [
+                cftime.DatetimeGregorian(2000, 2, 8, 0, 0, 0, 0, has_year_zero=False),
+                cftime.DatetimeGregorian(2000, 2, 9, 0, 0, 0, 0, has_year_zero=False),
+            ],
+        ],
+        dtype=object,
+    ),
+    dims=["time", "bnds"],
+    attrs={
+        "xcdat_bounds": "True",
+    },
+)
+
 # Latitude
 lat = xr.DataArray(
     data=np.array([-90, -88.75, 88.75, 90]),
@@ -208,8 +294,8 @@ def generate_dataset(
     dtype : type, optional
         Data type of the data variable(s). Default is "float64"
     frequency : str, optional
-        Frequency to compute the group average for (options are "yearly" or "monthly").
-        Default is "monthly".
+        Frequency to compute the group average for (options are "yearly", "monthly" or
+        "daily"). Default is "yearly".
     extra_dims : Hashable, sequence of Hashable, dict, or None, optional
         Extra dimensions to add to the dataset (used as an argument to xarray's
         DataArray.expand_dims method). Default is None.
@@ -227,8 +313,13 @@ def generate_dataset(
         time = time_monthly
         time_bnds = time_bnds_monthly
     elif frequency == "yearly":
-        time = time_yearly.copy()
+        time = time_yearly
         time_bnds = time_bnds_yearly
+    elif frequency == "daily":
+        time = time_daily
+        time_bnds = time_bnds_daily
+    else:
+        raise ValueError(f"Invalid frequency: {frequency}")
     # Create the base dataset.
     da = xr.DataArray(
         data=np.ones((len(time), len(lat), len(lon)), dtype=dtype),
