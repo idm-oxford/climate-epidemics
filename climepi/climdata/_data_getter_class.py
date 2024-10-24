@@ -115,7 +115,6 @@ class ClimateDataGetter:
         if save_dir is None:
             save_dir = CACHE_DIR
         self._save_dir = pathlib.Path(save_dir)
-        self._save_dir.mkdir(parents=True, exist_ok=True)
         self._file_name_da = None
         self._file_names = None
 
@@ -270,7 +269,7 @@ class ClimateDataGetter:
         self._process_data()
         if download:
             self._save_processed_data()
-            print(f"Formatted data saved to {self._save_dir}")
+            print(f"Formatted data saved to '{self._save_dir}'")
             self._delete_temporary()
             self._open_local_data()
         return self._ds
@@ -360,6 +359,7 @@ class ClimateDataGetter:
         save_dir = self._save_dir
         file_name_da = self.file_name_da
         ds_all = self._ds
+        save_dir.mkdir(parents=True, exist_ok=True)
         if locations is not None:
             for location, scenario, model, realization in itertools.product(
                 np.atleast_1d(locations), scenarios, models, realizations
