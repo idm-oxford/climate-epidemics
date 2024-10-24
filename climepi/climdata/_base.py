@@ -9,6 +9,7 @@ def get_climate_data(
     save_dir=None,
     download=True,
     force_remake=False,
+    subset_check_interval=10,
     max_subset_wait_time=20,
 ):
     """
@@ -63,6 +64,9 @@ def get_climate_data(
     force_remake : bool, optional
         Whether to force re-download and re-formatting of the data even if found
         locally (default is False). Can only be used if 'download' is True.
+    subset_check_interval : int or float, optional
+        For ISIMIP data only; time interval in seconds between checks for server-side
+        data subsetting completion (default is 10).
     max_subset_wait_time : int or float, optional
         For ISIMIP data only; maximum time to wait for server-side data subsetting to
         complete, in seconds, before timing out (default is 20). Server-side subsetting
@@ -79,6 +83,7 @@ def get_climate_data(
         frequency=frequency,
         subset=subset,
         save_dir=save_dir,
+        subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
     )
     ds_clim = data_getter.get_data(download=download, force_remake=force_remake)
@@ -111,12 +116,17 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
     return file_names
 
 
-def _get_data_getter(data_source, *args, max_subset_wait_time=None, **kwargs):
+def _get_data_getter(
+    data_source, *args, subset_check_interval=None, max_subset_wait_time=None, **kwargs
+):
     if data_source == "lens2":
         data_getter = CESMDataGetter(*args, **kwargs)
     elif data_source == "isimip":
         data_getter = ISIMIPDataGetter(
-            *args, max_subset_wait_time=max_subset_wait_time, **kwargs
+            *args,
+            subset_check_interval=subset_check_interval,
+            max_subset_wait_time=max_subset_wait_time,
+            **kwargs,
         )
     else:
         raise ValueError(f"Data source '{data_source}' not supported.")

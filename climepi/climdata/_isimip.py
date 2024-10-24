@@ -53,10 +53,17 @@ class ISIMIPDataGetter(ClimateDataGetter):
     lon_res = 0.5
     lat_res = 0.5
 
-    def __init__(self, *args, max_subset_wait_time=20, **kwargs):
+    def __init__(
+        self, *args, subset_check_interval=10, max_subset_wait_time=20, **kwargs
+    ):
         # Extends the base class constructor to include the _client_results attribute,
-        # which stores the results of the client requests to the ISIMIP repository.
+        # which stores the results of the client requests to the ISIMIP repository, as
+        # well as the _subset_check_interval and _max_subset_wait_time attributes, which
+        # control the interval between checks for the completion of server-side
+        # subsetting and the maximum time to wait for subsetting to complete,
+        # respectively.
         super().__init__(*args, **kwargs)
+        self._subset_check_interval = subset_check_interval
         self._max_subset_wait_time = max_subset_wait_time
         self._client_results = None
 
@@ -110,6 +117,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         client_results = self._client_results
+        subset_check_interval = self._subset_check_interval
         max_subset_wait_time = self._max_subset_wait_time
         if locations is not None:
             if isinstance(locations, list):
@@ -122,7 +130,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
             if lon_range is None:
                 lon_range = [-180, 180]
             else:
-                # Ensure longitudes are in range -180 to 180
+                # Ensure longitudes are in range -180 to 180 (note this works fine for
+                # ranges that cross the 180 meridian).
                 lon_range = ((np.array(lon_range) + 180) % 360) - 180
             if lat_range is None:
                 lat_range = [-90, 90]
@@ -159,20 +168,21 @@ class ISIMIPDataGetter(ClimateDataGetter):
                         "https://data.isimip.org/download/" + job_id
                         for job_id in job_ids
                     ]
+                    requests_session.close()
                     raise TimeoutError(
                         "Subsetting of the requested data has taken longer than the "
-                        + f"maximum wait time of {max_subset_wait_time} seconds. The "
-                        + "server-side subsetting is still in progress, and re-running "
-                        + "the data retrieval once the subsetting has completed will "
-                        + "retrieve the subsetted data. The progress of the subsetting "
-                        + "jobs can be monitored at the following URLs:\n"
+                        f"maximum wait time of {max_subset_wait_time} seconds. The "
+                        "server-side subsetting is still in progress, and re-running "
+                        "the data retrieval once the subsetting has completed will "
+                        "retrieve the subsetted data. The progress of the subsetting "
+                        "jobs can be monitored at the following URLs:\n"
                         + "\n".join(job_urls)
                         + "\n"
-                        + "Alternatively, increase the 'max_subset_wait_time' argument "
-                        + "to wait longer for the subsetting to complete before timing "
-                        + "out."
+                        "Alternatively, increase the 'max_subset_wait_time' argument "
+                        "to wait longer for the subsetting to complete before timing "
+                        "out."
                     )
-                time.sleep(10)
+                time.sleep(subset_check_interval)
         requests_session.close()
         self._client_results = client_results_new
 
