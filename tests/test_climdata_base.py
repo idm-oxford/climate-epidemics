@@ -61,6 +61,7 @@ def test_get_climate_data(data_source):
                 frequency=frequency,
                 subset=subset,
                 save_dir=save_dir,
+                subset_check_interval=10,
                 max_subset_wait_time=max_subset_wait_time,
             )
         else:
