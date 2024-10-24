@@ -543,9 +543,10 @@ def test_process_data(location_mode, lon_res_set):
         assert "bounds" not in ds_out["lon"].attrs
 
 
+@patch.object(pathlib.Path, "mkdir", autospec=True)
 @patch.object(xr.Dataset, "to_netcdf", autospec=True)
 @pytest.mark.parametrize("named_locations", [True, False])
-def test_save_processed_data(mock_to_netcdf, named_locations):
+def test_save_processed_data(mock_to_netcdf, mock_mkdir, named_locations):
     """
     Test the _save_processed_data method of the ClimateDataGetter class.
     """
@@ -565,6 +566,8 @@ def test_save_processed_data(mock_to_netcdf, named_locations):
         locations = ["lords", "gabba"]
         ds = ds.climepi.sel_geo(locations)
 
+    save_dir = "outside/edge"
+
     data_getter = ClimateDataGetter(
         frequency="monthly",
         subset={
@@ -574,12 +577,16 @@ def test_save_processed_data(mock_to_netcdf, named_locations):
             "years": [2015, 2016, 2018, 2100],
             "locations": locations if named_locations else None,
         },
-        save_dir="outside/edge",
+        save_dir=save_dir,
     )
     data_getter.data_source = "broad"
     data_getter._ds = ds
 
     data_getter._save_processed_data()
+
+    mock_mkdir.assert_called_once_with(
+        pathlib.Path(save_dir), parents=True, exist_ok=True
+    )
 
     if named_locations:
         for scenario, model, realization, location in itertools.product(
