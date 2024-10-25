@@ -297,12 +297,13 @@ class ISIMIPDataGetter(ClimateDataGetter):
         ds_processed["time"].attrs.update(long_name="Time")
         # Convert temperature from Kelvin to Celsius
         ds_processed["temperature"] = ds_processed["tas"] - 273.15
-        ds_processed["temperature"].attrs.update(long_name="Temperature")
-        ds_processed["temperature"].attrs.update(units="°C")
+        ds_processed["temperature"].attrs.update(long_name="Temperature", units="°C")
         # Convert precipitation from kg m-2 s-1 (equivalent to mm/s) to mm/day.
         ds_processed["precipitation"] = ds_processed["pr"] * (60 * 60 * 24)
-        ds_processed["precipitation"].attrs.update(long_name="Precipitation")
-        ds_processed["precipitation"].attrs.update(units="mm/day")
+        ds_processed["precipitation"].attrs.update(
+            long_name="Precipitation", units="mm/day"
+        )
+        # Drop original temperature and precipitation variables
         ds_processed = ds_processed.drop(["tas", "pr"])
         # Convert to monthly or yearly frequency if requested.
         if frequency == "monthly":
