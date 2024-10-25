@@ -304,7 +304,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             long_name="Precipitation", units="mm/day"
         )
         # Drop original temperature and precipitation variables
-        ds_processed = ds_processed.drop(["tas", "pr"])
+        ds_processed = ds_processed.drop_vars(["tas", "pr"])
         # Convert to monthly or yearly frequency if requested.
         if frequency == "monthly":
             ds_processed = ds_processed.climepi.monthly_average()
