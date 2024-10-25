@@ -55,7 +55,7 @@ versionfile_build = "climepi/_version.py"
 tag_prefix = ""
 
 [tool.pytest.ini_options]
-addopts = "--import-mode=importlib --cov-config=pyproject.toml --cov=./climepi --cov-report=xml"
+addopts = "--import-mode=importlib --cov-config=pyproject.toml --cov=climepi --cov-report=xml"
 
 [tool.coverage.run]
-omit = ["./climepi/_version.py"]
+omit = ["climepi/_version.py"]
