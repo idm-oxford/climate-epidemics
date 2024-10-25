@@ -58,4 +58,4 @@ tag_prefix = ""
 addopts = "--import-mode=importlib --cov-config=pyproject.toml --cov=./climepi --cov-report=xml"
 
 [tool.coverage.run]
-omit = "./climepi/_version.py"
+omit = ["./climepi/_version.py"]
