@@ -18,10 +18,12 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 class ClimateDataGetter:
     """
-    Class for accessing and downloading climate projection data. The 'get_data' method
-    controls the process of finding,  downloading and formatting the data. Intended to
-    be subclassed for specific data sources. Subclasses should define the below class
-    attributes, as well as overriding and/or extending the methods as necessary.
+    Class for accessing and downloading climate projection data.
+
+    The 'get_data' method controls the process of finding,  downloading and formatting
+    the data. Intended to be subclassed for specific data sources. Subclasses should
+    define the below class attributes, as well as overriding and/or extending the
+    methods as necessary.
 
     Class attributes
     ----------------
@@ -121,8 +123,10 @@ class ClimateDataGetter:
     @property
     def file_name_da(self):
         """
-        Gets an xarray data array mapping each scenario/model/realization combination to
-        a file name for saving and retrieving the corresponding data (without the
+        Get an array defining file names for saving and retrieving the data.
+
+        Defines an xarray data array mapping each scenario/model/realization combination
+        to a file name for saving and retrieving the corresponding data (without the
         directory path). The file names are determined based on the provided data
         subsetting options.
         """
@@ -210,8 +214,9 @@ class ClimateDataGetter:
     @property
     def file_names(self):
         """
-        Gets a list of file names for saving and retrieving the data for the included
-        scenario/model/realization combinations (see 'file_name_da' property).
+        Get a list of file names for saving and retrieving the data.
+
+        See the 'file_name_da' attribute for details on how file names are determined.
         """
         if self._file_names is None:
             file_name_da = self.file_name_da
@@ -220,11 +225,13 @@ class ClimateDataGetter:
 
     def get_data(self, download=True, force_remake=False):
         """
-        Main method for retrieving data. First tries to open the data locally from
-        the provided 'save_dir' directory. If not found locally, the data are searched
-        for and subsetted within the remote server, downloaded to a temporary file
-        (optionally, if it is possible to lazily open the remote dataset), and then
-        processed and (if downloaded) saved to the 'save_dir' directory.
+        Retrievw the data.
+
+        First tries to open the data locally from the provided 'save_dir' directory.
+        If not found locally, the data are searched for and subsetted within the remote
+        server, downloaded to a temporary file (optionally, if it is possible to lazily
+        open the remote dataset), and then processed and (if downloaded) saved to the
+        'save_dir' directory.
 
         Parameters
         ----------
@@ -236,6 +243,7 @@ class ClimateDataGetter:
         force_remake : bool, optional
             Whether to force re-download and re-formatting of the data even if the data
             exist locally (default is False). Can only be used if 'download' is True.
+
         Returns
         -------
         xarray.Dataset

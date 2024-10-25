@@ -1,6 +1,7 @@
-"""Base module of the epimod subpackage providing a base epidemiological model
-class, a subclass for temperature- and/or rainfall-dependent suitability models, and an
-xarray accessor class.
+"""Base module of the epimod subpackage.
+
+Provides a base epidemiological model class and a subclass for temperature- and/or
+rainfall-dependent suitability models.
 """
 
 import numpy as np
@@ -22,16 +23,17 @@ class EpiModel:
 
     def run(self, ds_clim):
         """
-        Runs the epidemiological model on a given climate dataset. Should be implemented
-        by subclasses.
+        Run the epidemiological model on a given climate dataset.
 
-        Parameters:
-        -----------
+        Should be implemented by subclasses.
+
+        Parameters
+        ----------
         ds_clim : xarray.Dataset
             The input climate dataset.
 
-        Returns:
-        --------
+        Returns
+        -------
         xarray.Dataset
             The output epidemiological dataset.
         """
@@ -45,8 +47,8 @@ class SuitabilityModel(EpiModel):
     """
     Generic class for suitability models.
 
-    Attributes:
-    -----------
+    Attributes
+    ----------
     temperature_range : list or tuple or array-like of two floats, optional
         A list or tuple of two floats defining the temperature range of suitability
         (in degrees Celsius), where suitability is assumed to be 1 for temperatures
@@ -69,8 +71,8 @@ class SuitabilityModel(EpiModel):
         Default is None. Only one of `temperature_range` and `suitability_table` should
         be provided.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     temperature_range : list or tuple or array-like of two floats, optional
         Value for the `temperature_range` attribute. Default is None. Not used if
         `suitability_table` is provided.
@@ -112,12 +114,13 @@ class SuitabilityModel(EpiModel):
 
     def run(self, ds_clim, return_months_suitable=False, suitability_threshold=0):
         """
-        Runs the epidemiological model on a given climate dataset. Extends the parent
-        method to include the option to return the number of months suitable each year,
-        rather than the full suitability dataset.
+        Run the epidemiological model on a given climate dataset.
 
-        Parameters:
-        -----------
+        Extends the parent method to include the option to return the number of months
+        suitable each year, rather than the full suitability dataset.
+
+        Parameters
+        ----------
         ds_clim : xarray.Dataset
             The input climate dataset.
         return_months_suitable : bool, optional
@@ -127,8 +130,8 @@ class SuitabilityModel(EpiModel):
             The minimum suitability threshold for a month to be considered suitable.
             Only used if `return_months_suitable` is True. Default is 0.
 
-        Returns:
-        --------
+        Returns
+        -------
         xarray.Dataset
             The output epidemiological dataset.
         """
@@ -160,15 +163,15 @@ class SuitabilityModel(EpiModel):
         """
         Plot suitability against temperature and (if relevant) precipitation.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         **kwargs: dict, optional
             Additional keyword arguments to pass to the plotting function (hvplot.line
             for temperature-only suitability, or hvplot.quadmesh for temperature-
             precipitation suitability).
 
-        Returns:
-        --------
+        Returns
+        -------
         hvplot object
             A holoviews object representing the ecological niche.
         """
@@ -202,14 +205,14 @@ class SuitabilityModel(EpiModel):
 
     def get_max_suitability(self):
         """
-        Returns the maximum suitability value.
+        Return the maximum suitability value.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         None
 
-        Returns:
-        --------
+        Returns
+        -------
         float
             The maximum suitability value.
         """

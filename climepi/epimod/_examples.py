@@ -1,6 +1,4 @@
-"""
-Module for creating and accessing example climate-sensitive epidemiological models.
-"""
+"""Module for creating/accessing example climate-sensitive epidemiological models."""
 
 import pathlib
 
@@ -108,11 +106,13 @@ EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 def get_example_model(name):
     """
-    Returns a climepi.epimod.EpiModel object for an example climate-sensitive
-    epidemiological model.
+    Get an example climate-sensitive epidemiological model.
 
-    Parameters:
-    -----------
+    Returns a climepi.epimod.EpiModel object for the example model specified by the
+    name argument.
+
+    Parameters
+    ----------
     name : str
         The name of the example model to return. Currently available examples are:
         "kaye_ae_aegypti" (the temperature and rainfall suitability model for
@@ -122,8 +122,8 @@ def get_example_model(name):
         temperature suitability model for Ae. albopictus from
         https://doi.org/10.1371/journal.pntd.0005568).
 
-    Returns:
-    --------
+    Returns
+    -------
     epi_model : climepi.epimod.EpiModel
         An instance of the EpiModel class representing the example model.
     """
@@ -194,6 +194,11 @@ def get_example_model(name):
             "units": "°C",
         }
         epi_model = epimod.SuitabilityModel(suitability_table=suitability_table)
+    else:
+        raise ValueError(
+            f"Example model '{name}' does not have a recognised format. "
+            "Please check the documentation for the expected format of example models."
+        )
     return epi_model
 
 

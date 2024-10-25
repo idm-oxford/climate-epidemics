@@ -1,6 +1,4 @@
-"""
-Python package for incorporating climate data into epidemiological models.
-"""
+"""Python package for incorporating climate data into epidemiological models."""
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi import _version

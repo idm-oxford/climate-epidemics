@@ -1,6 +1,4 @@
-"""
-Module defining the layout of the climepi app and providing a method to run it.
-"""
+"""Module defining the layout of the climepi app and providing a method to run it."""
 
 import panel as pn
 
@@ -13,10 +11,10 @@ def get_app(
     epi_model_example_names=None,
 ):
     """
-    Method to get a `Panel` template object defining the layout of the climepi app.
+    Get a `Panel` template object defining the layout of the climepi app.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     clim_dataset_example_base_dir: str or pathlib.Path
         Base directory for the example climate datasets, optional. If None, the datasets
         will be downloaded to and accessed from the OS cache.
@@ -69,10 +67,10 @@ def run_app(
     epi_model_example_names=None,
 ):
     """
-    Method to run the climepi `Panel` app locally in a browser.
+    Run the climepi `Panel` app locally in a browser.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     clim_dataset_example_base_dir: str or pathlib.Path
         Base directory for the example climate datasets, optional. If None, the datasets
         will be downloaded to and accessed from the OS cache.
@@ -92,8 +90,8 @@ def run_app(
         List of example names for epidemiological models, optional. If None, the default
         list in epimod.EXAMPLE_NAMES is used.
 
-    Returns:
-    --------
+    Returns
+    -------
     None
     """
 

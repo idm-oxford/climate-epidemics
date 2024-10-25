@@ -13,7 +13,7 @@ def get_climate_data(
     max_subset_wait_time=20,
 ):
     """
-    Function to retrieve and download climate projection data from a remote server.
+    Retrieve and download climate projection data from a remote server.
 
     Parameters
     ----------
@@ -92,8 +92,9 @@ def get_climate_data(
 
 def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset=None):
     """
-    Function to retrieve file names of formatted climate data files created by the
-    `get_climate_data` function.
+    Retrieve file names of formatted climate data files.
+
+    File names are as created by the `get_climate_data` function.
 
     Parameters
     ----------

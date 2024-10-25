@@ -1,6 +1,4 @@
-"""
-Unit tests for the _examples.py module of the epimod subpackage.
-"""
+"""Unit tests for the _examples.py module of the epimod subpackage."""
 
 from unittest.mock import patch
 
@@ -14,14 +12,18 @@ from climepi import epimod
 
 
 class TestGetExampleModel:
+    """Test the get_example_model function."""
+
     @patch.dict(
         epimod._examples.EXAMPLES,
         {"test": {"temperature_range": [10, 40]}},
     )
     def test_get_example_model_temp_range(self):
         """
-        Test that get_example_model with a temperature range supplied returns an
-        EpiModel object with the supplied temperature range."""
+        Test with a temperature range supplied.
+
+        Checks an EpiModel object with the supplied temperature range is returned.
+        """
         epi_model = epimod.get_example_model("test")
         assert epi_model.temperature_range == [10, 40]
 
@@ -31,8 +33,9 @@ class TestGetExampleModel:
     )
     def test_get_example_model_temp_precip_range(self):
         """
-        Test that get_example_model with temperature and precipitation ranges supplied
-        returns an EpiModel object with a compatible suitability table.
+        Test with temperature and precipitation ranges supplied.
+
+        Checks an EpiModel object with a compatible suitability table is returned.
         """
         epi_model = epimod.get_example_model("test")
         temperature_vals = np.random.uniform(-5, 55, 1000)
@@ -58,8 +61,10 @@ class TestGetExampleModel:
     )
     def test_get_example_model_vals(self):
         """
-        Test that get_example_model with temperature and suitability values supplied
-        returns an EpiModel object with the supplied values."""
+        Test with temperature and suitability values supplied.
+
+        Checks an EpiModel object with the supplied values is returned.
+        """
         epi_model = epimod.get_example_model("test")
         npt.assert_allclose(
             epi_model.suitability_table["temperature"].values, [10, 20, 30]
@@ -74,8 +79,10 @@ class TestGetExampleModel:
     )
     def test_get_example_model_table(self):
         """
-        Test that get_example_model with a suitability table path supplied returns an
-        EpiModel object with the suitability table loaded from the path.
+        Test with a suitability table path supplied.
+
+        Checks an EpiModel object with the suitability table loaded from the path is
+        returned.
         """
         suitability_table = xr.Dataset(
             {"suitability": ("temperature", [0, 1, 0])},
@@ -93,9 +100,7 @@ class TestGetExampleModel:
 
 @patch.dict(epimod._examples.EXAMPLES, {"googly": "back of the hand"})
 def test_get_example_details():
-    """
-    Test that _get_example_details returns the details of an example model.
-    """
+    """Test that _get_example_details returns the details of an example model."""
     result = epimod._examples._get_example_details("googly")
     assert result == "back of the hand"
     with pytest.raises(ValueError, match="Available examples are"):

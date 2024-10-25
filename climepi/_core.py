@@ -1,5 +1,7 @@
-"""Core module for the climepi package. This module contains the
-ClimEpiDatasetAccessor class for xarray datasets.
+"""
+Core module for the climepi package.
+
+Contains the ClimEpiDatasetAccessor class for xarray datasets.
 """
 
 import geoviews.feature as gf
@@ -22,9 +24,10 @@ from climepi.utils import (
 @xr.register_dataset_accessor("climepi")
 class ClimEpiDatasetAccessor:
     """
-    Accessor class providing core methods, including for computing temporal and
-    ensemble statistics, and for plotting, to xarray datasets through the ``.climepi``
-    attribute.
+    Accessor class for xarray datasets accessed through the ``.climepi`` attribute.
+
+    Provides core methods, including for computing temporal and ensemble statistics, and
+    for plotting.
     """
 
     def __init__(self, xarray_obj):
@@ -32,10 +35,10 @@ class ClimEpiDatasetAccessor:
 
     def run_epi_model(self, epi_model, **kwargs):
         """
-        Runs the epidemiological model on a climate dataset.
+        Run the epidemiological model on a climate dataset.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         epi_model : climepi.epimod.EpiModel
             The epidemiological model to run.
         **kwargs : dict, optional
@@ -46,8 +49,8 @@ class ClimEpiDatasetAccessor:
             minimum suitability threshold for a month to be considered suitable (default
             is 0).
 
-        Returns:
-        --------
+        Returns
+        -------
         xarray.Dataset:
             The output of the model's run method.
         """
@@ -56,6 +59,8 @@ class ClimEpiDatasetAccessor:
 
     def sel_geo(self, location, **kwargs):
         """
+        Get data for the nearest grid point(s) to a specified location(s).
+
         Obtains the latitude and longitude co-ordinates of a specified location using
         geopy's Nominatim geocoder, and returns a new dataset containing the data for
         the nearest grid point.
@@ -105,8 +110,9 @@ class ClimEpiDatasetAccessor:
 
     def temporal_group_average(self, data_var=None, frequency="yearly", **kwargs):
         """
-        Computes the group average of a data variable. Wraps xcdat
-        temporal.group_average.
+        Compute the group average of a data variable.
+
+        Wraps xcdat temporal.group_average.
 
         Parameters
         ----------
@@ -161,7 +167,9 @@ class ClimEpiDatasetAccessor:
 
     def yearly_average(self, data_var=None, **kwargs):
         """
-        Computes the yearly mean of a data variable. Thin wrapper around group_average.
+        Compute the yearly mean of a data variable.
+
+        Thin wrapper around group_average.
 
         Parameters
         ----------
@@ -182,7 +190,9 @@ class ClimEpiDatasetAccessor:
 
     def monthly_average(self, data_var=None, **kwargs):
         """
-        Computes the monthly mean of a data variable. Thin wrapper around group_average.
+        Compute the monthly mean of a data variable.
+
+        Thin wrapper around group_average.
 
         Parameters
         ----------
@@ -204,11 +214,10 @@ class ClimEpiDatasetAccessor:
 
     def months_suitable(self, suitability_var_name=None, suitability_threshold=0):
         """
-        Calculates the number of months suitable each year from monthly suitability
-        data.
+        Calculate the number of months suitable each year from monthly suitability data.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         suitability_var_name : str, optional
             Name of the suitability variable to use. If not provided, the method will
             attempt to automatically select a suitable variable.
@@ -216,8 +225,8 @@ class ClimEpiDatasetAccessor:
             Minimum suitability threshold for a month to be considered suitable. Default
             is 0.
 
-        Returns:
-        --------
+        Returns
+        -------
         xarray.Dataset:
             Dataset with a single non-bound data variable "months_suitable".
         """
@@ -260,7 +269,7 @@ class ClimEpiDatasetAccessor:
         polyfit_degree=4,
     ):
         """
-        Computes a range of ensemble statistics for a data variable.
+        Compute a range of ensemble statistics for a data variable.
 
         Parameters
         ----------
@@ -336,8 +345,10 @@ class ClimEpiDatasetAccessor:
 
     def estimate_ensemble_stats(self, data_var=None, conf_level=90, polyfit_degree=4):
         """
-        Estimates ensemble statistics for a data variable by fitting a polynomial to
-        time series for a single ensemble member.
+        Estimate ensemble statistics for a data variable.
+
+        Designed for use when only a single realization is available (for a given model
+        and scenario). Works by fitting a polynomial to time series.
 
         Parameters
         ----------
@@ -417,12 +428,14 @@ class ClimEpiDatasetAccessor:
         polyfit_degree=4,
     ):
         """
-        Decomposes the variance of a data variable into internal, model and scenario
-        uncertainty at each time point.
+        Decompose variance contributions from different climate uncertainty sources.
+
+        Partitions the variance of a data variable at each time point into contributions
+        from internal variability, model uncertainty and scenario uncertainty.
 
         Parameters
         ----------
-        data_var : str
+        data_var : str or list of str, optional
             Name of the data variable(s) to decompose.
         fraction : bool, optional
             Whether to calculate the variance contributions as fractions of the total
@@ -515,7 +528,9 @@ class ClimEpiDatasetAccessor:
 
     def plot_time_series(self, data_var=None, **kwargs):
         """
-        Generates a time series plot of a data variable. Wraps hvplot.line.
+        Generate a time series plot of a data variable.
+
+        Wraps hvplot.line.
 
         Parameters
         ----------
@@ -538,7 +553,9 @@ class ClimEpiDatasetAccessor:
 
     def plot_map(self, data_var=None, include_ocean=False, **kwargs):
         """
-        Generates a map plot of a data variable. Wraps hvplot.quadmesh.
+        Generate a map plot of a data variable.
+
+        Wraps hvplot.quadmesh.
 
         Parameters
         ----------
@@ -582,8 +599,13 @@ class ClimEpiDatasetAccessor:
         **kwargs,
     ):
         """
-        Plots the contributions of internal, model and scenario uncertainty to the total
-        variance of a data variable over time. Wraps hvplot.area.
+        Plot decomposition of variance from different climate uncertainty sources.
+
+        Partitions the variance of a data variable at each time point into contributions
+        from internal variability, model uncertainty and scenario uncertainty, and
+        creates an area plot showing these contributions over time.
+
+        Wraps hvplot.area.
 
         Parameters
         ----------
@@ -653,9 +675,13 @@ class ClimEpiDatasetAccessor:
         **kwargs_area,
     ):
         """
-        Generates a plume plot showing contributions of internal, model and scenario
-        uncertainty (as applicable) to confidence intervals for a data variable over
-        time. Wraps hvplot.area.
+        Plot contributions of climate uncertainty sources to confidence intervals.
+
+        Generates a plume plot showing contributions of internal variability, model
+        uncertainty and scenario uncertainty (as applicable) to confidence intervals for
+        a data variable over time.
+
+        Wraps hvplot.area.
 
         Parameters
         ----------

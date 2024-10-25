@@ -1,6 +1,7 @@
 """
-Unit tests for the ISIMIPDataGetter class in the _isimip.py module of the climdata
-subpackage.
+Unit tests for the the _isimip.py module of the climdata subpackage.
+
+The ISIMIPDataGetter class is tested.
 """
 
 import itertools
@@ -22,9 +23,7 @@ from climepi.testing.fixtures import generate_dataset
 
 
 def test_init():
-    """
-    Test the __init__ method of the ISIMIPDataGetter class.
-    """
+    """Test the __init__ method of the ISIMIPDataGetter class."""
     data_getter = ISIMIPDataGetter(
         frequency="daily",
         subset={
@@ -59,10 +58,7 @@ def test_init():
 
 @patch("requests.Session", autospec=True)
 def test_find_remote_data(mock_session):
-    """
-    Test the _find_remote_data method of the ISIMIPDataGetter class.
-    """
-
+    """Test the _find_remote_data method of the ISIMIPDataGetter class."""
     # Set up mock methods
 
     def mock_json():
@@ -128,10 +124,10 @@ def test_find_remote_data(mock_session):
 @pytest.mark.parametrize("times_out", [False, True])
 def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_out):
     """
-    Test the _subset_remote_data method of the ISIMIPDataGetter class. Checks that
-    the method correctly monitors the status of remote subsetting jobs.
-    """
+    Test the _subset_remote_data method of the ISIMIPDataGetter class.
 
+    Checks that the method correctly monitors the status of remote subsetting jobs.
+    """
     # Set up mock methods (including simulating a delay in the subsetting process)
 
     subset_check_interval = 0.01
@@ -251,10 +247,7 @@ def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_o
 @patch("zipfile.ZipFile", autospec=True)
 @pytest.mark.parametrize("data_subsetted", [False, True])
 def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_subsetted):
-    """
-    Test the _download_remote_data method of the ISIMIPDataGetter class.
-    """
-
+    """Test the _download_remote_data method of the ISIMIPDataGetter class."""
     # Set up mock methods
 
     def mock_namelist():
@@ -326,10 +319,10 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
 @patch.object(xr, "open_mfdataset", autospec=True)
 def test_open_temp_data(mock_open_mfdataset):
     """
-    Test the _open_temp_data method of the ISIMIPDataGetter class, focusing on checking
-    the preprocessing of the opened dataset.
-    """
+    Test the _open_temp_data method of the ISIMIPDataGetter class.
 
+    Focuses on checking the preprocessing of the opened dataset.
+    """
     # Set up mock open_mfdataset method (which subsets, preprocesses and combines an
     # input dataset to simulate the opening of multiple files)
 
@@ -401,10 +394,7 @@ def test_open_temp_data(mock_open_mfdataset):
 
 @pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
 def test_process_data(frequency):
-    """
-    Test the _process_data method of the ISIMIPDataGetter class.
-    """
-
+    """Test the _process_data method of the ISIMIPDataGetter class."""
     # Set up unprocessed dataset
 
     time_lb = xr.cftime_range(

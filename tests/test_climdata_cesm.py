@@ -1,6 +1,7 @@
 """
-Unit tests for the CESMDataGetter class in the _cesm.py module of the climdata
-subpackage.
+Unit tests for the the _cesm.py module of the climdata subpackage.
+
+The CESMDataGetter class is tested.
 """
 
 import pathlib
@@ -21,7 +22,9 @@ from climepi.climdata._cesm import CESMDataGetter
 @pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
 def test_find_remote_data(frequency):
     """
-    Test the _find_remote_data method of the CESMDataGetter class. The conversion of
+    Test the _find_remote_data method of the CESMDataGetter class.
+
+    The conversion of
     the intake_esm catalog to a dataset dictionary is mocked to avoid opening the
     actual remote dataset.
     """
@@ -80,9 +83,7 @@ def test_find_remote_data(frequency):
     ["single_named", "multiple_named", "grid_lon_0_360", "grid_lon_180_180"],
 )
 def test_subset_remote_data(year_mode, location_mode):
-    """
-    Test the _subset_remote_data method of the CESMDataGetter class.
-    """
+    """Test the _subset_remote_data method of the CESMDataGetter class."""
     time_lb = xr.cftime_range(start="2001-01-01", periods=36, freq="MS")
     time_rb = xr.cftime_range(start="2001-02-01", periods=36, freq="MS")
     time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "nbnd"))
@@ -160,8 +161,9 @@ def test_subset_remote_data(year_mode, location_mode):
 @patch.object(xr.Dataset, "to_netcdf", autospec=True)
 def test_download_remote_data(mock_to_netcdf):
     """
-    Unit test for the _download_remote_data method of the CESMDataGetter class. The
-    download is mocked to avoid actually downloading the remote data.
+    Unit test for the _download_remote_data method of the CESMDataGetter class.
+
+    The download is mocked to avoid actually downloading the remote data.
     """
     ds = xr.Dataset(data_vars={"chris": xr.DataArray(np.random.rand(6), dims=["ball"])})
     data_getter = CESMDataGetter()
@@ -177,8 +179,9 @@ def test_download_remote_data(mock_to_netcdf):
 
 def test_open_temp_data():
     """
-    Unit test for the _open_temp_data method of the CESMDataGetter class. Checks that
-    chunking is preserved when the temporary dataset is opened.
+    Unit test for the _open_temp_data method of the CESMDataGetter class.
+
+    Checks that chunking is preserved when the temporary dataset is opened.
     """
     time_lb = xr.cftime_range(
         start="2001-01-01", periods=12, freq="MS", calendar="noleap"
@@ -225,9 +228,7 @@ def test_open_temp_data():
 
 @pytest.mark.parametrize("frequency", ["monthly", "yearly"])
 def test_process_data(frequency):
-    """
-    Test the _process_data method of the CESMDataGetter class.
-    """
+    """Test the _process_data method of the CESMDataGetter class."""
     time_lb = xr.cftime_range(
         start="2001-01-01", periods=36, freq="MS", calendar="noleap"
     )

@@ -1,7 +1,8 @@
 """
-Module storing reusable test fixtures. Extensive inspiration and lifting of definitions
-is taken from the test suite for the xcdat package (see
-https://github.com/xCDAT/xcdat/blob/main/tests/fixtures.py)
+Module storing reusable test fixtures.
+
+Extensive inspiration and lifting of definitions is taken from the test suite for the
+xcdat package (see https://github.com/xCDAT/xcdat/blob/main/tests/fixtures.py)
 """
 
 import cftime

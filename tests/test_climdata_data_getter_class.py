@@ -1,6 +1,7 @@
 """
-Unit tests for the ClimateDataGetter class in the _data_getter_class module of the
-climdata subpackage.
+Unit tests for the _data_getter_class module of the climdata subpackage.
+
+The ClimateDataGetter class is tested.
 """
 
 import itertools
@@ -23,9 +24,7 @@ from climepi.testing.fixtures import generate_dataset
 
 
 def test_init():
-    """
-    Test the __init__ method of the ClimateDataGetter class.
-    """
+    """Test the __init__ method of the ClimateDataGetter class."""
     data_getter = ClimateDataGetter(
         frequency="daily",
         subset={"models": ["googly"], "locations": "gabba"},
@@ -98,9 +97,7 @@ def test_file_name_da(
     lat_range,
     loc_strs_expected,
 ):
-    """
-    Test the file_name_da property of the ClimateDataGetter class.
-    """
+    """Test the file_name_da property of the ClimateDataGetter class."""
     scenarios = ["overcast", "sunny"]
     models = ["length", "inswinger", "bouncer"]
     realizations = np.arange(1, 3)
@@ -142,9 +139,7 @@ def test_file_name_da(
 
 
 def test_file_names():
-    """
-    Test the file_names property of the ClimateDataGetter class.
-    """
+    """Test the file_names property of the ClimateDataGetter class."""
     data_getter = ClimateDataGetter(
         frequency="monthly",
         subset={
@@ -180,10 +175,7 @@ def test_file_names():
 @pytest.mark.parametrize("local_data_available", [True, False])
 @pytest.mark.parametrize("force_remake", [True, False])
 def test_get_data(remote_open_possible, download, local_data_available, force_remake):
-    """
-    Unit test for the get_data method of the ClimateDataGetter class.
-    """
-
+    """Unit test for the get_data method of the ClimateDataGetter class."""
     subset = {
         "years": [2015],
         "scenarios": ["overcast"],
@@ -325,9 +317,7 @@ def test_get_data(remote_open_possible, download, local_data_available, force_re
 
 
 def test_open_local_data():
-    """
-    Test the _open_local_data method of the ClimateDataGetter class.
-    """
+    """Test the _open_local_data method of the ClimateDataGetter class."""
     scenarios = ["overcast", "sunny"]
     models = ["bouncer", "inswinger", "length"]
     realizations = np.arange(1, 3)
@@ -388,8 +378,10 @@ def test_open_local_data():
 
 def test_find_remote_data():
     """
-    Test that the _find_remote_data method of the ClimateDataGetter (which needs to be
-    implemented in subclasses) raises a NotImplementedError.
+    Test the _find_remote_data method of the ClimateDataGetter.
+
+    The method needs to be implemented in subclasses so should raise a
+    NotImplementedError.
     """
     data_getter = ClimateDataGetter()
     with pytest.raises(NotImplementedError):
@@ -398,8 +390,10 @@ def test_find_remote_data():
 
 def test_subset_remote_data():
     """
-    Test that the _subset_remote_data method of the ClimateDataGetter (which needs to be
-    implemented in subclasses) raises a NotImplementedError.
+    Test the _subset_remote_data method of the ClimateDataGetter.
+
+    The method needs to be implemented in subclasses so should raise a
+    NotImplementedError.
     """
     data_getter = ClimateDataGetter()
     with pytest.raises(NotImplementedError):
@@ -408,8 +402,10 @@ def test_subset_remote_data():
 
 def test_download_remote_data():
     """
-    Test that the _download_remote_data method of the ClimateDataGetter (which needs to
-    be implemented in subclasses) raises a NotImplementedError.
+    Test the _download_remote_data method of the ClimateDataGetter.
+
+    The method needs to be implemented in subclasses so should raise a
+    NotImplementedError.
     """
     data_getter = ClimateDataGetter()
     with pytest.raises(NotImplementedError):
@@ -419,9 +415,7 @@ def test_download_remote_data():
 @patch("xarray.open_mfdataset", autospec=True)
 @pytest.mark.parametrize("include_data_vars_kwarg", [True, False])
 def test_open_temp_data(mock_xr_open_mfdataset, include_data_vars_kwarg):
-    """
-    Test the _open_temp_data method of the ClimateDataGetter class.
-    """
+    """Test the _open_temp_data method of the ClimateDataGetter class."""
     data_getter = ClimateDataGetter()
     data_getter._temp_save_dir = pathlib.Path("not/a/real/path")
     data_getter._temp_file_names = [
@@ -458,8 +452,10 @@ def test_open_temp_data(mock_xr_open_mfdataset, include_data_vars_kwarg):
 @pytest.mark.parametrize("lon_res_set", [True, False])
 def test_process_data(location_mode, lon_res_set):
     """
-    Unit test for the _process_data method of the ClimateDataGetter class. Focuses
-    on checking that longitude/latitude bounds correctly are added to the dataset.
+    Test the _process_data method of the ClimateDataGetter class.
+
+    Focus on checking that longitude/latitude bounds correctly are added to the
+    dataset.
     """
     # Set up the input dataset
     lon_res = 0.8
@@ -547,9 +543,7 @@ def test_process_data(location_mode, lon_res_set):
 @patch.object(xr.Dataset, "to_netcdf", autospec=True)
 @pytest.mark.parametrize("named_locations", [True, False])
 def test_save_processed_data(mock_to_netcdf, mock_mkdir, named_locations):
-    """
-    Test the _save_processed_data method of the ClimateDataGetter class.
-    """
+    """Test the _save_processed_data method of the ClimateDataGetter class."""
     scenarios = ["overcast", "sunny"]
     models = ["inswinger", "length"]
     realizations = np.arange(1, 3)
@@ -618,9 +612,7 @@ def test_save_processed_data(mock_to_netcdf, mock_mkdir, named_locations):
 
 
 def test_delete_temporary():
-    """
-    Test the _delete_temporary method of the ClimateDataGetter class.
-    """
+    """Test the _delete_temporary method of the ClimateDataGetter class."""
     temp_save_dir = pathlib.Path(tempfile.mkdtemp(suffix="_climepi_test"))
     temp_file_names = [
         "temporary_0.nc",

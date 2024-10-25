@@ -1,6 +1,4 @@
-"""
-Unit tests for the _examples.py module of the epimod subpackage.
-"""
+"""Unit tests for the _examples.py module of the epimod subpackage."""
 
 import pathlib
 from unittest.mock import patch
@@ -35,9 +33,7 @@ from climepi import climdata
 def test_get_example_dataset(
     mock_fetch_formatted_example_dataset, mock_get_climate_data, name, force_remake
 ):
-    """
-    Test the get_example_dataset method.
-    """
+    """Test the get_example_dataset method."""
     base_dir = "not/a/real/dir"
     ds = climdata.get_example_dataset(
         name, base_dir=base_dir, force_remake=force_remake
@@ -74,9 +70,7 @@ def test_get_example_dataset(
     clear=True,
 )
 def test_get_example_details():
-    """
-    Test the _get_example_details method.
-    """
+    """Test the _get_example_details method."""
     example_details = climdata._examples._get_example_details("leave")
     assert example_details == climdata._examples.EXAMPLES["leave"]
     with pytest.raises(ValueError, match="Available examples are"):
@@ -85,9 +79,7 @@ def test_get_example_details():
 
 @patch("climepi.__version__", "4.2.0")
 def test_get_data_dir():
-    """
-    Test the _get_data_dir method.
-    """
+    """Test the _get_data_dir method."""
     assert (
         str(climdata._examples._get_data_dir("leave", "not/a/real/dir"))
         == "not/a/real/dir/leave"
@@ -104,8 +96,9 @@ def test_get_data_dir():
 
 def test_get_climepi_version():
     """
-    Test the _get_climepi_version method. Should default to "main" for development
-    versions.
+    Test the _get_climepi_version method.
+
+    Should default to "main" for development versions.
     """
     with patch("climepi.__version__", "4.2.0"):
         assert climdata._examples._get_climepi_version() == "4.2.0"
@@ -134,10 +127,7 @@ def test_get_climepi_version():
 @patch("pooch.core.Pooch", autospec=True)
 @patch("climepi.__version__", "4.2.0")
 def test_fetch_formatted_example_dataset(mock_pooch):
-    """
-    Test the _fetch_formatted_example_dataset method.
-    """
-
+    """Test the _fetch_formatted_example_dataset method."""
     name = "leave"
     data_dir = "not/a/real/dir"
 
@@ -171,18 +161,14 @@ def test_fetch_formatted_example_dataset(mock_pooch):
     clear=True,
 )
 def test_get_registry_file_path():
-    """
-    Test the _get_registry_file_path method.
-    """
+    """Test the _get_registry_file_path method."""
     result = climdata._examples._get_registry_file_path("leave")
     assert str(result).endswith("climepi/climdata/_example_registry_files/leave.txt")
 
 
 @patch.object(pooch, "make_registry")
 def test_make_example_registry(mock_pooch_make_registry):
-    """
-    Test the _make_example_registry method.
-    """
+    """Test the _make_example_registry method."""
     name = "leave"
     base_dir = "not/a/real/dir"
     climdata._examples._make_example_registry(name, base_dir=base_dir)
@@ -203,9 +189,7 @@ def test_make_example_registry(mock_pooch_make_registry):
 def test_make_all_examples(
     mock_make_example_registry, mock_get_example_dataset, force_remake
 ):
-    """
-    Test the make_all_examples method.
-    """
+    """Test the make_all_examples method."""
 
     def _mock_get_example_dataset_side_effect(_name, **kwargs):
         # Mock attempt to download the "leave" example dataset timing out

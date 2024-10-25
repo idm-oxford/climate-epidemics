@@ -107,7 +107,7 @@ def _compute_to_file_reopen(ds_in, save_path, dask_scheduler=None):
 
 
 class _Plotter:
-    """Class for generating plots"""
+    """Class for generating plots."""
 
     def __init__(self, ds_in, plot_settings):
         self.view = None
@@ -548,17 +548,17 @@ class Controller(param.Parameterized):
 
     # @param.depends()
     def clim_plot_controls(self):
-        """The climate data plot controls."""
+        """Return the climate data plot controls."""
         return self.clim_plot_controller.controls
 
     @param.depends("clim_plot_controller.view_refresher")
     def clim_plot_view(self):
-        """The climate data plot."""
+        """Return the climate data plot."""
         return self.clim_plot_controller.view
 
     @param.depends("_get_epi_model")
     def epi_model_plot_view(self):
-        """The epidemiological model plot."""
+        """Return the epidemiological model plot."""
         epi_model = self._epi_model
         try:
             plot = epi_model.plot_suitability_region()
@@ -569,12 +569,12 @@ class Controller(param.Parameterized):
 
     # @param.depends()
     def epi_plot_controls(self):
-        """The epidemiological projection plot controls."""
+        """Return the epidemiological projection plot controls."""
         return self.epi_plot_controller.controls
 
     @param.depends("epi_plot_controller.view_refresher")
     def epi_plot_view(self):
-        """The epidemiological projection plot."""
+        """Return the epidemiological projection plot."""
         return self.epi_plot_controller.view
 
     @param.depends("clim_data_load_initiator", watch=True)
@@ -684,9 +684,7 @@ class Controller(param.Parameterized):
             self.param.suitabilty_threshold.precedence = -1
 
     def cleanup_temp_file(self):
-        """
-        Cleanup the temporary file created for the epidemiological model output.
-        """
+        """Cleanup the temporary file created for the epidemiological model output."""
         if self._ds_epi is not None:
             self._ds_epi.close()
         if self._ds_epi_path.exists():

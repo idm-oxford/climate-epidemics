@@ -1,7 +1,4 @@
-"""
-Module for accessing and downloading CESM LENS2 data from the aws server (see
-https://ncar.github.io/cesm2-le-aws/model_documentation.html).
-"""
+"""Module for accessing and downloading CESM LENS2 data."""
 
 import dask.diagnostics
 import intake
@@ -14,13 +11,15 @@ from climepi.climdata._data_getter_class import ClimateDataGetter
 
 class CESMDataGetter(ClimateDataGetter):
     """
-    Class for accessing and downloading CESM2 LENS data from the aws server
-    (https://registry.opendata.aws/ncar-cesm2-lens/). Available years that can be
-    specified in the `subset` argument of the class constructor range from 1850 to 2100,
-    and 100 realizations (here labelled as 0 to 99) are available for a single scenario
-    ("ssp370") and model ("cesm2"). The remotely stored data can be lazily opened as an
-    xarray dataset and processed without downloading (`download=False` option in the
-    `get_data` method).
+    Class for accessing and downloading CESM2 LENS data.
+
+    Data are taken from the aws server (https://registry.opendata.aws/ncar-cesm2-lens/).
+
+    Available years that can be specified in the `subset` argument of the class
+    constructor range from 1850 to 2100, and 100 realizations (here labelled as 0 to 99)
+    are available for a single scenario ("ssp370") and model ("cesm2"). The remotely
+    stored data can be lazily opened as an xarray dataset and processed without
+    downloading (`download=False` option in the `get_data` method).
 
     See the base class (`climepi.climdata._data_getter_class.ClimateDataGetter`) for
     further details.

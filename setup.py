@@ -1,3 +1,5 @@
+"""Minimal setup.py file needed for versioneer."""
+
 import setuptools
 import versioneer
 

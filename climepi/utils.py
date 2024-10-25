@@ -1,10 +1,10 @@
-"""
-Module containing utility functions for working with xarray datasets.
-"""
+"""Module containing utility functions for working with xarray datasets."""
 
 
 def add_var_attrs_from_other(ds, ds_from, var=None):
     """
+    Copy variable attributes from one xarray dataset to another.
+
     Copies the attributes for a variable (or variables) from another xarray dataset
     (ds_from) to a copy of another one (ds), whenever the variable(s) exist in both
     datasets.
@@ -39,6 +39,8 @@ def add_var_attrs_from_other(ds, ds_from, var=None):
 
 def add_bnds_from_other(ds, ds_from):
     """
+    Add latitude, longitude, and time bounds from one xarray dataset to another.
+
     Adds the latitude, longitude, and time bounds from one xarray dataset (ds_from) to a
     copy of another one (ds), whenever the bounds exist in ds_from but not ds, and the
     corresponding co-ordinate dimension is the same for both datasets.
@@ -74,6 +76,8 @@ def add_bnds_from_other(ds, ds_from):
 
 def get_data_var_and_bnds(ds, data_var):
     """
+    Get a dataset with only the selected data variable(s) and any bounds variables.
+
     Returns a new dataset containing only the selected data variable(s) and any
     bounds variables.
 
@@ -105,7 +109,7 @@ def get_data_var_and_bnds(ds, data_var):
 
 def list_non_bnd_data_vars(ds):
     """
-    Returns a list of the names of the non-bound variables in the dataset.
+    List the names of the non-bound variables in the dataset.
 
     Parameters
     ----------

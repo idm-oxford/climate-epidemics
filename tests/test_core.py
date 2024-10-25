@@ -1,6 +1,7 @@
 """
-Unit tests for the ClimEpiDatasetAccessor contained in the _core module of the climepi
-subpackage
+Unit tests for the _core module of the climepi package.
+
+The ClimEpiDatasetAccessor class is tested in this module.
 """
 
 import cftime
@@ -27,9 +28,11 @@ def test__init__():
 
 def test_run_epi_model():
     """
-    Test the run_epi_model method of the ClimEpiDatasetAccessor class. Only test that
-    the method returns the same result as the run method of the EpiModel class. The run
-    method of the EpiModel class is tested in the test module for the epimod subpackage.
+    Test the run_epi_model method of the ClimEpiDatasetAccessor class.
+
+    Only test that the method returns the same result as the run method of the EpiModel
+    class. The run method of the EpiModel class is tested in the test module for the
+    epimod subpackage.
     """
     ds = generate_dataset()
     epi_model = epimod.SuitabilityModel(temperature_range=(15, 20))
@@ -39,17 +42,17 @@ def test_run_epi_model():
 
 
 class TestSelGeo:
-    """
-    Class defining tests for the sel_geo method of the ClimEpiDatasetAccessor class.
-    """
+    """Class for tests of the sel_geo method of ClimEpiDatasetAccessor."""
 
     @pytest.mark.parametrize("location", ["Miami", "Cape Town"])
     @pytest.mark.parametrize("lon_0_360", [False, True])
     def test_sel_geo_main(self, location, lon_0_360):
         """
-        Main test. Checks cases where the location's longitude is outside the dataset's
-        longitude grid, in which case the closer of the left/right edges of the grid
-        should be selected.
+        Main test.
+
+        Checks cases where the location's longitude is outside the dataset's longitude
+        grid, in which case the closer of the left/right edges of the grid should be
+        selected.
         """
         ds1 = xr.Dataset(
             {
@@ -88,10 +91,7 @@ class TestSelGeo:
 
     @pytest.mark.parametrize("location_list", [["Miami", "Cape Town"], ["Miami"]])
     def test_sel_geo_location_list(self, location_list):
-        """
-        Test the sel_geo method of the ClimEpiDatasetAccessor class with a list of
-        locations.
-        """
+        """Test with a list of locations."""
         ds = (
             generate_dataset(data_var="beamer", extra_dims={"covers": 2})
             .drop_vars(("lat_bnds", "lon_bnds"))
@@ -122,15 +122,13 @@ class TestSelGeo:
 
 @pytest.mark.parametrize("frequency", ["yearly", "monthly", "daily"])
 class TestTemporalGroupAverage:
-    """
-    Class defining tests for the temporal_group_average method of the
-    ClimEpiDatasetAccessor class.
-    """
+    """Class for testing the temporal_group_average method of ClimEpiDatasetAccessor."""
 
     def test_temporal_group_average(self, frequency):
         """
-        Test the temporal_group_average method of the ClimEpiDatasetAccessor class,
-        particularly the centering of the time values (which is added to the underlying
+        Main test.
+
+        Focuses on the centering of the time values (which is added to the underlying
         xcdat temporal.group_average method).
         """
         time_lb = xr.cftime_range(start="2001-01-01", periods=365, freq="D")
@@ -203,10 +201,7 @@ class TestTemporalGroupAverage:
             assert "time_bnds" not in result
 
     def test_temporal_group_average_varlist(self, frequency):
-        """
-        Test the temporal_group_average method of the ClimEpiDatasetAccessor class with a
-        list of data variables.
-        """
+        """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars)
         result = ds.climepi.temporal_group_average(frequency=frequency)
@@ -217,10 +212,7 @@ class TestTemporalGroupAverage:
             xrt.assert_identical(result[data_var], expected[data_var])
 
     def test_temporal_group_average_datatypes(self, frequency):
-        """
-        Test that the temporal_group_average method of the ClimEpiDatasetAccessor class
-        works with different data types.
-        """
+        """Test with different data types."""
         ds_bool = generate_dataset(data_var="temperature", dtype=bool)
         ds_int = ds_bool.copy()
         ds_int["temperature"] = ds_int["temperature"].astype(int)
@@ -235,9 +227,11 @@ class TestTemporalGroupAverage:
 
 def test_yearly_average():
     """
-    Test the yearly_average method of the ClimEpiDatasetAccessor class. Since this
-    method is a thin wrapper around the temporal_group_average method, only test that
-    this method returns the same result as calling temporal_group_average directly.
+    Test the yearly_average method of the ClimEpiDatasetAccessor class.
+
+    Since this method is a thin wrapper around the temporal_group_average method, only
+    test that this method returns the same result as calling temporal_group_average
+    directly.
     """
     ds = generate_dataset()
     result = ds.climepi.yearly_average()
@@ -247,9 +241,11 @@ def test_yearly_average():
 
 def test_monthly_average():
     """
-    Test the monthly_average method of the ClimEpiDatasetAccessor class. Since this
-    method is a thin wrapper around the temporal_group_average method, only test that
-    this method returns the same result as calling temporal_group_average directly.
+    Test the monthly_average method of the ClimEpiDatasetAccessor class.
+
+    Since this method is a thin wrapper around the temporal_group_average method, only
+    test that this method returns the same result as calling temporal_group_average
+    directly.
     """
     ds = generate_dataset()
     result = ds.climepi.monthly_average()
@@ -258,15 +254,10 @@ def test_monthly_average():
 
 
 class TestMonthsSuitable:
-    """
-    Class defining tests for the months_suitable method of the ClimEpiDatasetAccessor
-    class.
-    """
+    """Class for testing the months_suitable method of ClimEpiDatasetAccessor."""
 
     def test_months_suitable(self):
-        """
-        Main test for the months_suitable method of the ClimEpiDatasetAccessor class.
-        """
+        """Main test."""
         time_lb = xr.cftime_range(start="2001-01-01", periods=24, freq="MS")
         time_rb = xr.cftime_range(start="2001-02-01", periods=24, freq="MS")
         time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "bnds"))
@@ -299,10 +290,7 @@ class TestMonthsSuitable:
         )
 
     def test_months_suitable_var_names(self):
-        """
-        Test the months_suitable method of the ClimEpiDatasetAccessor class with
-        different data variable names present in the dataset.
-        """
+        """Test with different data variable names present in the dataset."""
         data_vars = ["suitability", "also_suitability", "temperature"]
         ds = generate_dataset(data_var=data_vars)
         ds["suitability"].values = np.random.rand(*ds["suitability"].shape)
@@ -334,14 +322,10 @@ class TestMonthsSuitable:
 
 
 class TestEnsembleStats:
-    """
-    Class defining tests for the ensemble_stats method of the ClimEpiDatasetAccessor.
-    """
+    """Class for testing the ensemble_stats method of ClimEpiDatasetAccessor."""
 
     def test_ensemble_stats(self):
-        """
-        Main test for the ensemble_stats method of the ClimEpiDatasetAccessor class.
-        """
+        """Main test."""
         ds = generate_dataset(data_var="temperature", extra_dims={"realization": 3})
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         result = ds.climepi.ensemble_stats(conf_level=60)
@@ -383,10 +367,7 @@ class TestEnsembleStats:
         )
 
     def test_ensemble_stats_varlist(self):
-        """
-        Test the ensemble_stats method of the ClimEpiDatasetAccessor class with a list
-        of data variables.
-        """
+        """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars, extra_dims={"realization": 3})
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
@@ -404,10 +385,11 @@ class TestEnsembleStats:
 
     def test_ensemble_stats_single_realization(self):
         """
-        Test the ensemble_stats method of the ClimEpiDatasetAccessor class with a single
-        realization, with the option to estimate internal variability at its default on
-        value (only test that this gives the same result as the estimate_ensemble_stats
-        method, which is tested separately).
+        Test with a single realization.
+
+        Uses the option to estimate internal variability (enabled by default; only
+        tests that this gives the same result as the estimate_ensemble_stats method,
+        which is tested separately).
         """
         ds1 = generate_dataset(data_var="temperature")
         ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
@@ -425,10 +407,7 @@ class TestEnsembleStats:
         xrt.assert_allclose(result3, expected)
 
     def test_ensemble_stats_single_realization_no_estimation(self):
-        """
-        Test the ensemble_stats method of the ClimEpiDatasetAccessor class with a single
-        realization, with the option to estimate internal variability turned off.
-        """
+        """Test with a single realization without estimating internal variability."""
         ds1 = generate_dataset(data_var="temperature")
         ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
         ds2 = ds1.copy()
@@ -456,19 +435,17 @@ class TestEnsembleStats:
 
 
 class TestEstimateEnsembleStats:
-    """
-    Class defining tests for the estimate_ensemble_stats method of the
-    ClimEpiDatasetAccessor class.
-    """
+    """Class for testing the estimate_ensemble_stats method of ClimEpiDatasetAccessor."""
 
     def test_estimate_ensemble_stats(self):
         """
-        Main test for the estimate_ensemble_stats method of the ClimEpiDatasetAccessor
-        class. This test is based on estimating ensemble stats from a temperature time
-        series made up of normally distributed noise added to a polynomial (matching
-        the underlying assumptions of the estimate_ensemble_stats method). This is
-        repeated multiple times to ensure there is no systematic bias in the estimated
-        ensemble statistics.
+        Main test.
+
+        This test is based on estimating ensemble stats from a temperature time series
+        made up of normally distributed noise added to a polynomial (matching the
+        underlying assumptions of the estimate_ensemble_stats method). This is repeated
+        multiple times to ensure there is no systematic bias in the estimated ensemble
+        statistics.
         """
         time = xr.cftime_range(start="2001-01-01", periods=10000, freq="MS")
         days_from_start = cftime.date2num(time, "days since 2001-01-01")
@@ -569,10 +546,7 @@ class TestEstimateEnsembleStats:
         )
 
     def test_estimate_ensemble_stats_varlist(self):
-        """
-        Test the estimate_ensemble_stats method of the ClimEpiDatasetAccessor class with
-        a list of data variables.
-        """
+        """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars, frequency="monthly")
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
@@ -590,10 +564,12 @@ class TestEstimateEnsembleStats:
 
     def test_estimate_ensemble_stats_contains_realization(self):
         """
-        Test that the estimate_ensemble_stats method of the ClimEpiDatasetAccessor class
-        gives the expected result when the dataset contains a realization dimension with
-        length 1, or a non-dimensional realization coordinate, and raises an error when
-        the realization dimension has length greater than 1.
+        Test with a dataset containing a realization dimension.
+
+        Checks the method gives the expected result when the dataset contains a
+        realization dimension with length 1, or a non-dimensional realization
+        coordinate, and raises an error when the realization dimension has length
+        greater than 1.
         """
         ds_base = generate_dataset(data_var="temperature", frequency="monthly")
         ds_base["temperature"].values = np.random.rand(*ds_base["temperature"].shape)
@@ -614,14 +590,10 @@ class TestEstimateEnsembleStats:
 
 
 class TestVarDecomp:
-    """
-    Class defining tests for the var_decomp method of the ClimEpiDatasetAccessor class.
-    """
+    """Class for testing the var_decomp method of ClimEpiDatasetAccessor."""
 
     def test_var_decomp(self):
-        """
-        Main test for the var_decomp method of the ClimEpiDatasetAccessor class.
-        """
+        """Main test."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"scenario": 6, "model": 4, "realization": 9},
@@ -684,10 +656,7 @@ class TestVarDecomp:
         )
 
     def test_var_decomp_varlist(self):
-        """
-        Test the var_decomp method of the ClimEpiDatasetAccessor class with a list of
-        data variables.
-        """
+        """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars, frequency="monthly")
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
@@ -704,10 +673,7 @@ class TestVarDecomp:
             )
 
     def test_var_decomp_single_scenario_model(self):
-        """
-        Test the var_decomp method of the ClimEpiDatasetAccessor class with datasets
-        containing a single scenario and model.
-        """
+        """Test with datasets containing a single scenario and model."""
         ds1 = generate_dataset(data_var="temperature", extra_dims={"realization": 9})
         ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
         ds2 = ds1.copy()
@@ -735,9 +701,10 @@ class TestVarDecomp:
 
 def test_plot_time_series():
     """
-    Test the plot_time_series method of the ClimEpiDatasetAccessor class. Since this
-    method is a thin wrapper around hvplot.line, only test that this method returns the
-    same result as calling hvplot.line directly in a simple case.
+    Test the plot_time_series method of the ClimEpiDatasetAccessor class.
+
+    Since this method is a thin wrapper around hvplot.line, only test that this method
+    returns the same result as calling hvplot.line directly in a simple case.
     """
     ds = generate_dataset(
         data_var=["temperature", "precipitation"], extra_dims={"realization": 3}
@@ -752,9 +719,10 @@ def test_plot_time_series():
 
 def test_plot_map():
     """
-    Test the plot_map method of the ClimEpiDatasetAccessor class. Since this method is a
-    thin wrapper around hvplot.quadmesh, only test that this method returns the same
-    result as calling hvplot.quadmesh directly in a simple case.
+    Test the plot_map method of the ClimEpiDatasetAccessor class.
+
+    Since this method is a thin wrapper around hvplot.quadmesh, only test that this
+    method returns the same result as calling hvplot.quadmesh directly in a simple case.
     """
     ds = generate_dataset(
         data_var=["temperature", "precipitation"], lon_0_360=False
@@ -776,9 +744,7 @@ def test_plot_map():
 
 @pytest.mark.parametrize("fraction", [True, False])
 def test_plot_var_decomp(fraction):
-    """
-    Test the plot_var_decomp method of the ClimEpiDatasetAccessor class.
-    """
+    """Test the plot_var_decomp method of the ClimEpiDatasetAccessor class."""
     ds = generate_dataset(
         data_var="temperature",
         extra_dims={"scenario": 6, "model": 4, "realization": 9},
@@ -828,15 +794,10 @@ def test_plot_var_decomp(fraction):
 
 
 class TestPlotCiPlume:
-    """
-    Class defining tests for the plot_ci_plume method of the ClimEpiDatasetAccessor
-    class.
-    """
+    """Class for testing the plot_ci_plume method of ClimEpiDatasetAccessor."""
 
     def test_plot_ci_plume(self):
-        """
-        Main test for the plot_ci_plume method of the ClimEpiDatasetAccessor class.
-        """
+        """Main test."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"scenario": 6, "model": 4, "realization": 9},
@@ -884,10 +845,7 @@ class TestPlotCiPlume:
         )
 
     def test_plot_ci_plume_internal_only(self):
-        """
-        Test the plot_ci_plume method of the ClimEpiDatasetAccessor class when only
-        internal variability is present.
-        """
+        """Test in case where only internal variability is present."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"realization": 231},
@@ -907,10 +865,7 @@ class TestPlotCiPlume:
         )
 
     def test_plot_ci_plume_model_only(self):
-        """
-        Test the plot_ci_plume method of the ClimEpiDatasetAccessor class when only
-        model uncertainty is present (not estimating internal variability).
-        """
+        """Test with only model uncertainty (not estimating internal variability)."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"model": 17},
@@ -936,10 +891,7 @@ class TestPlotCiPlume:
         )
 
     def test_plot_ci_plume_scenario_only(self):
-        """
-        Test the plot_ci_plume method of the ClimEpiDatasetAccessor class when only
-        scenario uncertainty is present (not estimating internal variability).
-        """
+        """Test with only scenario uncertainty (not estimating internal variability)."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"scenario": 17},
@@ -966,9 +918,7 @@ class TestPlotCiPlume:
 
 
 def test__process_data_var_argument():
-    """
-    Test the _process_data_var_argument method of the ClimEpiDatasetAccessor class.
-    """
+    """Test the _process_data_var_argument method of ClimEpiDatasetAccessor."""
     ds1 = generate_dataset(data_var="temperature")
     ds2 = generate_dataset(data_var=["temperature", "precipitation"])
     assert ds1.climepi._process_data_var_argument("temperature") == "temperature"

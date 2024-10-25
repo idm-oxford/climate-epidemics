@@ -1,5 +1,7 @@
 """
-Unit tests for the EpiModel and SuitabilityModel classes in the epimod subpackage.
+Unit tests for model classes in the epimod subpackage.
+
+The EpiModel and SuitabilityModel classes are tested.
 """
 
 import holoviews as hv
@@ -24,8 +26,9 @@ class TestEpiModel:
 
     def test_run(self):
         """
-        Test that the run method (which should be implemented by subclasses) raises a
-        NotImplementedError.
+        Test that the run method raises a NotImplementedError.
+
+        (This method should be overridden in subclasses.)
         """
         model = epimod.EpiModel()
         ds = generate_dataset()
@@ -37,10 +40,7 @@ class TestSuitabilityModel:
     """Class defining tests for the SuitabilityModel class."""
 
     def test_init_range(self):
-        """
-        Test that the SuitabilityModel class can be instantiated with a temperature
-        range.
-        """
+        """Test that the class can be instantiated with a temperature range."""
         model = epimod.SuitabilityModel(temperature_range=[0, 1])
         assert isinstance(model, epimod.EpiModel)
         assert model.temperature_range == [0, 1]
@@ -49,10 +49,7 @@ class TestSuitabilityModel:
         assert model._suitability_var_long_name == "Suitability"
 
     def test_init_table(self):
-        """
-        Test that the SuitabilityModel class can be instantiated with a suitability
-        table.
-        """
+        """Test that the class can be instantiated with a suitability table."""
         # Example 1: suitability table without long_name attribute
         suitability_table1 = xr.Dataset(
             {
@@ -87,9 +84,7 @@ class TestSuitabilityModel:
             )
 
     def test_run_range(self):
-        """
-        Test the run method of the SuitabilityModel class with a temperature range.
-        """
+        """Test the run method with a temperature range."""
         model = epimod.SuitabilityModel(temperature_range=[0, 0.5])
         ds_clim = generate_dataset(data_var="temperature")
         ds_clim.attrs = {"did": "you"}
@@ -113,10 +108,7 @@ class TestSuitabilityModel:
         )
 
     def test_run_temp_table(self):
-        """
-        Test the run method of the SuitabilityModel class with a temperature-dependent
-        suitability table.
-        """
+        """Test the run method with a temperature-dependent suitability table."""
         suitability_table = xr.Dataset(
             {"hello": ("temperature", [0, 0.5, 1])},
             coords={"temperature": [0, 1, 2]},
@@ -138,10 +130,7 @@ class TestSuitabilityModel:
         }
 
     def test_run_temp_precip_table(self):
-        """
-        Test the run method of the SuitabilityModel class with a temperature- and
-        precipitation-dependent suitability table.
-        """
+        """Test the run method with a temp/precip-dependent suitability table."""
         suitability_table = xr.Dataset(
             {
                 "suitability": (
@@ -183,10 +172,7 @@ class TestSuitabilityModel:
             model1.run(ds_clim)
 
     def test_plot_suitability_region_range(self):
-        """
-        Test the plot_suitability_region method of the SuitabilityModel class with a
-        temperature range.
-        """
+        """Test the plot_suitability_region method with a temperature range."""
         model = epimod.SuitabilityModel(temperature_range=[0, 1])
         result = model.plot_suitability_region(color="red")
         assert isinstance(result, hv.Curve)
@@ -194,15 +180,11 @@ class TestSuitabilityModel:
         assert result.vdims[0].pprint_label == "Suitability"
         npt.assert_allclose(
             result.data.suitability.values,
-            (result.data.index.values >= 0)
-            & (result.data.index.values <= 1),
+            (result.data.index.values >= 0) & (result.data.index.values <= 1),
         )
 
     def test_plot_suitability_region_temp_table(self):
-        """
-        Test the plot_suitability_region method of the SuitabilityModel class with a
-        temperature-dependent suitability table.
-        """
+        """Test plot_suitability_region with a temp-dependent suitability table."""
         suitability_table = xr.Dataset(
             {"suitability": ("temperature", [0, 0.5, 1])},
             coords={"temperature": [0, 1, 2]},
@@ -222,10 +204,7 @@ class TestSuitabilityModel:
         assert result.vdims[0].pprint_label == "hello there (general kenobi)"
 
     def test_plot_suitability_region_temp_precip_table(self):
-        """
-        Test the plot_suitability_region method of the SuitabilityModel class with a
-        temperature- and precipitation-dependent suitability table.
-        """
+        """Test plot_suitability_region with a temp/precip-dependent suitability table."""
         suitability_table = xr.Dataset(
             {
                 "suitability": (
@@ -254,19 +233,13 @@ class TestSuitabilityModel:
         assert result.vdims[0].pprint_label == "Suitability"
 
     def test_get_max_suitability_range(self):
-        """
-        Test the get_max_suitability method of the SuitabilityModel class with a
-        temperature range.
-        """
+        """Test the get_max_suitability method with a temperature range."""
         model = epimod.SuitabilityModel(temperature_range=[0.5, 19])
         result = model.get_max_suitability()
         npt.assert_equal(result, 1)
 
     def test_get_max_suitability_table(self):
-        """
-        Test the get_max_suitability method of the SuitabilityModel class with a
-        suitability table.
-        """
+        """Test the get_max_suitability method with a suitability table."""
         suitability_table = xr.Dataset(
             {"hello": ("there", [0, 3.5, 1])},
             coords={"there": [0, 1, 2]},

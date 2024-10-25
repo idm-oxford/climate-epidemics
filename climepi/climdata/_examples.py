@@ -1,7 +1,8 @@
 """
-Module for creating and accessing example climate projection datasets. Running this
-module as a script will create all example datasets by downloading and formatting the
-relevant data.
+Module for creating and accessing example climate projection datasets.
+
+Running this module as a script will create all example datasets by downloading and
+formatting the relevant data.
 """
 
 import pathlib
@@ -82,9 +83,11 @@ EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 def get_example_dataset(name, base_dir=None, force_remake=False):
     """
-    Load an example climate dataset if it exists locally, download the formatted example
-    dataset if possible, or retrieve/download/format the raw underlying data from the
-    relevant server.
+    Retrieve an example climate dataset.
+
+    Loads the example climate dataset if it exists locally, otherwise downloads the
+    formatted dataset if possible, or retrieves/downloads/formats the raw underlying
+    data from the relevant server.
 
     Parameters
     ----------

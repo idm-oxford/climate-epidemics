@@ -1,6 +1,4 @@
-"""
-Unit tests for the utils module.
-"""
+"""Unit tests for the utils module."""
 
 import pytest
 import xarray.testing as xrt
@@ -15,6 +13,7 @@ from climepi.utils import (
 
 
 def test_add_var_attrs_from_other():
+    """Test the add_var_attrs_from_other function."""
     ds = generate_dataset(data_var=["temperature", "precipitation"])
     ds["temperature"].attrs["units"] = "C"
     ds["lat"].attrs["units"] = "degrees_north"
@@ -38,6 +37,7 @@ def test_add_var_attrs_from_other():
 
 
 def test_add_bnds_from_other():
+    """Test the add_bnds_from_other function."""
     ds = generate_dataset(has_bounds=False)
     ds_from = generate_dataset()
     ds["lon_bnds"] = ds_from["lon_bnds"] + 1
@@ -53,6 +53,7 @@ def test_add_bnds_from_other():
 
 
 def test_get_data_var_and_bnds():
+    """Test the get_data_var_and_bnds function."""
     ds = generate_dataset(data_var=["temperature", "precipitation", "kenobi"])
     result1 = get_data_var_and_bnds(ds, "temperature")
     xrt.assert_identical(
@@ -71,6 +72,7 @@ def test_get_data_var_and_bnds():
 
 
 def test_list_non_bnd_data_vars():
+    """Test the list_non_bnd_data_vars function."""
     ds1 = generate_dataset(data_var="temperature")
     ds2 = generate_dataset(data_var=["temperature", "precipitation"]).drop_vars(
         "lon_bnds"
