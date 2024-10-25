@@ -10,8 +10,9 @@ import pathlib
 import numpy as np
 import pooch
 
-import climepi
-from climepi import climdata
+from climepi._core import ClimEpiDatasetAccessor  # noqa
+from climepi._version import get_versions
+from climepi.climdata._base import get_climate_data, get_climate_data_file_names
 
 # Dictionary of example datasets. Each key gives the example dataset name, and the
 # corresponding value should be a dictionary with the following keys/values:
@@ -129,7 +130,7 @@ def get_example_dataset(name, base_dir=None, force_remake=False):
     data_source = example_details["data_source"]
     frequency = example_details["frequency"]
     subset = example_details["subset"]
-    ds_example = climdata.get_climate_data(
+    ds_example = get_climate_data(
         data_source=data_source,
         frequency=frequency,
         subset=subset,
@@ -169,7 +170,7 @@ def _get_data_dir(name, base_dir):
 
 
 def _get_climepi_version():
-    return pooch.check_version(climepi.__version__, fallback="main")
+    return pooch.check_version(get_versions()["version"], fallback="main")
 
 
 def _fetch_formatted_example_dataset(name, data_dir):
@@ -179,7 +180,7 @@ def _fetch_formatted_example_dataset(name, data_dir):
     data_source = example_details["data_source"]
     frequency = example_details["frequency"]
     subset = example_details["subset"]
-    file_names = climdata.get_climate_data_file_names(
+    file_names = get_climate_data_file_names(
         data_source=data_source,
         frequency=frequency,
         subset=subset,

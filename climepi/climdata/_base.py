@@ -1,3 +1,5 @@
+"""Module defining get_climate_data and get_climate_data_file_names functions."""
+
 from climepi.climdata._cesm import CESMDataGetter
 from climepi.climdata._isimip import ISIMIPDataGetter
 

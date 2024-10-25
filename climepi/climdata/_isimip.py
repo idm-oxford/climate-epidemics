@@ -126,7 +126,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
         max_subset_wait_time = self._max_subset_wait_time
         if locations is not None:
             if isinstance(locations, list):
-                return self._subset_remote_data_location_list()
+                self._subset_remote_data_location_list()
+                return
             location_geopy = Nominatim(user_agent="climepi").geocode(locations)
             lat = location_geopy.latitude
             lon = location_geopy.longitude

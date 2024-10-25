@@ -10,8 +10,8 @@ import param
 import xarray as xr
 import xcdat.temporal
 
-import climepi  # noqa #
 from climepi import climdata, epimod
+from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
 # Pure functions

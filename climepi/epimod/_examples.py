@@ -5,7 +5,7 @@ import pathlib
 import numpy as np
 import xarray as xr
 
-from climepi import epimod
+from climepi.epimod._model_classes import SuitabilityModel
 
 EXAMPLES = {
     "mordecai_ae_aegypti_niche": {  # from https://doi.org/10.1371/journal.pntd.0005568
@@ -130,7 +130,7 @@ def get_example_model(name):
     example_details = _get_example_details(name)
     if "suitability_table_path" in example_details:
         suitability_table = xr.open_dataset(example_details["suitability_table_path"])
-        epi_model = epimod.SuitabilityModel(suitability_table=suitability_table)
+        epi_model = SuitabilityModel(suitability_table=suitability_table)
     elif (
         "temperature_range" in example_details
         and "precipitation_range" in example_details
@@ -170,10 +170,10 @@ def get_example_model(name):
             "long_name": "Precipitation",
             "units": "mm/day",
         }
-        epi_model = epimod.SuitabilityModel(suitability_table=suitability_table)
+        epi_model = SuitabilityModel(suitability_table=suitability_table)
 
     elif "temperature_range" in example_details:
-        epi_model = epimod.SuitabilityModel(
+        epi_model = SuitabilityModel(
             temperature_range=example_details["temperature_range"]
         )
     elif (
@@ -193,7 +193,7 @@ def get_example_model(name):
             "long_name": "Temperature",
             "units": "°C",
         }
-        epi_model = epimod.SuitabilityModel(suitability_table=suitability_table)
+        epi_model = SuitabilityModel(suitability_table=suitability_table)
     else:
         raise ValueError(
             f"Example model '{name}' does not have a recognised format. "

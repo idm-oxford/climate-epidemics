@@ -26,7 +26,7 @@ from climepi import climdata
     },
     clear=True,
 )
-@patch.object(climdata, "get_climate_data", return_value="not real")
+@patch.object(climdata._examples, "get_climate_data", return_value="not real")
 @patch.object(climdata._examples, "_fetch_formatted_example_dataset")
 @pytest.mark.parametrize("name", ["shot", "leave"])
 @pytest.mark.parametrize("force_remake", [False, True])
@@ -77,8 +77,8 @@ def test_get_example_details():
         climdata._examples._get_example_details("googly")
 
 
-@patch("climepi.__version__", "4.2.0")
-def test_get_data_dir():
+@patch.object(climdata._examples, "get_versions", return_value={"version": "4.2.0"})
+def test_get_data_dir(_):
     """Test the _get_data_dir method."""
     assert (
         str(climdata._examples._get_data_dir("leave", "not/a/real/dir"))
@@ -100,9 +100,13 @@ def test_get_climepi_version():
 
     Should default to "main" for development versions.
     """
-    with patch("climepi.__version__", "4.2.0"):
+    with patch.object(
+        climdata._examples, "get_versions", return_value={"version": "4.2.0"}
+    ):
         assert climdata._examples._get_climepi_version() == "4.2.0"
-    with patch("climepi.__version__", "4.2.0+10.8dl8dh9"):
+    with patch.object(
+        climdata._examples, "get_versions", return_value={"version": "4.2.0+10.8dl8dh9"}
+    ):
         assert climdata._examples._get_climepi_version() == "main"
 
 
@@ -125,8 +129,8 @@ def test_get_climepi_version():
     clear=True,
 )
 @patch("pooch.core.Pooch", autospec=True)
-@patch("climepi.__version__", "4.2.0")
-def test_fetch_formatted_example_dataset(mock_pooch):
+@patch.object(climdata._examples, "get_versions", return_value={"version": "4.2.0"})
+def test_fetch_formatted_example_dataset(_, mock_pooch):
     """Test the _fetch_formatted_example_dataset method."""
     name = "leave"
     data_dir = "not/a/real/dir"

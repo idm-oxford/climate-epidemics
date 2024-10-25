@@ -5,7 +5,7 @@ import intake
 import numpy as np
 import xarray as xr
 
-import climepi  # noqa
+from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi.climdata._data_getter_class import ClimateDataGetter
 
 
