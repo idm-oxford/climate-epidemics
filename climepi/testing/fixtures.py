@@ -318,8 +318,6 @@ def generate_dataset(
     elif frequency == "daily":
         time = time_daily
         time_bnds = time_bnds_daily
-    else:
-        raise ValueError(f"Invalid frequency: {frequency}")
     # Create the base dataset.
     da = xr.DataArray(
         data=np.ones((len(time), len(lat), len(lon)), dtype=dtype),
