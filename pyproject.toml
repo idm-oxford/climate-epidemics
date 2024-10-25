@@ -2,20 +2,6 @@
 requires = ["setuptools>=61.0", "versioneer[toml]==0.29"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-include = ["climepi*"]
-
-[tool.setuptools.package-data]
-"climepi.climdata._example_registry_files" = ["*.txt"]
-"climepi.epimod._example_data" = ["*.nc"]
-
-[tool.versioneer]
-VCS = "git"
-style = "pep440"
-versionfile_source = "climepi/_version.py"
-versionfile_build = "climepi/_version.py"
-tag_prefix = ""
-
 [project]
 name = "climepi"
 dynamic = ["version"]
@@ -54,5 +40,24 @@ dependencies = [
 "Homepage" = "https://github.com/will-s-hart/climate-epidemics"
 "Bug Tracker" = "https://github.com/will-s-hart/climate-epidemics/issues"
 
+[tool.setuptools.packages.find]
+include = ["climepi*"]
+
+[tool.setuptools.package-data]
+"climepi.climdata._example_registry_files" = ["*.txt"]
+"climepi.epimod._example_data" = ["*.nc"]
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "climepi/_version.py"
+versionfile_build = "climepi/_version.py"
+tag_prefix = ""
+
 [tool.pytest.ini_options]
-addopts = ["--import-mode=importlib"]
+addopts = [
+  "--import-mode=importlib --cov-config=pyproject.toml --cov=./climepi --cov-report=xml",
+]
+
+[tool.coverage.run]
+omit = "./climepi/_version.py"
