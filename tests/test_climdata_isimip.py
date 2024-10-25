@@ -63,6 +63,8 @@ def test_find_remote_data(mock_session):
     Test the _find_remote_data method of the ISIMIPDataGetter class.
     """
 
+    # Set up mock methods
+
     def mock_json():
         if (
             mock_session.return_value.get.call_args[0][0]
@@ -92,6 +94,8 @@ def test_find_remote_data(mock_session):
 
     mock_session.return_value.get.return_value.json = mock_json
 
+    # Set up DataGetter and run _find_remote_data
+
     data_getter = ISIMIPDataGetter(
         frequency="daily",
         subset={
@@ -100,6 +104,8 @@ def test_find_remote_data(mock_session):
         },
     )
     data_getter._find_remote_data()
+
+    # Check results
     assert data_getter._client_results == [
         {
             "specifiers": {
@@ -125,6 +131,8 @@ def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_o
     Test the _subset_remote_data method of the ISIMIPDataGetter class. Checks that
     the method correctly monitors the status of remote subsetting jobs.
     """
+
+    # Set up mock methods (including simulating a delay in the subsetting process)
 
     subset_check_interval = 0.01
     max_subset_wait_time = 1
@@ -160,6 +168,8 @@ def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_o
 
     mock_nominatim.return_value.geocode = mock_geocode
 
+    # Get inputs and expected bbox values used in subsetting requests
+
     if location_mode == "single_named":
         locations = "Los Angeles"
         lat_range = None
@@ -189,6 +199,8 @@ def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_o
         lon_range = None
         bbox_expected_list = [["-90", "90", "-180", "180"]]
 
+    # Set up DataGetter
+
     data_getter = ISIMIPDataGetter(
         frequency="daily",
         subset={
@@ -202,6 +214,8 @@ def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_o
         max_subset_wait_time=max_subset_wait_time,
     )
     data_getter._client_results = [{"path": x} for x in range(1000)]
+
+    # Run _subset_remote_data and check results
 
     job_ids_expected = [
         f"{x}_to_{y}_bbox_{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}"
@@ -224,6 +238,8 @@ def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_o
             {"id": x, "status": "finished"} for x in job_ids_expected
         ]
 
+    # Check that requests sessions are closed
+
     if location_mode == "multiple_named":
         assert mock_session.return_value.close.call_count == 2
     else:
@@ -239,6 +255,8 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
     Test the _download_remote_data method of the ISIMIPDataGetter class.
     """
 
+    # Set up mock methods
+
     def mock_namelist():
         zip_file_name = str(mock_zipfile.call_args[0][0]).rsplit("/", maxsplit=1)[-1]
         namelist = [
@@ -246,13 +264,15 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
         ] + ["not_a_nc_file.txt"]
         return namelist
 
-    # Note __enter__ needed as zipfile.ZipFile is used as a context manager
+    # (Note __enter__ needed as zipfile.ZipFile is used as a context manager)
     mock_zipfile.return_value.__enter__.return_value.namelist = mock_namelist
 
     def mock_retrieve_side_effect(*args, **kwargs):
         return kwargs["path"] / kwargs["fname"]
 
     mock_retrieve.side_effect = mock_retrieve_side_effect
+
+    # Set up DataGetter and run _download_remote_data
 
     temp_save_dir = pathlib.Path("gully")
 
@@ -269,6 +289,9 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
             for x in ["file_1.nc", "file_2.nc", "file_3.nc"]
         ]
     data_getter._download_remote_data()
+
+    # Check results
+
     if data_subsetted:
         assert data_getter._temp_file_names == [
             f"batch_{x}_file_{y}.nc" for x in [1, 2] for y in [1, 2, 3, 4]
@@ -306,6 +329,10 @@ def test_open_temp_data(mock_open_mfdataset):
     Test the _open_temp_data method of the ISIMIPDataGetter class, focusing on checking
     the preprocessing of the opened dataset.
     """
+
+    # Set up mock open_mfdataset method (which subsets, preprocesses and combines an
+    # input dataset to simulate the opening of multiple files)
+
     scenarios = ["overcast", "sunny"]
     models = ["bouncer", "inswinger", "length"]
     data_vars = ["tas", "pr"]
@@ -353,6 +380,8 @@ def test_open_temp_data(mock_open_mfdataset):
 
     mock_open_mfdataset.side_effect = mock_open_mfdataset_side_effect
 
+    # Set up DataGetter and run _open_temp_data
+
     data_getter = ISIMIPDataGetter(subset={"scenarios": scenarios, "models": models})
     data_getter._temp_file_names = [
         f"{model}_r1i1p1f1_w5e5_{scenario}_{var}_{time_subset}.nc"
@@ -364,6 +393,8 @@ def test_open_temp_data(mock_open_mfdataset):
 
     data_getter._open_temp_data()
 
+    # Check results
+
     xrt.assert_identical(data_getter._ds_temp, ds_in)
     xrt.assert_identical(data_getter._ds, ds_in)
 
@@ -373,11 +404,14 @@ def test_process_data(frequency):
     """
     Test the _process_data method of the ISIMIPDataGetter class.
     """
+
+    # Set up unprocessed dataset
+
     time_lb = xr.cftime_range(
-        start="2015-01-01", periods=365, freq="D", calendar="noleap"
+        start="2015-01-01", periods=730, freq="D", calendar="noleap"
     )
     time_rb = xr.cftime_range(
-        start="2015-01-02", periods=365, freq="D", calendar="noleap"
+        start="2015-01-02", periods=730, freq="D", calendar="noleap"
     )
     time_bnds_in = xr.DataArray(  # not in unprocessed dataset
         np.array([time_lb, time_rb]).T,
@@ -388,8 +422,8 @@ def test_process_data(frequency):
     time_in.encoding = {"calendar": "noleap", "units": "days since 2000-01-01"}
     ds_unprocessed = xr.Dataset(
         data_vars={
-            "tas": xr.DataArray(np.random.rand(365, 2, 2), dims=["time", "lat", "lon"]),
-            "pr": xr.DataArray(np.random.rand(365, 2, 2), dims=["time", "lat", "lon"]),
+            "tas": xr.DataArray(np.random.rand(730, 2, 2), dims=["time", "lat", "lon"]),
+            "pr": xr.DataArray(np.random.rand(730, 2, 2), dims=["time", "lat", "lon"]),
         },
         coords={
             "time": time_in,
@@ -397,6 +431,8 @@ def test_process_data(frequency):
             "lon": xr.DataArray([0, 150], dims="lon"),
         },
     )
+
+    # Set up DataGetter and run _process_data
 
     locations = ["Brisbane"]
     data_getter = ISIMIPDataGetter(
@@ -407,6 +443,8 @@ def test_process_data(frequency):
     data_getter._process_data()
     ds_processed = data_getter._ds
 
+    # Check processed dataset
+
     npt.assert_allclose(ds_processed.lon.values.squeeze(), [150])
     npt.assert_allclose(ds_processed.lat.values.squeeze(), [-27])
     npt.assert_allclose(
@@ -415,7 +453,34 @@ def test_process_data(frequency):
     npt.assert_allclose(
         ds_processed.lat_bnds.values.squeeze(), [-27 - 0.25, -27 + 0.25]
     )
+    assert "time_bnds" in ds_processed
+    assert "tas" not in ds_processed
+    assert "pr" not in ds_processed
+    assert ds_processed.temperature.attrs["long_name"] == "Temperature"
+    assert ds_processed.temperature.attrs["units"] == "°C"
+    assert ds_processed.precipitation.attrs["long_name"] == "Precipitation"
+    assert ds_processed.precipitation.attrs["units"] == "mm/day"
+    assert ds_processed.time.attrs["long_name"] == "Time"
+    assert ds_processed.time.attrs["bounds"] == "time_bnds"
     if frequency == "daily":
         xrt.assert_equal(
             ds_processed["time_bnds"], time_bnds_in.assign_coords(time=time_in)
         )
+        temperature_values_expected = (
+            ds_unprocessed["tas"].isel(lat=0, lon=1).values - 273.15
+        ).squeeze()
+        precipitation_values_expected = (
+            8.64e4 * ds_unprocessed["pr"].isel(lat=0, lon=1).values
+        ).squeeze()
+        npt.assert_allclose(
+            ds_processed.temperature.values.squeeze(), temperature_values_expected
+        )
+        npt.assert_allclose(
+            ds_processed.precipitation.values.squeeze(), precipitation_values_expected
+        )
+    elif frequency == "monthly":
+        assert ds_processed.time.size == 24
+    elif frequency == "yearly":
+        assert ds_processed.time.size == 2
+    else:
+        raise ValueError(f"Unexpected frequency {frequency}.")
