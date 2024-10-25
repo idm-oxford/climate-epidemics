@@ -59,3 +59,17 @@ addopts = "--import-mode=importlib --cov-config=pyproject.toml --cov=climepi --c
 
 [tool.coverage.run]
 omit = ["climepi/_version.py"]
+
+[tool.ruff]
+exclude = ["climepi/_version.py"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B", "W", "D"]
+# Avoid trying to fix flake8-bugbear (`B`) violations.
+unfixable = ["B"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
