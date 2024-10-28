@@ -23,9 +23,17 @@ def _load_clim_data_func(clim_dataset_name, base_dir):
     return ds_clim
 
 
-def _get_epi_model_func(epi_model_name):
-    # Get the epidemiological model.
-    epi_model = epimod.get_example_model(epi_model_name)
+def _get_epi_model_func(example_name=None, temperature_range=None):
+    if example_name is not None and temperature_range is None:
+        # Get the example model.
+        epi_model = epimod.get_example_model(example_name)
+    elif example_name is None and temperature_range is not None:
+        # Create a new suitability model.
+        epi_model = epimod.SuitabilityModel(temperature_range=temperature_range)
+    else:
+        raise ValueError(
+            "Exactly one of example_name and temperature_range must be provided"
+        )
     return epi_model
 
 
@@ -484,13 +492,21 @@ class Controller(param.Parameterized):
     clim_data_load_initiator = param.Event(default=False, precedence=1)
     clim_data_loaded = param.Boolean(default=False, precedence=-1)
     clim_data_status = param.String(default="Data not loaded", precedence=1)
-    epi_model_name = param.ObjectSelector(precedence=1)
+    epi_model_option = param.ObjectSelector(
+        default="Example model",
+        objects=["Example model", "Custom temperature-dependent suitability model"],
+        precedence=-1,
+    )
+    epi_example_name = param.ObjectSelector(precedence=1)
+    epi_temperature_range = param.Range(
+        default=(15, 30), bounds=(0, 50), step=0.25, precedence=-1
+    )
     epi_output_choice = param.ObjectSelector(
         objects=[
-            "Months where suitability exceeds threshold",
+            "Months of suitability",
             "Suitability values",
         ],
-        default="Months where suitability exceeds threshold",
+        default="Months of suitability",
         precedence=-1,
     )
     suitabilty_threshold = param.Number(
@@ -511,6 +527,7 @@ class Controller(param.Parameterized):
         clim_dataset_example_base_dir=None,
         clim_dataset_example_names=None,
         epi_model_example_names=None,
+        enable_custom_epi_model=True,
         **params,
     ):
         super().__init__(**params)
@@ -519,11 +536,13 @@ class Controller(param.Parameterized):
         )
         self.param.clim_dataset_name.default = self.param.clim_dataset_name.objects[0]
         self.clim_dataset_name = self.param.clim_dataset_name.default
-        self.param.epi_model_name.objects = (
+        self.param.epi_example_name.objects = (
             epi_model_example_names or epimod.EXAMPLE_NAMES
         )
-        self.param.epi_model_name.default = self.param.epi_model_name.objects[0]
-        self.epi_model_name = self.param.epi_model_name.default
+        self.param.epi_example_name.default = self.param.epi_example_name.objects[0]
+        self.epi_example_name = self.param.epi_example_name.default
+        if enable_custom_epi_model:
+            self.param.epi_model_option.precedence = 1
         self._clim_dataset_example_base_dir = clim_dataset_example_base_dir
         self._ds_clim = None
         self._epi_model = None
@@ -538,7 +557,9 @@ class Controller(param.Parameterized):
                 "widget_type": pn.widgets.StaticText,
                 "name": "",
             },
-            "epi_model_name": {"name": "Epidemiological model"},
+            "epi_model_option": {"name": "Epidemiological model option"},
+            "epi_example_name": {"name": "Example epidemiological model"},
+            "epi_temperature_range": {"name": "Temperature range of suitability (°C)"},
             "epi_output_choice": {"name": "Return"},
             "suitabilty_threshold": {"name": "Suitability threshold"},
             "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
@@ -550,7 +571,6 @@ class Controller(param.Parameterized):
         self.data_controls = pn.Param(self, widgets=data_widgets, show_name=False)
         self._get_epi_model()
 
-    # @param.depends()
     def clim_plot_controls(self):
         """Return the climate data plot controls."""
         return self.clim_plot_controller.controls
@@ -571,7 +591,6 @@ class Controller(param.Parameterized):
             view = pn.Row(f"Error generating plot: {exc}")
         return view
 
-    # @param.depends()
     def epi_plot_controls(self):
         """Return the epidemiological projection plot controls."""
         return self.epi_plot_controller.controls
@@ -602,12 +621,25 @@ class Controller(param.Parameterized):
             self.clim_data_status = f"Data load failed: {exc}"
             raise
 
-    @param.depends("epi_model_name", watch=True)
+    @param.depends(
+        "epi_model_option", "epi_example_name", "epi_temperature_range", watch=True
+    )
     def _get_epi_model(self):
         self._epi_model = None
         epi_model = None
+        if self.epi_model_option == "Example model":
+            example_name = self.epi_example_name
+            temperature_range = None
+        elif self.epi_model_option == "Custom temperature-dependent suitability model":
+            example_name = None
+            temperature_range = self.epi_temperature_range
+        else:
+            self.epi_model_status = "Model option does not seem to be valid"
+            raise ValueError(self.epi_model_status)
         try:
-            epi_model = _get_epi_model_func(self.epi_model_name)
+            epi_model = _get_epi_model_func(
+                example_name=example_name, temperature_range=temperature_range
+            )
         except Exception as exc:
             self.epi_model_status = f"Error getting epidemiological model: {exc}"
             raise
@@ -616,14 +648,7 @@ class Controller(param.Parameterized):
             # Options specific to suitability models
             if isinstance(epi_model, epimod.SuitabilityModel):
                 self.param.epi_output_choice.precedence = 1
-                self._update_suitability_threshold_precedence()
-                if epi_model.temperature_range is not None:
-                    self.param.suitabilty_threshold.bounds = (0, 1)
-                else:
-                    self.param.suitabilty_threshold.bounds = (
-                        0,
-                        epi_model.get_max_suitability(),
-                    )
+                self._update_suitability_threshold()
             else:
                 self.epi_output_choice = "Suitability values"
                 self.param.epi_output_choice.precedence = -1
@@ -642,7 +667,7 @@ class Controller(param.Parameterized):
         try:
             self.epi_model_status = "Running model..."
             return_months_suitable = bool(
-                self.epi_output_choice == "Months where suitability exceeds threshold"
+                self.epi_output_choice == "Months of suitability"
             )
             if self._ds_epi is not None:
                 self._ds_epi.close()
@@ -669,7 +694,9 @@ class Controller(param.Parameterized):
 
     @param.depends(
         "clim_dataset_name",
-        "epi_model_name",
+        "epi_model_option",
+        "epi_example_name",
+        "epi_temperature_range",
         "epi_output_choice",
         "suitabilty_threshold",
         watch=True,
@@ -679,13 +706,38 @@ class Controller(param.Parameterized):
         self.epi_model_status = "Model has not been run"
         self.epi_model_ran = False
 
-    @param.depends("epi_output_choice", watch=True)
-    def _update_suitability_threshold_precedence(self):
-        # Update the suitability threshold parameter precedence.
-        if self.epi_output_choice == "Months where suitability exceeds threshold":
-            self.param.suitabilty_threshold.precedence = 1
+    @param.depends("epi_model_option", watch=True)
+    def _update_epi_example_model_temperature_range_precedence(self):
+        # Update the example model and temperature range parameter precedence.
+        if self.epi_model_option == "Example model":
+            self.param.epi_example_name.precedence = 1
+            self.param.epi_temperature_range.precedence = -1
+        elif self.epi_model_option == "Custom temperature-dependent suitability model":
+            self.param.epi_example_name.precedence = -1
+            self.param.epi_temperature_range.precedence = 1
         else:
+            raise ValueError(
+                f"Unrecognised epidemiological model option: {self.epi_model_option}"
+            )
+
+    @param.depends("epi_output_choice", watch=True)
+    def _update_suitability_threshold(self):
+        # Update the suitability threshold parameter.
+        if self.epi_output_choice == "Suitability values":
             self.param.suitabilty_threshold.precedence = -1
+        elif self.epi_output_choice == "Months of suitability":
+            if self._epi_model.temperature_range is not None:
+                self.suitabilty_threshold = 0
+                self.param.suitabilty_threshold.precedence = -1
+            else:
+                self.param.suitabilty_threshold.bounds = (
+                    0,
+                    self._epi_model.get_max_suitability(),
+                )
+                self.param.suitabilty_threshold.precedence = 1
+
+        else:
+            raise ValueError("Unrecognised epidemiological model output choice.")
 
     def cleanup_temp_file(self):
         """Cleanup the temporary file created for the epidemiological model output."""

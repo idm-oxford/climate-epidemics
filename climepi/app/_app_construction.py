@@ -9,6 +9,7 @@ def get_app(
     clim_dataset_example_base_dir=None,
     clim_dataset_example_names=None,
     epi_model_example_names=None,
+    enable_custom_epi_model=True,
 ):
     """
     Get a `Panel` template object defining the layout of the climepi app.
@@ -27,6 +28,9 @@ def get_app(
     epi_model_example_names: list of str
         List of example names for epidemiological models, optional. If None, the default
         list in epimod.EXAMPLE_NAMES is used.
+    enable_custom_epi_model: bool
+        Whether to enable the option to specify a custom temperature range in which
+        transmission can occur. Default is True.
     """
     template = pn.template.BootstrapTemplate(title="climepi app")
 
@@ -34,6 +38,7 @@ def get_app(
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
         epi_model_example_names=epi_model_example_names,
+        enable_custom_epi_model=enable_custom_epi_model,
     )
 
     data_controls = controller.data_controls
@@ -65,6 +70,7 @@ def run_app(
     clim_dataset_example_base_dir=None,
     clim_dataset_example_names=None,
     epi_model_example_names=None,
+    enable_custom_epi_model=True,
 ):
     """
     Run the climepi `Panel` app locally in a browser.
@@ -89,6 +95,9 @@ def run_app(
     epi_model_example_names: list of str
         List of example names for epidemiological models, optional. If None, the default
         list in epimod.EXAMPLE_NAMES is used.
+    enable_custom_epi_model: bool
+        Whether to enable the option to specify a custom temperature range in which
+        transmission can occur. Default is True.
 
     Returns
     -------
@@ -100,6 +109,7 @@ def run_app(
             clim_dataset_example_base_dir=clim_dataset_example_base_dir,
             clim_dataset_example_names=clim_dataset_example_names,
             epi_model_example_names=epi_model_example_names,
+            enable_custom_epi_model=enable_custom_epi_model,
         )
 
     pn.serve({"/climepi_app": _get_app})
