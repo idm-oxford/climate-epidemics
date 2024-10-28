@@ -51,10 +51,21 @@ class SuitabilityModel(EpiModel):
     ----------
     temperature_range : list or tuple or array-like of two floats, optional
         A list or tuple of two floats defining the temperature range of suitability
+        (in degrees Celsius). Only defined if the parameter `temperature_range` is
+        provided.
+    suitability_table : xarray.Dataset
+        A dataset containing suitability values defined for different temperature
+        values or temperature/precipitation combinations. Only defined if the parameter
+        `suitability_table` is provided.
+
+    Parameters
+    ----------
+    temperature_range : list or tuple or array-like of two floats, optional
+        A list or tuple of two floats defining the temperature range of suitability
         (in degrees Celsius), where suitability is assumed to be 1 for temperatures
         within the range and 0 otherwise. Default is None. Only one of
         `temperature_range` and `suitability_table` should be provided.
-    suitability_table : xarray.Dataset
+    suitability_table : xarray.Dataset, optional
         A dataset containing suitability values defined for different temperature
         values or temperature/precipitation combinations. The dataset should have a
         single data variable called "suitability" with dimension(s) "temperature" and,
@@ -70,14 +81,6 @@ class SuitabilityModel(EpiModel):
         for temperature and/or precipitation values outside the provided range(s).
         Default is None. Only one of `temperature_range` and `suitability_table` should
         be provided.
-
-    Parameters
-    ----------
-    temperature_range : list or tuple or array-like of two floats, optional
-        Value for the `temperature_range` attribute. Default is None. Not used if
-        `suitability_table` is provided.
-    suitability_table : xarray.Dataset, optional
-        Value for the `suitability_table` attribute. Default is None.
     """
 
     def __init__(self, temperature_range=None, suitability_table=None):
