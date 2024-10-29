@@ -503,10 +503,10 @@ class Controller(param.Parameterized):
     )
     epi_output_choice = param.ObjectSelector(
         objects=[
-            "Months of suitability",
+            "Months of suitability each year",
             "Suitability values",
         ],
-        default="Months of suitability",
+        default="Months of suitability each year",
         precedence=-1,
     )
     suitabilty_threshold = param.Number(
@@ -667,7 +667,7 @@ class Controller(param.Parameterized):
         try:
             self.epi_model_status = "Running model..."
             return_months_suitable = bool(
-                self.epi_output_choice == "Months of suitability"
+                self.epi_output_choice == "Months of suitability each year"
             )
             if self._ds_epi is not None:
                 self._ds_epi.close()
@@ -725,7 +725,7 @@ class Controller(param.Parameterized):
         # Update the suitability threshold parameter.
         if self.epi_output_choice == "Suitability values":
             self.param.suitabilty_threshold.precedence = -1
-        elif self.epi_output_choice == "Months of suitability":
+        elif self.epi_output_choice == "Months of suitability each year":
             if self._epi_model.temperature_range is not None:
                 self.suitabilty_threshold = 0
                 self.param.suitabilty_threshold.precedence = -1
