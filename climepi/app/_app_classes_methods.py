@@ -102,11 +102,11 @@ def _get_view_func(ds_in, plot_settings):
     return view
 
 
-def _compute_to_file_reopen(ds_in, save_path, dask_scheduler=None):
+def _compute_to_file_reopen(ds_in, save_path):
     chunks = ds_in.chunks.mapping
     delayed_obj = ds_in.to_netcdf(save_path, compute=False)
     with dask.diagnostics.ProgressBar():
-        delayed_obj.compute(scheduler=dask_scheduler)
+        delayed_obj.compute()
     ds_out = xr.open_dataset(save_path, chunks=chunks)
     return ds_out
 

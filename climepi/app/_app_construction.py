@@ -3,8 +3,10 @@
 import atexit
 
 import panel as pn
+from dask.distributed import Client
 
 from climepi.app._app_classes_methods import Controller
+from climepi.app.cluster import DASK_SCHEDULER_ADDRESS
 
 
 def get_app(
@@ -75,6 +77,7 @@ def get_app(
 
 
 def run_app(
+    dask_distributed=False,
     clim_dataset_example_base_dir=None,
     clim_dataset_example_names=None,
     epi_model_example_names=None,
@@ -85,6 +88,10 @@ def run_app(
 
     Parameters
     ----------
+    dask_distributed: bool
+        Whether to use the Dask distributed scheduler. Default is False. If True
+        (recommended), a Dask local cluster should first be started (from a separate
+        terminal) by running ``python -m climepi.app.cluster``.
     clim_dataset_example_base_dir: str or pathlib.Path
         Base directory for the example climate datasets, optional. If None, the datasets
         will be downloaded to and accessed from the OS cache.
@@ -111,6 +118,8 @@ def run_app(
     -------
     None
     """
+    if dask_distributed:
+        _ = Client(DASK_SCHEDULER_ADDRESS)
 
     def _get_app():
         return get_app(
