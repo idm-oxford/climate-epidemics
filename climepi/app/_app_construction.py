@@ -1,5 +1,7 @@
 """Module defining the layout of the climepi app and providing a method to run it."""
 
+import atexit
+
 import panel as pn
 
 from climepi.app._app_classes_methods import Controller
@@ -58,10 +60,16 @@ def get_app(
         )
     )
 
-    def _cleanup_temp_file(session_context):
-        controller.cleanup_temp_file()
+    # Ensure temp files are cleaned up both when an app session is closed and when the
+    # server is stopped.
 
-    pn.state.on_session_destroyed(_cleanup_temp_file)
+    atexit.register(controller.cleanup_temp_file)
+
+    def _cleanup_session(session_context):
+        controller.cleanup_temp_file()
+        atexit.unregister(controller.cleanup_temp_file)
+
+    pn.state.on_session_destroyed(_cleanup_session)
 
     return template
 
