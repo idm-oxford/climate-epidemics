@@ -82,7 +82,7 @@ EXAMPLES = {
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
-def get_example_dataset(name, base_dir=None, force_remake=False):
+def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
     """
     Retrieve an example climate dataset.
 
@@ -113,6 +113,9 @@ def get_example_dataset(name, base_dir=None, force_remake=False):
         If True, force the download/formatting of the raw underlying data, even if the
         formatted dataset already exists locally and/or is available for direct
         download (default is False).
+    **kwargs
+        Additional keyword arguments to pass to xarray.open_mfdataset when opening
+        downloaded data files.
 
 
     Returns
@@ -137,6 +140,7 @@ def get_example_dataset(name, base_dir=None, force_remake=False):
         save_dir=data_dir,
         download=True,
         force_remake=force_remake,
+        **kwargs,
     )
     return ds_example
 
@@ -213,20 +217,8 @@ def _make_example_registry(name, base_dir):
     pooch.make_registry(data_dir, registry_file_path, recursive=False)
 
 
-def make_all_examples(base_dir=None, force_remake=False):
-    """
-    Create all example datasets by downloading and formatting the relevant data.
-
-    Parameters
-    ----------
-    base_dir : str or pathlib.Path, optional
-        Base directory in which to save the example datasets. If not specified, a
-        directory within the OS cache will be used.
-    force_remake : bool, optional
-        If True, force the download/formatting of the raw underlying data for all
-        datasets, even if the formatted datasets already exist locally and/or are
-        available for direct download (default is False).
-    """
+def _make_all_examples(base_dir=None, force_remake=False):
+    # Create all example datasets by downloading and formatting the relevant data.
     exc = None
     for example_name in EXAMPLES:
         try:
@@ -242,4 +234,4 @@ def make_all_examples(base_dir=None, force_remake=False):
 
 
 if __name__ == "__main__":
-    make_all_examples(force_remake=True)  # pragma: no cover
+    _make_all_examples(force_remake=True)  # pragma: no cover

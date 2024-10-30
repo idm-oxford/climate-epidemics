@@ -13,6 +13,7 @@ def get_climate_data(
     force_remake=False,
     subset_check_interval=10,
     max_subset_wait_time=20,
+    **kwargs,
 ):
     """
     Retrieve and download climate projection data from a remote server.
@@ -74,6 +75,9 @@ def get_climate_data(
         complete, in seconds, before timing out (default is 20). Server-side subsetting
         will continue to run after this function times out, and this function can be
         re-run to check if the subsetting has completed and retrieve the subsetted data.
+    **kwargs
+        Additional keyword arguments to pass to xarray.open_mfdataset when opening
+        downloaded data files.
 
     Returns
     -------
@@ -88,7 +92,9 @@ def get_climate_data(
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
     )
-    ds_clim = data_getter.get_data(download=download, force_remake=force_remake)
+    ds_clim = data_getter.get_data(
+        download=download, force_remake=force_remake, **kwargs
+    )
     return ds_clim
 
 

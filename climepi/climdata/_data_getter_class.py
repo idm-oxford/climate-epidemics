@@ -223,9 +223,9 @@ class ClimateDataGetter:
             self._file_names = file_name_da.values.flatten().tolist()
         return self._file_names
 
-    def get_data(self, download=True, force_remake=False):
+    def get_data(self, download=True, force_remake=False, **kwargs):
         """
-        Retrievw the data.
+        Retrieve the data.
 
         First tries to open the data locally from the provided 'save_dir' directory.
         If not found locally, the data are searched for and subsetted within the remote
@@ -243,6 +243,9 @@ class ClimateDataGetter:
         force_remake : bool, optional
             Whether to force re-download and re-formatting of the data even if the data
             exist locally (default is False). Can only be used if 'download' is True.
+        **kwargs
+            Additional keyword arguments to pass to the xarray.open_mfdataset function
+            when opening downloaded data files.
 
         Returns
         -------
@@ -253,7 +256,7 @@ class ClimateDataGetter:
             raise ValueError("Cannot force remake if download is False.")
         if not force_remake:
             try:
-                self._open_local_data()
+                self._open_local_data(**kwargs)
                 return self._ds
             except FileNotFoundError:
                 pass
@@ -279,16 +282,17 @@ class ClimateDataGetter:
             self._save_processed_data()
             print(f"Formatted data saved to '{self._save_dir}'")
             self._delete_temporary()
-            self._open_local_data()
+            self._open_local_data(**kwargs)
         return self._ds
 
-    def _open_local_data(self):
+    def _open_local_data(self, **kwargs):
         # Open the data from the local files (will raise FileNotFoundError if any
         # files are not found), and store the dataset in the _ds attribute.
         save_dir = self._save_dir
         file_names = self.file_names
         ds = xcdat.open_mfdataset(
-            [save_dir / file_name for file_name in file_names], chunks={}
+            [save_dir / file_name for file_name in file_names],
+            **{"chunks": {}, **kwargs},
         )
         if "time_bnds" in ds:
             # Load time bounds to avoid errors saving to file (since no encoding set)

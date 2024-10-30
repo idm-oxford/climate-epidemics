@@ -193,7 +193,7 @@ def test_make_example_registry(mock_pooch_make_registry):
 def test_make_all_examples(
     mock_make_example_registry, mock_get_example_dataset, force_remake
 ):
-    """Test the make_all_examples method."""
+    """Test the _make_all_examples method."""
 
     def _mock_get_example_dataset_side_effect(_name, **kwargs):
         # Mock attempt to download the "leave" example dataset timing out
@@ -205,12 +205,12 @@ def test_make_all_examples(
     base_dir = "not/a/real/dir"
     if force_remake:
         with pytest.raises(TimeoutError):
-            climdata._examples.make_all_examples(
+            climdata._examples._make_all_examples(
                 base_dir=base_dir, force_remake=force_remake
             )
         mock_make_example_registry.assert_called_once_with("shot", base_dir=base_dir)
     else:
-        climdata._examples.make_all_examples(
+        climdata._examples._make_all_examples(
             base_dir=base_dir, force_remake=force_remake
         )
         assert mock_make_example_registry.call_count == 2
