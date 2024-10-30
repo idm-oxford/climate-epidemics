@@ -84,4 +84,4 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-run_app(dask_distributed=True)
+run_app(dask_distributed=args.dask_distributed)
