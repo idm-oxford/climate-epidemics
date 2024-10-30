@@ -51,8 +51,14 @@ def run_app(
     None
     """
     if dask_distributed:
-        _ = Client(DASK_SCHEDULER_ADDRESS)
-        print(f"Client connected to Dask local cluster at {DASK_SCHEDULER_ADDRESS}.")
+        try:
+            client = Client(DASK_SCHEDULER_ADDRESS)
+            print(f"Client connected to Dask local cluster ({client.dashboard_link}).")
+        except OSError as e:
+            raise OSError(
+                "Could not connect to Dask local cluster. Start the cluster by running "
+                "`python -m climepi.app.cluster` in a separate terminal."
+            ) from e
     else:
         print("Running using Dask thread-based scheduler.")
 
@@ -78,4 +84,4 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-run_app(dask_distributed=args.dask_distributed)
+run_app(dask_distributed=True)
