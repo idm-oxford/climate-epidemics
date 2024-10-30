@@ -20,6 +20,7 @@ dependencies = [
   "flox",
   "geopy",
   "geoviews",
+  "h5netcdf",
   "hvplot",
   "intake",
   "intake-esm",

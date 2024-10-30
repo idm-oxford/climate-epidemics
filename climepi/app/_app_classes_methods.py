@@ -19,7 +19,9 @@ from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
 def _load_clim_data_func(clim_dataset_name, base_dir):
     # Load climate data from the data source.
-    ds_clim = climdata.get_example_dataset(clim_dataset_name, base_dir=base_dir)
+    ds_clim = climdata.get_example_dataset(
+        clim_dataset_name, base_dir=base_dir, parallel=True, engine="h5netcdf"
+    )
     return ds_clim
 
 
