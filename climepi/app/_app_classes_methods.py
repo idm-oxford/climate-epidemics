@@ -17,6 +17,7 @@ from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 # Pure functions
 
 
+@pn.cache()
 def _load_clim_data_func(clim_dataset_name, base_dir):
     # Load climate data from the data source.
     ds_clim = climdata.get_example_dataset(
@@ -344,6 +345,10 @@ class _PlotController(param.Parameterized):
             temporal_scope_choices = ["yearly", "monthly"]
         elif scope_dict_base["temporal"] == "daily":
             temporal_scope_choices = ["yearly", "monthly", "daily"]
+        else:
+            raise ValueError(
+                f"Unrecognised temporal scope: {scope_dict_base['temporal']}"
+            )
         self.param.temporal_scope.objects = temporal_scope_choices
         self.param.temporal_scope.default = temporal_scope_choices[0]
         # Year range choices
@@ -748,4 +753,3 @@ class Controller(param.Parameterized):
         if self._ds_epi_path.exists():
             self._ds_epi_path.unlink()
             self._ds_epi_path.parent.rmdir()
-        print("\nDeleted temporary file.")
