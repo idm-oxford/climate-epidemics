@@ -6,7 +6,6 @@ import warnings
 import numpy as np
 import pooch
 import xarray as xr
-import xcdat
 
 # Cache directory for storing any temporary files created when downloading data.
 # Note: the code could be improved to ensure that the temporary files are deleted if an
@@ -290,9 +289,9 @@ class ClimateDataGetter:
         # files are not found), and store the dataset in the _ds attribute.
         save_dir = self._save_dir
         file_names = self.file_names
-        ds = xcdat.open_mfdataset(
+        ds = xr.open_mfdataset(
             [save_dir / file_name for file_name in file_names],
-            **{"chunks": {}, **kwargs},
+            **{"data_vars": "minimal", "chunks": {}, **kwargs},
         )
         if "time_bnds" in ds:
             # Load time bounds to avoid errors saving to file (since no encoding set)
