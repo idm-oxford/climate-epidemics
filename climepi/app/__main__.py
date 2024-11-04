@@ -9,9 +9,10 @@ parser.add_argument(
     "--dask-distributed",
     action="store_true",
     default=False,
-    help="Use the Dask distributed scheduler. If not specified, the Dask thread-based "
-    "scheduler will be used. If True, a Dask local cluster must first be started (from "
-    "a separate terminal) by running ``python -m climepi.app.cluster``.",
+    help="Use the Dask distributed scheduler. If not specified, the Dask "
+    "single-machine scheduler using threads will be used. To use the distributed "
+    "scheduler, a Dask local cluster must be started from a separate terminal by "
+    "running ``python -m climepi.app.cluster`` before starting the app.",
 )
 
 args = parser.parse_args()

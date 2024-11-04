@@ -38,9 +38,9 @@ def run_app(
         transmission can occur. Default is True.
     dask_distributed: bool
         Whether to use the Dask distributed scheduler. Default is False. If False, the
-        Dask thread-based scheduler will be used. If not specified, the Dask
-        thread-based scheduler will be used. If True, a Dask local cluster must first be
-        started (from a separate terminal) by running ``python -m climepi.app.cluster``.
+        Dask single-machine scheduler using threads will be used. To use the distributed
+        scheduler, a Dask local cluster must be started from a separate terminal by
+        running ``python -m climepi.app.cluster`` before starting the app.
     **kwargs
         Additional keyword arguments to pass to `pn.serve`.
 
@@ -67,13 +67,9 @@ def run_app(
             enable_custom_epi_model=enable_custom_epi_model,
         )
 
-    server = pn.serve(
-        {"/climepi_app": session},
-        start=False,
-        **kwargs,
-    )
+    server = pn.serve({"/climepi_app": session}, start=False, **kwargs)
 
-    _set_signal()
+    _set_shutdown()
 
     logger.info("Set-up complete. Press Ctrl+C to stop the app")
 
@@ -203,7 +199,7 @@ def _session_destroyed(session_id):
     logger.info("Session cleaned up successfully (deleted temporary file(s))")
 
 
-def _set_signal():
+def _set_shutdown():
     original_sigint = signal.getsignal(signal.SIGINT)
 
     def _sigint(signum, frame):

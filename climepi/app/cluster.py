@@ -2,8 +2,7 @@
 Script to start a Dask local cluster to be used in the application.
 
 As per Panel recommendation (https://panel.holoviz.org/how_to/concurrency/dask.html),
-this script should be used to start the cluster separately from the application
-(in a separate terminal) by runnning `python -m climepi.app.cluster`).
+this script should be used to start the cluster before starting the app.
 """
 
 import time
