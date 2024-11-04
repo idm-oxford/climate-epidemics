@@ -6,6 +6,8 @@ this script should be used to start the cluster separately from the application
 (in a separate terminal) by runnning `python -m climepi.app.cluster`).
 """
 
+import time
+
 from dask.distributed import LocalCluster
 
 from climepi.app._app_construction import get_logger
@@ -19,7 +21,8 @@ def _start_cluster():
         "Dask local cluster started. Check the Dask dashboard at %s",
         cluster.dashboard_link,
     )
-    input()
+    while True:
+        time.sleep(3600)
 
 
 if __name__ == "__main__":
