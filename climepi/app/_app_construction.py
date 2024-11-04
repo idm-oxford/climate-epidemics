@@ -48,14 +48,10 @@ def run_app(
     -------
     None
     """
-    pn.extension()
-
     logger = get_logger(name="setup")
     logger.info("Setting up the app")
 
     _setup_dask(dask_distributed=dask_distributed)
-
-    pn.state.cache["controllers"] = {}
 
     def session_created(session_context):
         logger_session = get_logger(name="session")
@@ -71,21 +67,18 @@ def run_app(
             enable_custom_epi_model=enable_custom_epi_model,
         )
 
-    panel_server = pn.serve(
+    server = pn.serve(
         {"/climepi_app": session},
         start=False,
         **kwargs,
     )
 
-    def stop(signum, frame):
-        _stop(panel_server)
-
-    signal.signal(signal.SIGINT, stop)
-    signal.signal(signal.SIGTERM, stop)
+    _set_signal()
 
     logger.info("Set-up complete. Press Ctrl+C to stop the app")
 
-    panel_server.io_loop.start()
+    server.start()
+    server.io_loop.start()
 
 
 @pn.cache()
@@ -150,7 +143,10 @@ def _session(
     )
 
     session_id = pn.state.curdoc.session_context.id
-    pn.state.cache["controllers"][session_id] = controller
+    pn.state.cache["controllers"] = {
+        **pn.state.cache.get("controllers", {}),
+        session_id: controller,
+    }
 
     # Ensure temp files are cleaned up both when a session is closed
 
@@ -207,19 +203,22 @@ def _session_destroyed(session_id):
     logger.info("Session cleaned up successfully (deleted temporary file(s))")
 
 
-def _stop(panel_server):
-    # Stop the app and the Dask cluster (if used)
+def _set_signal():
+    original_sigint = signal.getsignal(signal.SIGINT)
 
-    logger = get_logger(name="stop")
-    logger.info("Cleaning up sessions")
-    session_ids = list(pn.state.cache["controllers"].keys())
-    for session_id in session_ids:
-        _session_destroyed(session_id=session_id)
-    panel_server.stop()
-    logger.info("Panel server stopped")
-    if "dask_client" in pn.state.cache:
-        client = pn.state.cache["dask_client"]
-        client.cancel(client.futures, force=True)
-        client.close()
-        logger.info("Dask client closed")
-    sys.exit(0)
+    def _sigint(signum, frame):
+        logger = get_logger(name="stop")
+        logger.info("Cleaning up sessions")
+        session_ids = list(pn.state.cache["controllers"].keys())
+        for session_id in session_ids:
+            _session_destroyed(session_id=session_id)
+        if "dask_client" in pn.state.cache:
+            logger.info("Closing Dask client")
+            client = pn.state.cache["dask_client"]
+            client.cancel(client.futures, force=True)
+            client.close()
+        logger.info("Stopping app")
+        original_sigint(signum, frame)
+
+    signal.signal(signal.SIGINT, _sigint)
+    signal.signal(signal.SIGTERM, _sigint)
