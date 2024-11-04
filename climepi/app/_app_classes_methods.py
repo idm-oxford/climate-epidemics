@@ -3,7 +3,7 @@
 import pathlib
 import tempfile
 
-import dask.diagnostics
+import dask
 import numpy as np
 import panel as pn
 import param
