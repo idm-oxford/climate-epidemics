@@ -317,7 +317,7 @@ class ClimEpiDatasetAccessor:
         ds_raw = self._obj[data_var_list]  # drops bounds for now (re-add at end)
         if ds_raw.chunks:
             # Currently need to explicitly rechunk along the realization dimension for
-            # the quantile method to work [may be fixed in xarray 2024.11 - check
+            # the quantile method to work [may be fixed in dask 2024.11 - check
             # lens2_2030_2060_2090 notebook to see if safe to remove this, since
             # only rechunking before quantile method could be problematic with map
             # plots]
