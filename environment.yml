@@ -9,6 +9,7 @@ dependencies:
   # climepi dependencies (should match dependencies in pyproject.toml)
   - bottleneck
   - dask
+  - datashader #explicit import appears to be needed with hvplot v0.11.1
   - flox
   - geopy
   - geoviews  
