@@ -326,13 +326,18 @@ class TestEnsembleStats:
 
     @pytest.mark.parametrize("chunked", [False, True])
     def test_ensemble_stats(self, chunked):
-        """Main test."""
+        """
+        Main test.
+
+        Since the method requires rechunking of a dask-backed dataset along the
+        realization dimension, test that the method works correctly with both chunked
+        and non-chunked datasets.
+        """
         ds = generate_dataset(
-            data_var="temperature", extra_dims={"realization": 3, "ouch": 4}
+            data_var="temperature", extra_dims={"realization": 12, "ouch": 4}
         )
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         if chunked:
-            # Method requires rechunking along the realization dimension
             result = ds.chunk({"realization": 1, "ouch": 2}).climepi.ensemble_stats(
                 conf_level=60
             )
