@@ -315,6 +315,13 @@ class ClimEpiDatasetAccessor:
             )
         # Compute ensemble statistics
         ds_raw = self._obj[data_var_list]  # drops bounds for now (re-add at end)
+        if ds_raw.chunks:
+            # Currently need to explicitly rechunk along the realization dimension for
+            # the quantile method to work [may be fixed in xarray 2024.11 - check
+            # lens2_2030_2060_2090 notebook to see if safe to remove this, since
+            # only rechunking before quantile method could be problematic with map
+            # plots]
+            ds_raw = ds_raw.chunk({"realization": -1})
         ds_mean = ds_raw.mean(dim="realization").expand_dims(
             dim={"ensemble_stat": ["mean"]}, axis=-1
         )
@@ -324,14 +331,10 @@ class ClimEpiDatasetAccessor:
         ds_var = ds_raw.var(dim="realization").expand_dims(
             dim={"ensemble_stat": ["var"]}, axis=-1
         )
-        ds_quantile = (
-            ds_raw.chunk({"realization": -1})
-            .quantile(
-                [0, 0.5 - conf_level / 200, 0.5, 0.5 + conf_level / 200, 1],
-                dim="realization",
-            )
-            .rename({"quantile": "ensemble_stat"})
-        )
+        ds_quantile = ds_raw.quantile(
+            [0, 0.5 - conf_level / 200, 0.5, 0.5 + conf_level / 200, 1],
+            dim="realization",
+        ).rename({"quantile": "ensemble_stat"})
         ds_quantile["ensemble_stat"] = ["min", "lower", "median", "upper", "max"]
         ds_stat = xr.concat(
             [ds_mean, ds_std, ds_var, ds_quantile],
