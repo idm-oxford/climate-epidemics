@@ -638,27 +638,33 @@ class TestVarianceDecomposition:
         var_frac_model = var_model / var_total
         var_frac_scenario = var_scenario / var_total
         npt.assert_allclose(
-            result["temperature"].sel(var_type="internal", drop=True).values,
+            result["temperature"].sel(variance_type="internal", drop=True).values,
             var_internal,
         )
         npt.assert_allclose(
-            result["temperature"].sel(var_type="model", drop=True).values,
+            result["temperature"].sel(variance_type="model", drop=True).values,
             var_model,
         )
         npt.assert_allclose(
-            result["temperature"].sel(var_type="scenario", drop=True).values,
+            result["temperature"].sel(variance_type="scenario", drop=True).values,
             var_scenario,
         )
         npt.assert_allclose(
-            result_fractional["temperature"].sel(var_type="internal", drop=True).values,
+            result_fractional["temperature"]
+            .sel(variance_type="internal", drop=True)
+            .values,
             var_frac_internal,
         )
         npt.assert_allclose(
-            result_fractional["temperature"].sel(var_type="model", drop=True).values,
+            result_fractional["temperature"]
+            .sel(variance_type="model", drop=True)
+            .values,
             var_frac_model,
         )
         npt.assert_allclose(
-            result_fractional["temperature"].sel(var_type="scenario", drop=True).values,
+            result_fractional["temperature"]
+            .sel(variance_type="scenario", drop=True)
+            .values,
             var_frac_scenario,
         )
         assert result["temperature"].attrs["units"] == "(Hello there)²"
@@ -709,14 +715,14 @@ class TestVarianceDecomposition:
         xrt.assert_allclose(result1, result2)
         xrt.assert_allclose(result1, result3)
         xrt.assert_allclose(
-            result1["temperature"].sel(var_type="internal", drop=True),
+            result1["temperature"].sel(variance_type="internal", drop=True),
             ds1["temperature"].var(dim="realization"),
         )
         npt.assert_allclose(
-            result1["temperature"].sel(var_type="model", drop=True).values, 0
+            result1["temperature"].sel(variance_type="model", drop=True).values, 0
         )
         npt.assert_allclose(
-            result1["temperature"].sel(var_type="scenario", drop=True).values, 0
+            result1["temperature"].sel(variance_type="scenario", drop=True).values, 0
         )
 
 
@@ -776,14 +782,14 @@ def test_plot_variance_decomposition(fraction):
     # Test that lower/upper bounds for each component are correct
     da_var_decomp = ds.climepi.variance_decomposition(fraction=fraction)["temperature"]
     internal_lower_expected = 0
-    internal_upper_expected = da_var_decomp.sel(var_type="internal").values
+    internal_upper_expected = da_var_decomp.sel(variance_type="internal").values
     model_lower_expected = internal_upper_expected
     model_upper_expected = model_lower_expected + (
-        da_var_decomp.sel(var_type="model").values
+        da_var_decomp.sel(variance_type="model").values
     )
     scenario_lower_expected = model_upper_expected
     scenario_upper_expected = scenario_lower_expected + (
-        da_var_decomp.sel(var_type="scenario").values
+        da_var_decomp.sel(variance_type="scenario").values
     )
     npt.assert_allclose(
         result["Internal variability"].data.Baseline.values, internal_lower_expected
@@ -814,7 +820,7 @@ def test_plot_variance_decomposition(fraction):
         assert result.opts["ylabel"] == "Variance of hello (there²)"
 
 
-class TestPlotCiPlume:
+class TestPlotUncertaintyPlume:
     """Class for testing the plot_uncertainty_plume method of ClimEpiDatasetAccessor."""
 
     def test_plot_uncertainty_plume(self):
@@ -834,15 +840,17 @@ class TestPlotCiPlume:
         z = norm.ppf(0.95)
         da_var_decomp = ds.climepi.variance_decomposition(fraction=False)["temperature"]
         internal_upper_expected = z * np.sqrt(
-            da_var_decomp.sel(var_type="internal").values
+            da_var_decomp.sel(variance_type="internal").values
         )
         internal_lower_expected = -internal_upper_expected
         model_upper_expected = z * np.sqrt(
-            da_var_decomp.sel(var_type="internal").values
-            + da_var_decomp.sel(var_type="model").values
+            da_var_decomp.sel(variance_type="internal").values
+            + da_var_decomp.sel(variance_type="model").values
         )
         model_lower_expected = -model_upper_expected
-        scenario_upper_expected = z * np.sqrt(da_var_decomp.sum(dim="var_type").values)
+        scenario_upper_expected = z * np.sqrt(
+            da_var_decomp.sum(dim="variance_type").values
+        )
         scenario_lower_expected = -scenario_upper_expected
         npt.assert_allclose(  # Portion due to internal variability
             result.Area.Internal_variability.data[["internal_lower", "internal_upper"]],
