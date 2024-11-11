@@ -339,15 +339,15 @@ class TestEnsembleStats:
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         if chunked:
             result = ds.chunk({"realization": 1, "ouch": 2}).climepi.ensemble_stats(
-                conf_level=60
+                confidence_level=60
             )
             assert result.chunks
             assert all(x == 2 for x in result.chunks["ouch"])
             result.load()
         else:
-            result = ds.climepi.ensemble_stats(conf_level=60)
+            result = ds.climepi.ensemble_stats(confidence_level=60)
             assert not result.chunks  # Check that the result is not chunked
-        result = ds.climepi.ensemble_stats(conf_level=60)
+        result = ds.climepi.ensemble_stats(confidence_level=60)
         xrt.assert_allclose(
             result["temperature"].sel(ensemble_stat="mean", drop=True),
             ds["temperature"].mean(dim="realization"),
@@ -489,7 +489,9 @@ class TestEstimateEnsembleStats:
                 coords={"time": time},
             )
             ds["time"].encoding.update(calendar="standard")
-            result = ds.climepi.estimate_ensemble_stats(conf_level=80, polyfit_degree=3)
+            result = ds.climepi.estimate_ensemble_stats(
+                confidence_level=80, polyfit_degree=3
+            )
             if repeat == 0:
                 # Just check for the first repeat that the results match those obtained
                 # by directly applying numpy's polynomial fitting method.
@@ -608,10 +610,10 @@ class TestEstimateEnsembleStats:
             ds3.climepi.estimate_ensemble_stats()
 
 
-class TestVarDecomp:
-    """Class for testing the var_decomp method of ClimEpiDatasetAccessor."""
+class TestVarianceDecomposition:
+    """Class for testing the variance_decomposition method of ClimEpiDatasetAccessor."""
 
-    def test_var_decomp(self):
+    def test_variance_decomposition(self):
         """Main test."""
         ds = generate_dataset(
             data_var="temperature",
@@ -621,8 +623,8 @@ class TestVarDecomp:
         ds["temperature"].attrs.update(
             units="Hello there", long_name="General Kenobi you are a bold one"
         )
-        result = ds.climepi.var_decomp()
-        result_fractional = ds.climepi.var_decomp(fraction=True)
+        result = ds.climepi.variance_decomposition()
+        result_fractional = ds.climepi.variance_decomposition(fraction=True)
         temperature_values = (
             ds["temperature"]
             .transpose("scenario", "model", "realization", "time", ...)
@@ -674,24 +676,24 @@ class TestVarDecomp:
             ds[["lon", "lat", "time", "lon_bnds", "lat_bnds", "time_bnds"]],
         )
 
-    def test_var_decomp_varlist(self):
+    def test_variance_decomposition_varlist(self):
         """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars, frequency="monthly")
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
-        result = ds.climepi.var_decomp()
+        result = ds.climepi.variance_decomposition()
         for data_var in data_vars:
             xrt.assert_allclose(
                 result[data_var],
-                ds[[data_var]].climepi.var_decomp()[data_var],
+                ds[[data_var]].climepi.variance_decomposition()[data_var],
             )
             xrt.assert_allclose(
                 result[data_var],
-                ds.climepi.var_decomp(data_var)[data_var],
+                ds.climepi.variance_decomposition(data_var)[data_var],
             )
 
-    def test_var_decomp_single_scenario_model(self):
+    def test_variance_decomposition_single_scenario_model(self):
         """Test with datasets containing a single scenario and model."""
         ds1 = generate_dataset(data_var="temperature", extra_dims={"realization": 9})
         ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
@@ -701,9 +703,9 @@ class TestVarDecomp:
         ds3["model"] = "googly"
         ds3["scenario"] = "flipper"
         ds3 = ds3.set_coords(["model", "scenario"])
-        result1 = ds1.climepi.var_decomp()
-        result2 = ds2.climepi.var_decomp()
-        result3 = ds3.climepi.var_decomp()
+        result1 = ds1.climepi.variance_decomposition()
+        result2 = ds2.climepi.variance_decomposition()
+        result3 = ds3.climepi.variance_decomposition()
         xrt.assert_allclose(result1, result2)
         xrt.assert_allclose(result1, result3)
         xrt.assert_allclose(
@@ -762,17 +764,17 @@ def test_plot_map():
 
 
 @pytest.mark.parametrize("fraction", [True, False])
-def test_plot_var_decomp(fraction):
-    """Test the plot_var_decomp method of the ClimEpiDatasetAccessor class."""
+def test_plot_variance_decomposition(fraction):
+    """Test the plot_variance_decomposition method of the ClimEpiDatasetAccessor class."""
     ds = generate_dataset(
         data_var="temperature",
         extra_dims={"scenario": 6, "model": 4, "realization": 9},
     ).isel(lon=0, lat=0)
     ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
     ds["temperature"].attrs.update(units="there", long_name="Hello")
-    result = ds.climepi.plot_var_decomp(fraction=fraction)
+    result = ds.climepi.plot_variance_decomposition(fraction=fraction)
     # Test that lower/upper bounds for each component are correct
-    da_var_decomp = ds.climepi.var_decomp(fraction=fraction)["temperature"]
+    da_var_decomp = ds.climepi.variance_decomposition(fraction=fraction)["temperature"]
     internal_lower_expected = 0
     internal_upper_expected = da_var_decomp.sel(var_type="internal").values
     model_lower_expected = internal_upper_expected
@@ -813,9 +815,9 @@ def test_plot_var_decomp(fraction):
 
 
 class TestPlotCiPlume:
-    """Class for testing the plot_ci_plume method of ClimEpiDatasetAccessor."""
+    """Class for testing the plot_uncertainty_plume method of ClimEpiDatasetAccessor."""
 
-    def test_plot_ci_plume(self):
+    def test_plot_uncertainty_plume(self):
         """Main test."""
         ds = generate_dataset(
             data_var="temperature",
@@ -826,11 +828,11 @@ class TestPlotCiPlume:
             ds["temperature"]
             - ds["temperature"].mean(dim=["scenario", "model", "realization"])
         )
-        result = ds.climepi.plot_ci_plume()
+        result = ds.climepi.plot_uncertainty_plume()
         # Test that mean and lower/upper bounds for each component are correct
         npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
         z = norm.ppf(0.95)
-        da_var_decomp = ds.climepi.var_decomp(fraction=False)["temperature"]
+        da_var_decomp = ds.climepi.variance_decomposition(fraction=False)["temperature"]
         internal_upper_expected = z * np.sqrt(
             da_var_decomp.sel(var_type="internal").values
         )
@@ -863,7 +865,7 @@ class TestPlotCiPlume:
             np.array([model_upper_expected, scenario_upper_expected]).T,
         )
 
-    def test_plot_ci_plume_internal_only(self):
+    def test_plot_uncertainty_plume_internal_only(self):
         """Test in case where only internal variability is present."""
         ds = generate_dataset(
             data_var="temperature",
@@ -873,7 +875,7 @@ class TestPlotCiPlume:
         ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
             ds["temperature"] - ds["temperature"].mean(dim="realization")
         )
-        result = ds.climepi.plot_ci_plume()
+        result = ds.climepi.plot_uncertainty_plume()
         # Test that mean and lower/upper bounds for each component are correct
         npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
         lower_expected = ds["temperature"].quantile(0.05, dim="realization").values
@@ -883,7 +885,7 @@ class TestPlotCiPlume:
             np.array([lower_expected, upper_expected]).T,
         )
 
-    def test_plot_ci_plume_model_only(self):
+    def test_plot_uncertainty_plume_model_only(self):
         """Test with only model uncertainty (not estimating internal variability)."""
         ds = generate_dataset(
             data_var="temperature",
@@ -893,7 +895,7 @@ class TestPlotCiPlume:
         ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
             ds["temperature"] - ds["temperature"].mean(dim="model")
         )
-        result = ds.climepi.plot_ci_plume(estimate_internal_variability=False)
+        result = ds.climepi.plot_uncertainty_plume(estimate_internal_variability=False)
         # Test that mean and lower/upper bounds for each component are correct
         npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
         lower_expected = ds["temperature"].quantile(0.05, dim="model").values
@@ -909,7 +911,7 @@ class TestPlotCiPlume:
             atol=1e-7,
         )
 
-    def test_plot_ci_plume_scenario_only(self):
+    def test_plot_uncertainty_plume_scenario_only(self):
         """Test with only scenario uncertainty (not estimating internal variability)."""
         ds = generate_dataset(
             data_var="temperature",
@@ -919,7 +921,7 @@ class TestPlotCiPlume:
         ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
             ds["temperature"] - ds["temperature"].mean(dim="scenario")
         )
-        result = ds.climepi.plot_ci_plume(estimate_internal_variability=False)
+        result = ds.climepi.plot_uncertainty_plume(estimate_internal_variability=False)
         # Test that mean and lower/upper bounds for each component are correct
         npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
         lower_expected = ds["temperature"].quantile(0.05, dim="scenario").values

@@ -264,7 +264,7 @@ class ClimEpiDatasetAccessor:
     def ensemble_stats(
         self,
         data_var=None,
-        conf_level=90,
+        confidence_level=90,
         estimate_internal_variability=True,
         polyfit_degree=4,
     ):
@@ -276,8 +276,9 @@ class ClimEpiDatasetAccessor:
         data_var : str or list, optional
             Name(s) of the data variable(s) to compute the ensemble statistics for.
             If not provided, all non-bound data variables will be used.
-        conf_level : float, optional
-            Confidence level for computing ensemble percentiles.
+        confidence_level : float, optional
+            Confidence level (percentage) for computing ensemble percentiles. Default
+            is 90.
         estimate_internal_variability : bool, optional
             Whether to estimate internal variability using the estimate_ensemble_stats
             method if only a single realization is available for each model and scenario
@@ -300,7 +301,9 @@ class ClimEpiDatasetAccessor:
             "realization" in self._obj.dims and len(self._obj.realization) > 1
         ):
             return self.estimate_ensemble_stats(
-                data_var_list, conf_level=conf_level, polyfit_degree=polyfit_degree
+                data_var_list,
+                confidence_level=confidence_level,
+                polyfit_degree=polyfit_degree,
             )
         if "realization" not in self._obj[data_var_list].dims:
             ds_expanded = self._obj.copy()
@@ -310,7 +313,7 @@ class ClimEpiDatasetAccessor:
                 )
             return ds_expanded.climepi.ensemble_stats(
                 data_var_list,
-                conf_level=conf_level,
+                confidence_level=confidence_level,
                 estimate_internal_variability=False,
             )
         # Compute ensemble statistics
@@ -332,7 +335,7 @@ class ClimEpiDatasetAccessor:
             dim={"ensemble_stat": ["var"]}, axis=-1
         )
         ds_quantile = ds_raw.quantile(
-            [0, 0.5 - conf_level / 200, 0.5, 0.5 + conf_level / 200, 1],
+            [0, 0.5 - confidence_level / 200, 0.5, 0.5 + confidence_level / 200, 1],
             dim="realization",
         ).rename({"quantile": "ensemble_stat"})
         ds_quantile["ensemble_stat"] = ["min", "lower", "median", "upper", "max"]
@@ -346,7 +349,9 @@ class ClimEpiDatasetAccessor:
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
         return ds_stat
 
-    def estimate_ensemble_stats(self, data_var=None, conf_level=90, polyfit_degree=4):
+    def estimate_ensemble_stats(
+        self, data_var=None, confidence_level=90, polyfit_degree=4
+    ):
         """
         Estimate ensemble statistics for a data variable.
 
@@ -358,8 +363,9 @@ class ClimEpiDatasetAccessor:
         data_var : str or list, optional
             Name(s) of the data variable(s) to estimate the ensemble statistics for.
             If not provided, all non-bound data variables will be used.
-        conf_level : float, optional
-            Confidence level for computing ensemble percentiles.
+        confidence_level : float, optional
+            Confidence level (percentage) for computing ensemble percentiles. Default
+            is 90.
         polyfit_degree : int, optional
             Degree of the polynomial to fit to the time series. Default is 4.
 
@@ -382,11 +388,15 @@ class ClimEpiDatasetAccessor:
             return self._obj.squeeze(
                 "realization", drop=True
             ).climepi.estimate_ensemble_stats(
-                data_var_list, conf_level=conf_level, polyfit_degree=polyfit_degree
+                data_var_list,
+                confidence_level=confidence_level,
+                polyfit_degree=polyfit_degree,
             )
         if "realization" in self._obj.coords:
             return self._obj.drop_vars("realization").climepi.estimate_ensemble_stats(
-                data_var_list, conf_level=conf_level, polyfit_degree=polyfit_degree
+                data_var_list,
+                confidence_level=confidence_level,
+                polyfit_degree=polyfit_degree,
             )
         # Estimate ensemble mean by fitting a polynomial to each time series.
         ds_raw = self._obj[data_var_list]
@@ -409,7 +419,7 @@ class ClimEpiDatasetAccessor:
         ds_var = ds_var.broadcast_like(ds_mean)
         ds_std = ds_std.broadcast_like(ds_mean)
         # Estimate confidence intervals
-        z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
+        z = scipy.stats.norm.ppf(0.5 + confidence_level / 200)
         ds_lower = ds_mean - z * ds_std
         ds_upper = ds_mean + z * ds_std
         # Combine into a single dataset
@@ -423,7 +433,7 @@ class ClimEpiDatasetAccessor:
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
         return ds_stat
 
-    def var_decomp(
+    def variance_decomposition(
         self,
         data_var=None,
         fraction=False,
@@ -455,7 +465,7 @@ class ClimEpiDatasetAccessor:
         -------
         xarray.Dataset
             A new dataset containing the variance decomposition of the selected data
-            variable(s).
+            variable(s) along a new "variance_type" dimension.
         """
         data_var_list = self._process_data_var_argument(data_var, as_list=True)
         for dim in ["scenario", "model"]:
@@ -467,7 +477,7 @@ class ClimEpiDatasetAccessor:
                     ds_expanded[data_var_curr] = ds_expanded[data_var_curr].expand_dims(
                         dim=dim
                     )
-                return ds_expanded.climepi.var_decomp(
+                return ds_expanded.climepi.variance_decomposition(
                     data_var_list,
                     fraction=fraction,
                     estimate_internal_variability=estimate_internal_variability,
@@ -495,12 +505,12 @@ class ClimEpiDatasetAccessor:
         )
         ds_var_decomp = xr.concat(
             [ds_var_internal, ds_var_model, ds_var_scenario],
-            dim=xr.Variable("var_type", ["internal", "model", "scenario"]),
+            dim=xr.Variable("variance_type", ["internal", "model", "scenario"]),
             coords="minimal",
         )
         # Express contributions as a fraction of the total variance if required
         if fraction:
-            ds_var_decomp = ds_var_decomp / ds_var_decomp.sum(dim="var_type")
+            ds_var_decomp = ds_var_decomp / ds_var_decomp.sum(dim="variance_type")
         # Copy and update attributes and bounds
         ds_var_decomp = add_bnds_from_other(ds_var_decomp, self._obj)
         ds_var_decomp.attrs = self._obj.attrs
@@ -593,7 +603,7 @@ class ClimEpiDatasetAccessor:
             plot_obj *= gf.ocean.options(fill_color="white")
         return plot_obj
 
-    def plot_var_decomp(
+    def plot_variance_decomposition(
         self,
         data_var=None,
         fraction=False,
@@ -633,7 +643,7 @@ class ClimEpiDatasetAccessor:
             The resulting plot object.
         """
         data_var = self._process_data_var_argument(data_var)
-        ds_var_decomp = self.var_decomp(
+        ds_var_decomp = self.variance_decomposition(
             data_var,
             fraction=fraction,
             estimate_internal_variability=estimate_internal_variability,
@@ -648,13 +658,13 @@ class ClimEpiDatasetAccessor:
         ds_plot = xr.Dataset(
             {
                 "Internal variability": ds_var_decomp[data_var].sel(
-                    var_type="internal", drop=True
+                    variance_type="internal", drop=True
                 ),
                 "Model uncertainty": ds_var_decomp[data_var].sel(
-                    var_type="model", drop=True
+                    variance_type="model", drop=True
                 ),
                 "Scenario uncertainty": ds_var_decomp[data_var].sel(
-                    var_type="scenario", drop=True
+                    variance_type="scenario", drop=True
                 ),
             }
         ).squeeze()
@@ -668,10 +678,10 @@ class ClimEpiDatasetAccessor:
         plot_obj = ds_plot.hvplot.area(**kwargs_hvplot)
         return plot_obj
 
-    def plot_ci_plume(
+    def plot_uncertainty_plume(
         self,
         data_var=None,
-        conf_level=90,
+        confidence_level=90,
         estimate_internal_variability=True,
         polyfit_degree=4,
         kwargs_baseline=None,
@@ -690,8 +700,8 @@ class ClimEpiDatasetAccessor:
         ----------
         data_var : str
             Name of the data variable to plot.
-        conf_level : float, optional
-            Confidence level for the confidence intervals. Default is 90.
+        confidence_level : float, optional
+            Confidence level for the confidence intervals (percentage). Default is 90.
         estimate_internal_variability : bool, optional
             Whether to estimate internal variability if only a single ensemble member is
             available for each model and realization. Default is True.
@@ -745,7 +755,7 @@ class ClimEpiDatasetAccessor:
         # of the variance and z value for approximate confidence intervals
         da_stat = da_raw.to_dataset().climepi.ensemble_stats(
             data_var,
-            conf_level=conf_level,
+            confidence_level=confidence_level,
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )[data_var]
@@ -753,13 +763,13 @@ class ClimEpiDatasetAccessor:
             dim=["scenario", "model"], keep_attrs=True
         )
         da_stat.attrs = {}  # Long name attribute causes issues with hvplot area
-        da_var_decomp = self.var_decomp(
+        da_var_decomp = self.variance_decomposition(
             data_var,
             fraction=False,
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )[data_var].squeeze()
-        z = scipy.stats.norm.ppf(0.5 + conf_level / 200)
+        z = scipy.stats.norm.ppf(0.5 + confidence_level / 200)
         # Create a dataset for the confidence interval plots
         ds_plume = xr.Dataset()
         multiple_realizations = len(da_raw.realization) > 1
@@ -775,7 +785,7 @@ class ClimEpiDatasetAccessor:
                 ).sel(ensemble_stat="upper", drop=True)
             else:
                 da_std_internal = np.sqrt(
-                    da_var_decomp.sel(var_type="internal", drop=True)
+                    da_var_decomp.sel(variance_type="internal", drop=True)
                 )
                 ds_plume["internal_lower"] = da_baseline - z * da_std_internal
                 ds_plume["internal_upper"] = da_baseline + z * da_std_internal
@@ -791,15 +801,15 @@ class ClimEpiDatasetAccessor:
                     ["scenario", "realization"], drop=True
                 ).chunk({"model": -1})
                 ds_plume["model_lower"] = da_raw_rechunked.quantile(
-                    0.5 - conf_level / 200, dim="model"
+                    0.5 - confidence_level / 200, dim="model"
                 ).drop_vars("quantile")
                 ds_plume["model_upper"] = da_raw_rechunked.quantile(
-                    0.5 + conf_level / 200, dim="model"
+                    0.5 + confidence_level / 200, dim="model"
                 ).drop_vars("quantile")
             else:
                 da_std_internal_model = np.sqrt(
-                    da_var_decomp.sel(var_type=["internal", "model"]).sum(
-                        dim="var_type"
+                    da_var_decomp.sel(variance_type=["internal", "model"]).sum(
+                        dim="variance_type"
                     )
                 )
                 ds_plume["model_lower"] = da_baseline - z * da_std_internal_model
@@ -816,14 +826,14 @@ class ClimEpiDatasetAccessor:
                     ["model", "realization"], drop=True
                 ).chunk({"scenario": -1})
                 ds_plume["scenario_lower"] = da_raw_rechunked.quantile(
-                    0.5 - conf_level / 200, dim="scenario"
+                    0.5 - confidence_level / 200, dim="scenario"
                 ).drop_vars("quantile")
                 ds_plume["scenario_upper"] = da_raw_rechunked.quantile(
-                    0.5 + conf_level / 200, dim="scenario"
+                    0.5 + confidence_level / 200, dim="scenario"
                 ).drop_vars("quantile")
             else:
                 da_std_internal_model_scenario = np.sqrt(
-                    da_var_decomp.sum(dim="var_type")
+                    da_var_decomp.sum(dim="variance_type")
                 )
                 ds_plume["scenario_lower"] = (
                     da_baseline - z * da_std_internal_model_scenario

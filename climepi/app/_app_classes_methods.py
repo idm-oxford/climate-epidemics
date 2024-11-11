@@ -134,7 +134,7 @@ class _Plotter:
         if plot_type == "map":
             plot = ds_plot.climepi.plot_map()
         elif plot_type == "time series":
-            p1 = ds_plot.climepi.plot_ci_plume()
+            p1 = ds_plot.climepi.plot_uncertainty_plume()
             p2 = ds_plot.rename(
                 scenario="example scenario",
                 model="example model",
@@ -142,8 +142,8 @@ class _Plotter:
             ).climepi.plot_time_series(label="Example trajectory")
             plot = (p1 * p2).opts(legend_position="top_left")
         elif plot_type == "variance decomposition":
-            p1 = ds_plot.climepi.plot_var_decomp(fraction=False)
-            p2 = ds_plot.climepi.plot_var_decomp(fraction=True)
+            p1 = ds_plot.climepi.plot_variance_decomposition(fraction=False)
+            p2 = ds_plot.climepi.plot_variance_decomposition(fraction=True)
             plot = (p1 + p2).cols(1).opts(shared_axes=False)
         else:
             raise ValueError("Unsupported plot options")
