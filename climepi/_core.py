@@ -539,6 +539,174 @@ class ClimEpiDatasetAccessor:
                     )
         return ds_var_decomp
 
+    def uncertainty_interval_decomposition(
+        self,
+        data_var=None,
+        confidence_level=90,
+        estimate_internal_variability=True,
+        polyfit_degree=4,
+    ):
+        """
+        Decompose uncertainty interval contributions.
+
+        Partitions the uncertainty interval of a data variable at each time point into
+        contributions from internal variability, model uncertainty and scenario
+        uncertainty.
+
+        Parameters
+        ----------
+        data_var : str or list of str, optional
+            Name(s) of the data variable to decompose.
+        confidence_level : float, optional
+            Confidence level for the confidence intervals (percentage). Default is 90.
+        estimate_internal_variability : bool, optional
+            Whether to estimate internal variability if only a single ensemble member is
+            available for each model and realization. Default is True.
+        polyfit_degree : int, optional
+            Degree of the polynomial to fit to the time series if estimating internal
+            variability. Default is 4.
+
+        Returns
+        -------
+        xarray.Dataset
+            A new dataset containing the uncertainty interval decomposition of the
+            selected data variable(s) along a new "level" dimension.
+        """
+        data_var_list = self._process_data_var_argument(data_var, as_list=True)
+        ds_raw = self._obj[data_var_list].squeeze()  # drops bounds for now
+        # Make "scenario", "model" and "realization" dimensions of the data variable if
+        # they are not present or are (singleton) non-dimension coordinates (reduces
+        # number of cases to handle; note this partially reverses the effect of the
+        # squeeze operation above, which still removes other singleton dimensions).
+        for dim in ["scenario", "model", "realization"]:
+            if dim not in ds_raw.dims:
+                ds_raw = ds_raw.expand_dims(dim)
+        # Get ensemble statistics, baseline estimate, and if necessary a decomposition
+        # of the variance and z value for approximate confidence intervals
+        ds_stat = ds_raw.climepi.ensemble_stats(
+            confidence_level=confidence_level,
+            estimate_internal_variability=estimate_internal_variability,
+            polyfit_degree=polyfit_degree,
+        )
+        ds_baseline = ds_stat.sel(ensemble_stat="mean", drop=True).mean(
+            dim=["scenario", "model"], keep_attrs=True
+        )
+        ds_var_decomp = ds_raw.climepi.variance_decomposition(
+            fraction=False,
+            estimate_internal_variability=estimate_internal_variability,
+            polyfit_degree=polyfit_degree,
+        )
+        z = scipy.stats.norm.ppf(0.5 + confidence_level / 200)
+        # Create a dataset for the uncertainty interval decomposition
+        multiple_realizations = len(ds_raw.realization) > 1
+        if estimate_internal_variability or multiple_realizations:
+            # Obtain confidence interval contribution from internal variability if there
+            # are multiple realizations or if internal variability is to be estimated
+            if len(ds_raw.scenario) == 1 and len(ds_raw.model) == 1:
+                ds_internal_lower = ds_stat.squeeze(
+                    ["model", "scenario"], drop=True
+                ).sel(ensemble_stat="lower", drop=True)
+                ds_internal_upper = ds_stat.squeeze(
+                    ["model", "scenario"], drop=True
+                ).sel(ensemble_stat="upper", drop=True)
+            else:
+                ds_std_internal = np.sqrt(
+                    ds_var_decomp.sel(variance_type="internal", drop=True)
+                )
+                ds_internal_lower = ds_baseline - z * ds_std_internal
+                ds_internal_upper = ds_baseline + z * ds_std_internal
+        else:
+            ds_internal_lower = ds_baseline.copy()
+            ds_internal_upper = ds_baseline.copy()
+        if len(ds_raw.model) > 1:
+            # Model variability if there are multiple models
+            if len(ds_raw.scenario) == 1 and not (
+                multiple_realizations or estimate_internal_variability
+            ):
+                ds_raw_rechunked = ds_raw.squeeze(
+                    ["scenario", "realization"], drop=True
+                ).chunk({"model": -1})
+                ds_model_lower = ds_raw_rechunked.quantile(
+                    0.5 - confidence_level / 200, dim="model"
+                ).drop_vars("quantile")
+                ds_model_upper = ds_raw_rechunked.quantile(
+                    0.5 + confidence_level / 200, dim="model"
+                ).drop_vars("quantile")
+            else:
+                ds_std_internal_model = np.sqrt(
+                    ds_var_decomp.sel(variance_type=["internal", "model"]).sum(
+                        dim="variance_type"
+                    )
+                )
+                ds_model_lower = ds_baseline - z * ds_std_internal_model
+                ds_model_upper = ds_baseline + z * ds_std_internal_model
+        else:
+            ds_model_lower = ds_internal_lower.copy()
+            ds_model_upper = ds_internal_upper.copy()
+        if len(ds_raw.scenario) > 1:
+            # Scenario variability if there are multiple scenarios
+            if len(ds_raw.model) == 1 and not (
+                multiple_realizations or estimate_internal_variability
+            ):
+                ds_raw_rechunked = ds_raw.squeeze(
+                    ["model", "realization"], drop=True
+                ).chunk({"scenario": -1})
+                ds_scenario_lower = ds_raw_rechunked.quantile(
+                    0.5 - confidence_level / 200, dim="scenario"
+                ).drop_vars("quantile")
+                ds_scenario_upper = ds_raw_rechunked.quantile(
+                    0.5 + confidence_level / 200, dim="scenario"
+                ).drop_vars("quantile")
+            else:
+                ds_std_internal_model_scenario = np.sqrt(
+                    ds_var_decomp.sum(dim="variance_type")
+                )
+                ds_scenario_lower = ds_baseline - z * ds_std_internal_model_scenario
+                ds_scenario_upper = ds_baseline + z * ds_std_internal_model_scenario
+        else:
+            ds_scenario_lower = ds_model_lower.copy()
+            ds_scenario_upper = ds_model_upper.copy()
+        # Combine into a single dataset
+        ds_decomp = xr.concat(
+            [
+                ds_scenario_lower,
+                ds_model_lower,
+                ds_internal_lower,
+                ds_baseline,
+                ds_internal_upper,
+                ds_model_upper,
+                ds_scenario_upper,
+            ],
+            dim=xr.Variable(
+                "level",
+                [
+                    "scenario_lower",
+                    "model_lower",
+                    "internal_lower",
+                    "baseline",
+                    "internal_upper",
+                    "model_upper",
+                    "scenario_upper",
+                ],
+            ),
+        )
+        # Only keep levels that are relevant
+        keep_levels = ["baseline"]
+        if multiple_realizations or estimate_internal_variability:
+            keep_levels.extend(["internal_lower", "internal_upper"])
+        if len(ds_raw.model) > 1:
+            keep_levels.extend(["model_lower", "model_upper"])
+        if len(ds_raw.scenario) > 1:
+            keep_levels.extend(["scenario_lower", "scenario_upper"])
+        ds_decomp = ds_decomp.sel(level=keep_levels, drop=True)
+        # Copy and update attributes and bounds
+        ds_decomp.attrs = self._obj.attrs
+        ds_var_decomp = add_bnds_from_other(ds_decomp, self._obj)
+        ds_var_decomp = add_var_attrs_from_other(
+            ds_decomp, self._obj, var=data_var_list
+        )
+        return ds_decomp
+
     def plot_time_series(self, data_var=None, **kwargs):
         """
         Generate a time series plot of a data variable.
@@ -643,27 +811,27 @@ class ClimEpiDatasetAccessor:
             The resulting plot object.
         """
         data_var = self._process_data_var_argument(data_var)
-        ds_var_decomp = self.variance_decomposition(
+        da_var_decomp = self.variance_decomposition(
             data_var,
             fraction=fraction,
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
-        )
+        )[data_var]
         ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
-            label_from_attrs(ds_var_decomp[data_var])  # so first get ylabel from attrs
-            .replace("[", "(")
-            .replace("]", ")")
+            label_from_attrs(da_var_decomp)  # so first get ylabel from attrs
+            # .replace("[", "(")
+            # .replace("]", ")")
         )
-        ds_var_decomp[data_var] = ds_var_decomp[data_var].drop_attrs()
+        da_var_decomp = da_var_decomp.drop_attrs()
         ds_plot = xr.Dataset(
             {
-                "Internal variability": ds_var_decomp[data_var].sel(
+                "Internal variability": da_var_decomp.sel(
                     variance_type="internal", drop=True
                 ),
-                "Model uncertainty": ds_var_decomp[data_var].sel(
+                "Model uncertainty": da_var_decomp.sel(
                     variance_type="model", drop=True
                 ),
-                "Scenario uncertainty": ds_var_decomp[data_var].sel(
+                "Scenario uncertainty": da_var_decomp.sel(
                     variance_type="scenario", drop=True
                 ),
             }
@@ -678,7 +846,7 @@ class ClimEpiDatasetAccessor:
         plot_obj = ds_plot.hvplot.area(**kwargs_hvplot)
         return plot_obj
 
-    def plot_uncertainty_plume(
+    def plot_uncertainty_interval_decomposition(
         self,
         data_var=None,
         confidence_level=90,
@@ -721,16 +889,36 @@ class ClimEpiDatasetAccessor:
             The resulting plot object.
         """
         data_var = self._process_data_var_argument(data_var)
-        da_raw = self._obj[data_var].squeeze()
+        da_decomp = self.uncertainty_interval_decomposition(
+            data_var,
+            confidence_level=confidence_level,
+            estimate_internal_variability=estimate_internal_variability,
+            polyfit_degree=polyfit_degree,
+        )[data_var]
+        ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
+            label_from_attrs(da_decomp)  # so first get ylabel from attrs
+            # .replace("[", "(")
+            # .replace("]", ")")
+        )
+        da_decomp = da_decomp.drop_attrs()
         kwargs_baseline_in = {} if kwargs_baseline is None else kwargs_baseline
         kwargs_area_in = {} if kwargs_area is None else kwargs_area
         kwargs_baseline = {
-            **{"x": "time", "label": "Mean", "color": "black"},
+            **{
+                "x": "time",
+                "y": "baseline",
+                "label": "Mean",
+                "ylabel": label_from_attrs(ylabel),
+                "color": "black",
+            },
             **kwargs_baseline_in,
         }
         colors = hv.Cycle().values
         kwargs_area = {
-            **{"x": "time", "alpha": 0.6, "ylabel": label_from_attrs(da_raw)},
+            **{
+                "x": "time",
+                "alpha": 0.6,
+            },
             **kwargs_area_in,
         }
         kwargs_internal = {
@@ -744,136 +932,56 @@ class ClimEpiDatasetAccessor:
             "color": colors[2],
             **kwargs_area,
         }
-        # Make "scenario", "model" and "realization" dimensions of the data variable if
-        # they are not present or are (singleton) non-dimension coordinates (reduces
-        # number of cases to handle; note this partially reverses the effect of the
-        # squeeze operation above, which still removes other singleton dimensions).
-        for dim in ["scenario", "model", "realization"]:
-            if dim not in da_raw.dims:
-                da_raw = da_raw.expand_dims(dim)
-        # Get ensemble statistics, baseline estimate, and if necessary a decomposition
-        # of the variance and z value for approximate confidence intervals
-        da_stat = da_raw.to_dataset().climepi.ensemble_stats(
-            data_var,
-            confidence_level=confidence_level,
-            estimate_internal_variability=estimate_internal_variability,
-            polyfit_degree=polyfit_degree,
-        )[data_var]
-        da_baseline = da_stat.sel(ensemble_stat="mean", drop=True).mean(
-            dim=["scenario", "model"], keep_attrs=True
-        )
-        da_stat.attrs = {}  # Long name attribute causes issues with hvplot area
-        da_var_decomp = self.variance_decomposition(
-            data_var,
-            fraction=False,
-            estimate_internal_variability=estimate_internal_variability,
-            polyfit_degree=polyfit_degree,
-        )[data_var].squeeze()
-        z = scipy.stats.norm.ppf(0.5 + confidence_level / 200)
-        # Create a dataset for the confidence interval plots
-        ds_plume = xr.Dataset()
-        multiple_realizations = len(da_raw.realization) > 1
-        if estimate_internal_variability or multiple_realizations:
-            # Obtain confidence interval contribution from internal variability if there
-            # are multiple realizations or if internal variability is to be estimated
-            if len(da_raw.scenario) == 1 and len(da_raw.model) == 1:
-                ds_plume["internal_lower"] = da_stat.squeeze(
-                    ["model", "scenario"], drop=True
-                ).sel(ensemble_stat="lower", drop=True)
-                ds_plume["internal_upper"] = da_stat.squeeze(
-                    ["model", "scenario"], drop=True
-                ).sel(ensemble_stat="upper", drop=True)
-            else:
-                da_std_internal = np.sqrt(
-                    da_var_decomp.sel(variance_type="internal", drop=True)
-                )
-                ds_plume["internal_lower"] = da_baseline - z * da_std_internal
-                ds_plume["internal_upper"] = da_baseline + z * da_std_internal
-        else:
-            ds_plume["internal_lower"] = da_baseline
-            ds_plume["internal_upper"] = da_baseline
-        if len(da_raw.model) > 1:
-            # Plot model variability if there are multiple models
-            if len(da_raw.scenario) == 1 and not (
-                multiple_realizations or estimate_internal_variability
-            ):
-                da_raw_rechunked = da_raw.squeeze(
-                    ["scenario", "realization"], drop=True
-                ).chunk({"model": -1})
-                ds_plume["model_lower"] = da_raw_rechunked.quantile(
-                    0.5 - confidence_level / 200, dim="model"
-                ).drop_vars("quantile")
-                ds_plume["model_upper"] = da_raw_rechunked.quantile(
-                    0.5 + confidence_level / 200, dim="model"
-                ).drop_vars("quantile")
-            else:
-                da_std_internal_model = np.sqrt(
-                    da_var_decomp.sel(variance_type=["internal", "model"]).sum(
-                        dim="variance_type"
-                    )
-                )
-                ds_plume["model_lower"] = da_baseline - z * da_std_internal_model
-                ds_plume["model_upper"] = da_baseline + z * da_std_internal_model
-        else:
-            ds_plume["model_lower"] = ds_plume["internal_lower"]
-            ds_plume["model_upper"] = ds_plume["internal_upper"]
-        if len(da_raw.scenario) > 1:
-            # Plot scenario variability if there are multiple scenarios
-            if len(da_raw.model) == 1 and not (
-                multiple_realizations or estimate_internal_variability
-            ):
-                da_raw_rechunked = da_raw.squeeze(
-                    ["model", "realization"], drop=True
-                ).chunk({"scenario": -1})
-                ds_plume["scenario_lower"] = da_raw_rechunked.quantile(
-                    0.5 - confidence_level / 200, dim="scenario"
-                ).drop_vars("quantile")
-                ds_plume["scenario_upper"] = da_raw_rechunked.quantile(
-                    0.5 + confidence_level / 200, dim="scenario"
-                ).drop_vars("quantile")
-            else:
-                da_std_internal_model_scenario = np.sqrt(
-                    da_var_decomp.sum(dim="variance_type")
-                )
-                ds_plume["scenario_lower"] = (
-                    da_baseline - z * da_std_internal_model_scenario
-                )
-                ds_plume["scenario_upper"] = (
-                    da_baseline + z * da_std_internal_model_scenario
-                )
+
         # Plot confidence intervals
         plot_obj_list = []
-        if len(da_raw.scenario) > 1:
-            plot_obj_scenario_lower = ds_plume[
-                ["scenario_lower", "model_lower"]
-            ].hvplot.area(y="scenario_lower", y2="model_lower", **kwargs_scenario)
-            plot_obj_scenario_upper = ds_plume[
-                ["model_upper", "scenario_upper"]
-            ].hvplot.area(
+        if "scenario_lower" in da_decomp:
+            # plot_obj_scenario_lower = ds_plume[
+            #     ["scenario_lower", "model_lower"]
+            # ].hvplot.area(y="scenario_lower", y2="model_lower", **kwargs_scenario)
+            # plot_obj_scenario_upper = ds_plume[
+            #     ["model_upper", "scenario_upper"]
+            # ].hvplot.area(
+            #     y="model_upper",
+            #     y2="scenario_upper",
+            #     **{**kwargs_scenario, **{"label": None}},
+            # )
+            plot_obj_scenario_lower = da_decomp.hvplot.area(
+                y="scenario_lower", y2="model_lower", **kwargs_scenario
+            )
+            plot_obj_scenario_upper = da_decomp.hvplot.area(
                 y="model_upper",
                 y2="scenario_upper",
                 **{**kwargs_scenario, **{"label": None}},
             )
             plot_obj_list.extend([plot_obj_scenario_lower, plot_obj_scenario_upper])
-        if len(da_raw.model) > 1:
-            plot_obj_model_lower = ds_plume[
-                ["model_lower", "internal_lower"]
-            ].hvplot.area(y="model_lower", y2="internal_lower", **kwargs_model)
-            plot_obj_model_upper = ds_plume[
-                ["internal_upper", "model_upper"]
-            ].hvplot.area(
+        if "model_lower" in da_decomp:
+            # plot_obj_model_lower = ds_plume[
+            #     ["model_lower", "internal_lower"]
+            # ].hvplot.area(y="model_lower", y2="internal_lower", **kwargs_model)
+            # plot_obj_model_upper = ds_plume[
+            #     ["internal_upper", "model_upper"]
+            # ].hvplot.area(
+            #     y="internal_upper",
+            #     y2="model_upper",
+            #     **{**kwargs_model, **{"label": None}},
+            # )
+            plot_obj_model_lower = da_decomp.hvplot.area(
+                y="model_lower", y2="internal_lower", **kwargs_model
+            )
+            plot_obj_model_upper = da_decomp.hvplot.area(
                 y="internal_upper",
                 y2="model_upper",
                 **{**kwargs_model, **{"label": None}},
             )
             plot_obj_list.extend([plot_obj_model_lower, plot_obj_model_upper])
-        if estimate_internal_variability or multiple_realizations:
-            plot_obj_internal = ds_plume[
-                ["internal_lower", "internal_upper"]
-            ].hvplot.area(y="internal_lower", y2="internal_upper", **kwargs_internal)
+        if "internal_lower" in da_decomp:
+            plot_obj_internal = da_decomp.hvplot.area(
+                y="internal_lower", y2="internal_upper", **kwargs_internal
+            )
             plot_obj_list.append(plot_obj_internal)
         # Plot the baseline estimate
-        plot_obj_baseline = da_baseline.hvplot.line(**kwargs_baseline)
+        plot_obj_baseline = da_decomp.hvplot.line(**kwargs_baseline)
         plot_obj_list.append(plot_obj_baseline)
         # Combine the plots
         plot_obj = hv.Overlay(plot_obj_list).collate()
