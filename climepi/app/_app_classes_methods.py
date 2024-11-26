@@ -253,7 +253,7 @@ class _Plotter:
         ensemble_stat = self._plot_settings["ensemble_stat"]
         ds_plot = self._ds_plot
         if plot_type == "map" and ensemble_stat != "individual realization(s)":
-            ds_plot = ds_plot.climepi.ensemble_stats().sel(ensemble_stat=ensemble_stat)
+            ds_plot = ds_plot.climepi.ensemble_stats().sel(stat=ensemble_stat)
         self._ds_plot = ds_plot
 
 

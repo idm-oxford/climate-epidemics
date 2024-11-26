@@ -264,7 +264,7 @@ class ClimEpiDatasetAccessor:
     def ensemble_stats(
         self,
         data_var=None,
-        confidence_level=90,
+        uncertainty_level=90,
         estimate_internal_variability=True,
         polyfit_degree=4,
     ):
@@ -276,8 +276,8 @@ class ClimEpiDatasetAccessor:
         data_var : str or list, optional
             Name(s) of the data variable(s) to compute the ensemble statistics for.
             If not provided, all non-bound data variables will be used.
-        confidence_level : float, optional
-            Confidence level (percentage) for computing ensemble percentiles. Default
+        uncertainty_level : float, optional
+            Uncertainty level (percentage) for computing ensemble percentiles. Default
             is 90.
         estimate_internal_variability : bool, optional
             Whether to estimate internal variability using the estimate_ensemble_stats
@@ -298,11 +298,11 @@ class ClimEpiDatasetAccessor:
         # Deal with cases where only a single realization is available for each model
         # and scenario
         if estimate_internal_variability and not (
-            "realization" in self._obj.dims and len(self._obj.realization) > 1
+            "realization" in self._obj.dims and self._obj.realization.size > 1
         ):
             return self.estimate_ensemble_stats(
                 data_var_list,
-                confidence_level=confidence_level,
+                uncertainty_level=uncertainty_level,
                 polyfit_degree=polyfit_degree,
             )
         if "realization" not in self._obj[data_var_list].dims:
@@ -313,7 +313,7 @@ class ClimEpiDatasetAccessor:
                 )
             return ds_expanded.climepi.ensemble_stats(
                 data_var_list,
-                confidence_level=confidence_level,
+                uncertainty_level=uncertainty_level,
                 estimate_internal_variability=False,
             )
         # Compute ensemble statistics
@@ -326,22 +326,22 @@ class ClimEpiDatasetAccessor:
             # plots]
             ds_raw = ds_raw.chunk({"realization": -1})
         ds_mean = ds_raw.mean(dim="realization").expand_dims(
-            dim={"ensemble_stat": ["mean"]}, axis=-1
+            dim={"stat": ["mean"]}, axis=-1
         )
         ds_std = ds_raw.std(dim="realization").expand_dims(
-            dim={"ensemble_stat": ["std"]}, axis=-1
+            dim={"stat": ["std"]}, axis=-1
         )
         ds_var = ds_raw.var(dim="realization").expand_dims(
-            dim={"ensemble_stat": ["var"]}, axis=-1
+            dim={"stat": ["var"]}, axis=-1
         )
         ds_quantile = ds_raw.quantile(
-            [0, 0.5 - confidence_level / 200, 0.5, 0.5 + confidence_level / 200, 1],
+            [0, 0.5 - uncertainty_level / 200, 0.5, 0.5 + uncertainty_level / 200, 1],
             dim="realization",
-        ).rename({"quantile": "ensemble_stat"})
-        ds_quantile["ensemble_stat"] = ["min", "lower", "median", "upper", "max"]
+        ).rename({"quantile": "stat"})
+        ds_quantile["stat"] = ["min", "lower", "median", "upper", "max"]
         ds_stat = xr.concat(
             [ds_mean, ds_std, ds_var, ds_quantile],
-            dim="ensemble_stat",
+            dim="stat",
             coords="minimal",
         )
         ds_stat.attrs = self._obj.attrs
@@ -350,7 +350,7 @@ class ClimEpiDatasetAccessor:
         return ds_stat
 
     def estimate_ensemble_stats(
-        self, data_var=None, confidence_level=90, polyfit_degree=4
+        self, data_var=None, uncertainty_level=90, polyfit_degree=4
     ):
         """
         Estimate ensemble statistics for a data variable.
@@ -363,8 +363,8 @@ class ClimEpiDatasetAccessor:
         data_var : str or list, optional
             Name(s) of the data variable(s) to estimate the ensemble statistics for.
             If not provided, all non-bound data variables will be used.
-        confidence_level : float, optional
-            Confidence level (percentage) for computing ensemble percentiles. Default
+        uncertainty_level : float, optional
+            Uncertainty level (percentage) for computing ensemble percentiles. Default
             is 90.
         polyfit_degree : int, optional
             Degree of the polynomial to fit to the time series. Default is 4.
@@ -379,7 +379,7 @@ class ClimEpiDatasetAccessor:
         data_var_list = self._process_data_var_argument(data_var, as_list=True)
         # Deal with cases where the dataset includes a realization coordinate
         if "realization" in self._obj.dims:
-            if len(self._obj.realization) > 1:
+            if self._obj.realization.size > 1:
                 raise ValueError(
                     """The estimate_ensemble_stats method is only implemented for
                     datasets with a single ensemble member. Use the ensemble_stats
@@ -389,13 +389,13 @@ class ClimEpiDatasetAccessor:
                 "realization", drop=True
             ).climepi.estimate_ensemble_stats(
                 data_var_list,
-                confidence_level=confidence_level,
+                uncertainty_level=uncertainty_level,
                 polyfit_degree=polyfit_degree,
             )
         if "realization" in self._obj.coords:
             return self._obj.drop_vars("realization").climepi.estimate_ensemble_stats(
                 data_var_list,
-                confidence_level=confidence_level,
+                uncertainty_level=uncertainty_level,
                 polyfit_degree=polyfit_degree,
             )
         # Estimate ensemble mean by fitting a polynomial to each time series.
@@ -412,20 +412,20 @@ class ClimEpiDatasetAccessor:
         # dimension (this should be equivalent to adding coords="minimal" when
         # concatenating the datasets, but is done explicitly here for clarity).
         poly_residual_data_var_list = [x + "_polyfit_residuals" for x in data_var_list]
-        ds_var = (fitted_polys[poly_residual_data_var_list] / len(ds_raw.time)).rename(
+        ds_var = (fitted_polys[poly_residual_data_var_list] / ds_raw.time.size).rename(
             dict(zip(poly_residual_data_var_list, data_var_list))
         )
         ds_std = np.sqrt(ds_var)
         ds_var = ds_var.broadcast_like(ds_mean)
         ds_std = ds_std.broadcast_like(ds_mean)
-        # Estimate confidence intervals
-        z = scipy.stats.norm.ppf(0.5 + confidence_level / 200)
+        # Estimate uncertainty intervals
+        z = scipy.stats.norm.ppf(0.5 + uncertainty_level / 200)
         ds_lower = ds_mean - z * ds_std
         ds_upper = ds_mean + z * ds_std
         # Combine into a single dataset
         ds_stat = xr.concat(
             [ds_mean, ds_var, ds_std, ds_lower, ds_upper],
-            dim=xr.Variable("ensemble_stat", ["mean", "var", "std", "lower", "upper"]),
+            dim=xr.Variable("stat", ["mean", "var", "std", "lower", "upper"]),
             coords="minimal",
         )
         ds_stat.attrs = self._obj.attrs
@@ -465,7 +465,7 @@ class ClimEpiDatasetAccessor:
         -------
         xarray.Dataset
             A new dataset containing the variance decomposition of the selected data
-            variable(s) along a new "variance_type" dimension.
+            variable(s) along a new "source" dimension.
         """
         data_var_list = self._process_data_var_argument(data_var, as_list=True)
         for dim in ["scenario", "model"]:
@@ -490,27 +490,23 @@ class ClimEpiDatasetAccessor:
             polyfit_degree=polyfit_degree,
         )[data_var_list]
         # Calculate the internal, model and scenario contributions to the variance
-        ds_var_internal = ds_stat.sel(ensemble_stat="var", drop=True).mean(
+        ds_var_internal = ds_stat.sel(stat="var", drop=True).mean(
             dim=["scenario", "model"]
         )
         ds_var_model = (
-            ds_stat.sel(ensemble_stat="mean", drop=True)
-            .var(dim="model")
-            .mean(dim="scenario")
+            ds_stat.sel(stat="mean", drop=True).var(dim="model").mean(dim="scenario")
         )
         ds_var_scenario = (
-            ds_stat.sel(ensemble_stat="mean", drop=True)
-            .mean(dim="model")
-            .var(dim="scenario")
+            ds_stat.sel(stat="mean", drop=True).mean(dim="model").var(dim="scenario")
         )
         ds_var_decomp = xr.concat(
             [ds_var_internal, ds_var_model, ds_var_scenario],
-            dim=xr.Variable("variance_type", ["internal", "model", "scenario"]),
+            dim=xr.Variable("source", ["internal", "model", "scenario"]),
             coords="minimal",
         )
         # Express contributions as a fraction of the total variance if required
         if fraction:
-            ds_var_decomp = ds_var_decomp / ds_var_decomp.sum(dim="variance_type")
+            ds_var_decomp = ds_var_decomp / ds_var_decomp.sum(dim="source")
         # Copy and update attributes and bounds
         ds_var_decomp = add_bnds_from_other(ds_var_decomp, self._obj)
         ds_var_decomp.attrs = self._obj.attrs
@@ -542,7 +538,7 @@ class ClimEpiDatasetAccessor:
     def uncertainty_interval_decomposition(
         self,
         data_var=None,
-        confidence_level=90,
+        uncertainty_level=90,
         estimate_internal_variability=True,
         polyfit_degree=4,
     ):
@@ -557,8 +553,8 @@ class ClimEpiDatasetAccessor:
         ----------
         data_var : str or list of str, optional
             Name(s) of the data variable to decompose.
-        confidence_level : float, optional
-            Confidence level for the confidence intervals (percentage). Default is 90.
+        uncertainty_level : float, optional
+            Uncertainty level for the uncertainty intervals (percentage). Default is 90.
         estimate_internal_variability : bool, optional
             Whether to estimate internal variability if only a single ensemble member is
             available for each model and realization. Default is True.
@@ -582,13 +578,13 @@ class ClimEpiDatasetAccessor:
             if dim not in ds_raw.dims:
                 ds_raw = ds_raw.expand_dims(dim)
         # Get ensemble statistics, baseline estimate, and if necessary a decomposition
-        # of the variance and z value for approximate confidence intervals
+        # of the variance and z value for approximate uncertainty intervals
         ds_stat = ds_raw.climepi.ensemble_stats(
-            confidence_level=confidence_level,
+            uncertainty_level=uncertainty_level,
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )
-        ds_baseline = ds_stat.sel(ensemble_stat="mean", drop=True).mean(
+        ds_baseline = ds_stat.sel(stat="mean", drop=True).mean(
             dim=["scenario", "model"], keep_attrs=True
         )
         ds_var_decomp = ds_raw.climepi.variance_decomposition(
@@ -596,76 +592,74 @@ class ClimEpiDatasetAccessor:
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )
-        z = scipy.stats.norm.ppf(0.5 + confidence_level / 200)
+        z = scipy.stats.norm.ppf(0.5 + uncertainty_level / 200)
         # Create a dataset for the uncertainty interval decomposition
-        multiple_realizations = len(ds_raw.realization) > 1
+        multiple_realizations = ds_raw.realization.size > 1
         if estimate_internal_variability or multiple_realizations:
-            # Obtain confidence interval contribution from internal variability if there
+            # Obtain uncertainty interval contribution from internal variability if there
             # are multiple realizations or if internal variability is to be estimated
-            if len(ds_raw.scenario) == 1 and len(ds_raw.model) == 1:
+            if ds_raw.scenario.size == 1 and ds_raw.model.size == 1:
                 ds_internal_lower = ds_stat.squeeze(
                     ["model", "scenario"], drop=True
-                ).sel(ensemble_stat="lower", drop=True)
+                ).sel(stat="lower", drop=True)
                 ds_internal_upper = ds_stat.squeeze(
                     ["model", "scenario"], drop=True
-                ).sel(ensemble_stat="upper", drop=True)
+                ).sel(stat="upper", drop=True)
             else:
                 ds_std_internal = np.sqrt(
-                    ds_var_decomp.sel(variance_type="internal", drop=True)
+                    ds_var_decomp.sel(source="internal", drop=True)
                 )
                 ds_internal_lower = ds_baseline - z * ds_std_internal
                 ds_internal_upper = ds_baseline + z * ds_std_internal
         else:
-            ds_internal_lower = ds_baseline.copy()
-            ds_internal_upper = ds_baseline.copy()
-        if len(ds_raw.model) > 1:
+            ds_internal_lower = ds_baseline
+            ds_internal_upper = ds_baseline
+        if ds_raw.model.size > 1:
             # Model variability if there are multiple models
-            if len(ds_raw.scenario) == 1 and not (
+            if ds_raw.scenario.size == 1 and not (
                 multiple_realizations or estimate_internal_variability
             ):
                 ds_raw_rechunked = ds_raw.squeeze(
                     ["scenario", "realization"], drop=True
                 ).chunk({"model": -1})
                 ds_model_lower = ds_raw_rechunked.quantile(
-                    0.5 - confidence_level / 200, dim="model"
+                    0.5 - uncertainty_level / 200, dim="model"
                 ).drop_vars("quantile")
                 ds_model_upper = ds_raw_rechunked.quantile(
-                    0.5 + confidence_level / 200, dim="model"
+                    0.5 + uncertainty_level / 200, dim="model"
                 ).drop_vars("quantile")
             else:
                 ds_std_internal_model = np.sqrt(
-                    ds_var_decomp.sel(variance_type=["internal", "model"]).sum(
-                        dim="variance_type"
-                    )
+                    ds_var_decomp.sel(source=["internal", "model"]).sum(dim="source")
                 )
                 ds_model_lower = ds_baseline - z * ds_std_internal_model
                 ds_model_upper = ds_baseline + z * ds_std_internal_model
         else:
-            ds_model_lower = ds_internal_lower.copy()
-            ds_model_upper = ds_internal_upper.copy()
-        if len(ds_raw.scenario) > 1:
+            ds_model_lower = ds_internal_lower
+            ds_model_upper = ds_internal_upper
+        if ds_raw.scenario.size > 1:
             # Scenario variability if there are multiple scenarios
-            if len(ds_raw.model) == 1 and not (
+            if ds_raw.model.size == 1 and not (
                 multiple_realizations or estimate_internal_variability
             ):
                 ds_raw_rechunked = ds_raw.squeeze(
                     ["model", "realization"], drop=True
                 ).chunk({"scenario": -1})
                 ds_scenario_lower = ds_raw_rechunked.quantile(
-                    0.5 - confidence_level / 200, dim="scenario"
+                    0.5 - uncertainty_level / 200, dim="scenario"
                 ).drop_vars("quantile")
                 ds_scenario_upper = ds_raw_rechunked.quantile(
-                    0.5 + confidence_level / 200, dim="scenario"
+                    0.5 + uncertainty_level / 200, dim="scenario"
                 ).drop_vars("quantile")
             else:
                 ds_std_internal_model_scenario = np.sqrt(
-                    ds_var_decomp.sum(dim="variance_type")
+                    ds_var_decomp.sum(dim="source")
                 )
                 ds_scenario_lower = ds_baseline - z * ds_std_internal_model_scenario
                 ds_scenario_upper = ds_baseline + z * ds_std_internal_model_scenario
         else:
-            ds_scenario_lower = ds_model_lower.copy()
-            ds_scenario_upper = ds_model_upper.copy()
+            ds_scenario_lower = ds_model_lower
+            ds_scenario_upper = ds_model_upper
         # Combine into a single dataset
         ds_decomp = xr.concat(
             [
@@ -690,21 +684,10 @@ class ClimEpiDatasetAccessor:
                 ],
             ),
         )
-        # Only keep levels that are relevant
-        keep_levels = ["baseline"]
-        if multiple_realizations or estimate_internal_variability:
-            keep_levels.extend(["internal_lower", "internal_upper"])
-        if len(ds_raw.model) > 1:
-            keep_levels.extend(["model_lower", "model_upper"])
-        if len(ds_raw.scenario) > 1:
-            keep_levels.extend(["scenario_lower", "scenario_upper"])
-        ds_decomp = ds_decomp.sel(level=keep_levels, drop=True)
         # Copy and update attributes and bounds
         ds_decomp.attrs = self._obj.attrs
-        ds_var_decomp = add_bnds_from_other(ds_decomp, self._obj)
-        ds_var_decomp = add_var_attrs_from_other(
-            ds_decomp, self._obj, var=data_var_list
-        )
+        ds_decomp = add_bnds_from_other(ds_decomp, self._obj)
+        ds_decomp = add_var_attrs_from_other(ds_decomp, self._obj, var=data_var_list)
         return ds_decomp
 
     def plot_time_series(self, data_var=None, **kwargs):
@@ -817,6 +800,7 @@ class ClimEpiDatasetAccessor:
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )[data_var]
+        xlabel = label_from_attrs(da_var_decomp.time)
         ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
             label_from_attrs(da_var_decomp)  # so first get ylabel from attrs
             # .replace("[", "(")
@@ -825,20 +809,15 @@ class ClimEpiDatasetAccessor:
         da_var_decomp = da_var_decomp.drop_attrs()
         ds_plot = xr.Dataset(
             {
-                "Internal variability": da_var_decomp.sel(
-                    variance_type="internal", drop=True
-                ),
-                "Model uncertainty": da_var_decomp.sel(
-                    variance_type="model", drop=True
-                ),
-                "Scenario uncertainty": da_var_decomp.sel(
-                    variance_type="scenario", drop=True
-                ),
+                "Internal variability": da_var_decomp.sel(source="internal", drop=True),
+                "Model uncertainty": da_var_decomp.sel(source="model", drop=True),
+                "Scenario uncertainty": da_var_decomp.sel(source="scenario", drop=True),
             }
         ).squeeze()
         kwargs_hvplot = {
             "x": "time",
             "y": ["Internal variability", "Model uncertainty", "Scenario uncertainty"],
+            "xlabel": xlabel,
             "ylabel": ylabel,
             "group_label": "Uncertainty type",
             **kwargs,
@@ -849,17 +828,17 @@ class ClimEpiDatasetAccessor:
     def plot_uncertainty_interval_decomposition(
         self,
         data_var=None,
-        confidence_level=90,
+        uncertainty_level=90,
         estimate_internal_variability=True,
         polyfit_degree=4,
         kwargs_baseline=None,
         **kwargs_area,
     ):
         """
-        Plot contributions of climate uncertainty sources to confidence intervals.
+        Plot contributions of climate uncertainty sources to uncertainty intervals.
 
         Generates a plume plot showing contributions of internal variability, model
-        uncertainty and scenario uncertainty (as applicable) to confidence intervals for
+        uncertainty and scenario uncertainty (as applicable) to uncertainty intervals for
         a data variable over time.
 
         Wraps hvplot.area.
@@ -868,8 +847,8 @@ class ClimEpiDatasetAccessor:
         ----------
         data_var : str
             Name of the data variable to plot.
-        confidence_level : float, optional
-            Confidence level for the confidence intervals (percentage). Default is 90.
+        uncertainty_level : float, optional
+            Uncertainty level for the uncertainty intervals (percentage). Default is 90.
         estimate_internal_variability : bool, optional
             Whether to estimate internal variability if only a single ensemble member is
             available for each model and realization. Default is True.
@@ -880,7 +859,7 @@ class ClimEpiDatasetAccessor:
             Additional keyword arguments to pass to hvplot.line for the baseline
             estimate.
         **kwargs_area : dict, optional
-            Additional keyword arguments to pass to hvplot.area for the all confidence
+            Additional keyword arguments to pass to hvplot.area for the all uncertainty
             interval plots.
 
         Returns
@@ -891,10 +870,11 @@ class ClimEpiDatasetAccessor:
         data_var = self._process_data_var_argument(data_var)
         da_decomp = self.uncertainty_interval_decomposition(
             data_var,
-            confidence_level=confidence_level,
+            uncertainty_level=uncertainty_level,
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )[data_var]
+        xlabel = label_from_attrs(da_decomp.time)
         ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
             label_from_attrs(da_decomp)  # so first get ylabel from attrs
             # .replace("[", "(")
@@ -906,10 +886,10 @@ class ClimEpiDatasetAccessor:
         kwargs_baseline = {
             **{
                 "x": "time",
-                "y": "baseline",
                 "label": "Mean",
-                "ylabel": label_from_attrs(ylabel),
                 "color": "black",
+                "xlabel": xlabel,
+                "ylabel": ylabel,
             },
             **kwargs_baseline_in,
         }
@@ -933,55 +913,52 @@ class ClimEpiDatasetAccessor:
             **kwargs_area,
         }
 
-        # Plot confidence intervals
+        # Plot uncertainty intervals
         plot_obj_list = []
-        if "scenario_lower" in da_decomp:
-            # plot_obj_scenario_lower = ds_plume[
-            #     ["scenario_lower", "model_lower"]
-            # ].hvplot.area(y="scenario_lower", y2="model_lower", **kwargs_scenario)
-            # plot_obj_scenario_upper = ds_plume[
-            #     ["model_upper", "scenario_upper"]
-            # ].hvplot.area(
-            #     y="model_upper",
-            #     y2="scenario_upper",
-            #     **{**kwargs_scenario, **{"label": None}},
-            # )
-            plot_obj_scenario_lower = da_decomp.hvplot.area(
-                y="scenario_lower", y2="model_lower", **kwargs_scenario
-            )
-            plot_obj_scenario_upper = da_decomp.hvplot.area(
-                y="model_upper",
-                y2="scenario_upper",
-                **{**kwargs_scenario, **{"label": None}},
+        if "scenario" in self._obj and self._obj.scenario.size > 1:
+            plot_obj_scenario_lower = xr.Dataset(
+                {
+                    "lower": da_decomp.sel(level="scenario_lower", drop=True),
+                    "upper": da_decomp.sel(level="model_lower", drop=True),
+                }
+            ).hvplot.area(y="lower", y2="upper", **kwargs_scenario)
+            plot_obj_scenario_upper = xr.Dataset(
+                {
+                    "lower": da_decomp.sel(level="model_upper", drop=True),
+                    "upper": da_decomp.sel(level="scenario_upper", drop=True),
+                }
+            ).hvplot.area(
+                y="lower", y2="upper", **{**kwargs_scenario, **{"label": None}}
             )
             plot_obj_list.extend([plot_obj_scenario_lower, plot_obj_scenario_upper])
-        if "model_lower" in da_decomp:
-            # plot_obj_model_lower = ds_plume[
-            #     ["model_lower", "internal_lower"]
-            # ].hvplot.area(y="model_lower", y2="internal_lower", **kwargs_model)
-            # plot_obj_model_upper = ds_plume[
-            #     ["internal_upper", "model_upper"]
-            # ].hvplot.area(
-            #     y="internal_upper",
-            #     y2="model_upper",
-            #     **{**kwargs_model, **{"label": None}},
-            # )
-            plot_obj_model_lower = da_decomp.hvplot.area(
-                y="model_lower", y2="internal_lower", **kwargs_model
-            )
-            plot_obj_model_upper = da_decomp.hvplot.area(
-                y="internal_upper",
-                y2="model_upper",
-                **{**kwargs_model, **{"label": None}},
-            )
+        if "model" in self._obj and self._obj.model.size > 1:
+            plot_obj_model_lower = xr.Dataset(
+                {
+                    "lower": da_decomp.sel(level="model_lower", drop=True),
+                    "upper": da_decomp.sel(level="internal_lower", drop=True),
+                }
+            ).hvplot.area(y="lower", y2="upper", **kwargs_model)
+            plot_obj_model_upper = xr.Dataset(
+                {
+                    "lower": da_decomp.sel(level="internal_upper", drop=True),
+                    "upper": da_decomp.sel(level="model_upper", drop=True),
+                }
+            ).hvplot.area(y="lower", y2="upper", **{**kwargs_model, **{"label": None}})
             plot_obj_list.extend([plot_obj_model_lower, plot_obj_model_upper])
-        if "internal_lower" in da_decomp:
-            plot_obj_internal = da_decomp.hvplot.area(
-                y="internal_lower", y2="internal_upper", **kwargs_internal
-            )
+        if (
+            "realization" in self._obj and self._obj.realization.size > 1
+        ) or estimate_internal_variability:
+            plot_obj_internal = xr.Dataset(
+                {
+                    "lower": da_decomp.sel(level="internal_lower", drop=True),
+                    "upper": da_decomp.sel(level="internal_upper", drop=True),
+                }
+            ).hvplot.area(y="lower", y2="upper", **kwargs_internal)
             plot_obj_list.append(plot_obj_internal)
         # Plot the baseline estimate
-        plot_obj_baseline = da_decomp.hvplot.line(**kwargs_baseline)
+        plot_obj_baseline = da_decomp.sel(level="baseline", drop=True).hvplot.line(
+            **kwargs_baseline
+        )
         plot_obj_list.append(plot_obj_baseline)
         # Combine the plots
         plot_obj = hv.Overlay(plot_obj_list).collate()
