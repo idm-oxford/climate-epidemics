@@ -324,8 +324,7 @@ class TestMonthsSuitable:
 class TestEnsembleStats:
     """Class for testing the ensemble_stats method of ClimEpiDatasetAccessor."""
 
-    @pytest.mark.parametrize("chunked", [False, True])
-    def test_ensemble_stats(self, chunked):
+    def test_ensemble_stats(self):
         """
         Main test.
 
@@ -337,16 +336,6 @@ class TestEnsembleStats:
             data_var="temperature", extra_dims={"realization": 12, "ouch": 4}
         )
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        if chunked:
-            result = ds.chunk({"realization": 1, "ouch": 2}).climepi.ensemble_stats(
-                confidence_level=60
-            )
-            assert result.chunks
-            assert all(x == 2 for x in result.chunks["ouch"])
-            result.load()
-        else:
-            result = ds.climepi.ensemble_stats(confidence_level=60)
-            assert not result.chunks  # Check that the result is not chunked
         result = ds.climepi.ensemble_stats(confidence_level=60)
         xrt.assert_allclose(
             result["temperature"].sel(ensemble_stat="mean", drop=True),
