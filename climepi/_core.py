@@ -318,13 +318,13 @@ class ClimEpiDatasetAccessor:
             )
         # Compute ensemble statistics
         ds_raw = self._obj[data_var_list]  # drops bounds for now (re-add at end)
-        if ds_raw.chunks:
-            # Currently need to explicitly rechunk along the realization dimension for
-            # the quantile method to work [may be fixed in dask 2024.11 - check
-            # lens2_2030_2060_2090 notebook to see if safe to remove this, since
-            # only rechunking before quantile method could be problematic with map
-            # plots]
-            ds_raw = ds_raw.chunk({"realization": -1})
+        # if ds_raw.chunks:
+        #     # Currently need to explicitly rechunk along the realization dimension for
+        #     # the quantile method to work [may be fixed in dask 2024.11 - check
+        #     # lens2_2030_2060_2090 notebook to see if safe to remove this, since
+        #     # only rechunking before quantile method could be problematic with map
+        #     # plots]
+        #     ds_raw = ds_raw.chunk({"realization": -1})
         ds_mean = ds_raw.mean(dim="realization").expand_dims(
             dim={"stat": ["mean"]}, axis=-1
         )
@@ -619,15 +619,16 @@ class ClimEpiDatasetAccessor:
             if ds_raw.scenario.size == 1 and not (
                 multiple_realizations or estimate_internal_variability
             ):
-                ds_raw_rechunked = ds_raw.squeeze(
-                    ["scenario", "realization"], drop=True
-                ).chunk({"model": -1})
-                ds_model_lower = ds_raw_rechunked.quantile(
-                    0.5 - uncertainty_level / 200, dim="model"
-                ).drop_vars("quantile")
-                ds_model_upper = ds_raw_rechunked.quantile(
-                    0.5 + uncertainty_level / 200, dim="model"
-                ).drop_vars("quantile")
+                ds_model_lower = (
+                    ds_raw.squeeze(["scenario", "realization"], drop=True)
+                    .quantile(0.5 - uncertainty_level / 200, dim="model")
+                    .drop_vars("quantile")
+                )
+                ds_model_upper = (
+                    ds_raw.squeeze(["scenario", "realization"], drop=True)
+                    .quantile(0.5 + uncertainty_level / 200, dim="model")
+                    .drop_vars("quantile")
+                )
             else:
                 ds_std_internal_model = np.sqrt(
                     ds_var_decomp.sel(source=["internal", "model"]).sum(dim="source")
@@ -642,15 +643,16 @@ class ClimEpiDatasetAccessor:
             if ds_raw.model.size == 1 and not (
                 multiple_realizations or estimate_internal_variability
             ):
-                ds_raw_rechunked = ds_raw.squeeze(
-                    ["model", "realization"], drop=True
-                ).chunk({"scenario": -1})
-                ds_scenario_lower = ds_raw_rechunked.quantile(
-                    0.5 - uncertainty_level / 200, dim="scenario"
-                ).drop_vars("quantile")
-                ds_scenario_upper = ds_raw_rechunked.quantile(
-                    0.5 + uncertainty_level / 200, dim="scenario"
-                ).drop_vars("quantile")
+                ds_scenario_lower = (
+                    ds_raw.squeeze(["model", "realization"], drop=True)
+                    .quantile(0.5 - uncertainty_level / 200, dim="scenario")
+                    .drop_vars("quantile")
+                )
+                ds_scenario_upper = (
+                    ds_raw.squeeze(["model", "realization"], drop=True)
+                    .quantile(0.5 + uncertainty_level / 200, dim="scenario")
+                    .drop_vars("quantile")
+                )
             else:
                 ds_std_internal_model_scenario = np.sqrt(
                     ds_var_decomp.sum(dim="source")
