@@ -802,11 +802,13 @@ class ClimEpiDatasetAccessor:
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )[data_var]
-        xlabel = label_from_attrs(da_var_decomp.time)
+        xlabel = (
+            label_from_attrs(da_var_decomp.time).replace("[", "(").replace("]", ")")
+        )
         ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
             label_from_attrs(da_var_decomp)  # so first get ylabel from attrs
-            # .replace("[", "(")
-            # .replace("]", ")")
+            .replace("[", "(")
+            .replace("]", ")")
         )
         da_var_decomp = da_var_decomp.drop_attrs()
         ds_plot = xr.Dataset(
@@ -876,11 +878,11 @@ class ClimEpiDatasetAccessor:
             estimate_internal_variability=estimate_internal_variability,
             polyfit_degree=polyfit_degree,
         )[data_var]
-        xlabel = label_from_attrs(da_decomp.time)
+        xlabel = label_from_attrs(da_decomp.time).replace("[", "(").replace("]", ")")
         ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
             label_from_attrs(da_decomp)  # so first get ylabel from attrs
-            # .replace("[", "(")
-            # .replace("]", ")")
+            .replace("[", "(")
+            .replace("]", ")")
         )
         da_decomp = da_decomp.drop_attrs()
         kwargs_baseline_in = {} if kwargs_baseline is None else kwargs_baseline
