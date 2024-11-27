@@ -919,7 +919,7 @@ class ClimEpiDatasetAccessor:
 
         # Plot uncertainty intervals
         plot_obj_list = []
-        if "scenario" in self._obj and self._obj.scenario.size > 1:
+        if "scenario" in self._obj.dims and self._obj.scenario.size > 1:
             plot_obj_scenario_lower = xr.Dataset(
                 {
                     "lower": da_decomp.sel(level="scenario_lower", drop=True),
@@ -935,7 +935,7 @@ class ClimEpiDatasetAccessor:
                 y="lower", y2="upper", **{**kwargs_scenario, **{"label": None}}
             )
             plot_obj_list.extend([plot_obj_scenario_lower, plot_obj_scenario_upper])
-        if "model" in self._obj and self._obj.model.size > 1:
+        if "model" in self._obj.dims and self._obj.model.size > 1:
             plot_obj_model_lower = xr.Dataset(
                 {
                     "lower": da_decomp.sel(level="model_lower", drop=True),
@@ -950,7 +950,7 @@ class ClimEpiDatasetAccessor:
             ).hvplot.area(y="lower", y2="upper", **{**kwargs_model, **{"label": None}})
             plot_obj_list.extend([plot_obj_model_lower, plot_obj_model_upper])
         if (
-            "realization" in self._obj and self._obj.realization.size > 1
+            "realization" in self._obj.dims and self._obj.realization.size > 1
         ) or estimate_internal_variability:
             plot_obj_internal = xr.Dataset(
                 {
