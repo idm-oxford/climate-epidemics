@@ -336,37 +336,37 @@ class TestEnsembleStats:
             data_var="temperature", extra_dims={"realization": 12, "ouch": 4}
         )
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        result = ds.climepi.ensemble_stats(confidence_level=60)
+        result = ds.climepi.ensemble_stats(uncertainty_level=60)
         xrt.assert_allclose(
-            result["temperature"].sel(ensemble_stat="mean", drop=True),
+            result["temperature"].sel(stat="mean", drop=True),
             ds["temperature"].mean(dim="realization"),
         )
         xrt.assert_allclose(
-            result["temperature"].sel(ensemble_stat="std", drop=True),
+            result["temperature"].sel(stat="std", drop=True),
             ds["temperature"].std(dim="realization"),
         )
         xrt.assert_allclose(
-            result["temperature"].sel(ensemble_stat="var", drop=True),
+            result["temperature"].sel(stat="var", drop=True),
             ds["temperature"].var(dim="realization"),
         )
         xrt.assert_allclose(
-            result["temperature"].sel(ensemble_stat="median", drop=True),
+            result["temperature"].sel(stat="median", drop=True),
             ds["temperature"].median(dim="realization"),
         )
         xrt.assert_allclose(
-            result["temperature"].sel(ensemble_stat="min", drop=True),
+            result["temperature"].sel(stat="min", drop=True),
             ds["temperature"].min(dim="realization"),
         )
         xrt.assert_allclose(
-            result["temperature"].sel(ensemble_stat="max", drop=True),
+            result["temperature"].sel(stat="max", drop=True),
             ds["temperature"].max(dim="realization"),
         )
         xrt.assert_allclose(
-            result["temperature"].sel(ensemble_stat="lower", drop=True),
+            result["temperature"].sel(stat="lower", drop=True),
             ds["temperature"].quantile(0.2, dim="realization").drop_vars("quantile"),
         )
         xrt.assert_allclose(
-            result["temperature"].sel(ensemble_stat="upper", drop=True),
+            result["temperature"].sel(stat="upper", drop=True),
             ds["temperature"].quantile(0.8, dim="realization").drop_vars("quantile"),
         )
         xrt.assert_allclose(
@@ -428,16 +428,14 @@ class TestEnsembleStats:
         result3 = ds3.climepi.ensemble_stats(estimate_internal_variability=False)
         xrt.assert_allclose(result1, result2)
         xrt.assert_allclose(result1, result3)
-        for ensemble_stat in ["mean", "median", "min", "max", "lower", "upper"]:
+        for stat in ["mean", "median", "min", "max", "lower", "upper"]:
             xrt.assert_allclose(
-                result1["temperature"].sel(ensemble_stat=ensemble_stat, drop=True),
+                result1["temperature"].sel(stat=stat, drop=True),
                 ds1["temperature"],
             )
-        for ensemble_stat in ["std", "var"]:
+        for stat in ["std", "var"]:
             npt.assert_allclose(
-                result1["temperature"]
-                .sel(ensemble_stat=ensemble_stat, drop=True)
-                .values,
+                result1["temperature"].sel(stat=stat, drop=True).values,
                 0,
             )
 
@@ -479,7 +477,7 @@ class TestEstimateEnsembleStats:
             )
             ds["time"].encoding.update(calendar="standard")
             result = ds.climepi.estimate_ensemble_stats(
-                confidence_level=80, polyfit_degree=3
+                uncertainty_level=80, polyfit_degree=3
             )
             if repeat == 0:
                 # Just check for the first repeat that the results match those obtained
@@ -495,31 +493,27 @@ class TestEstimateEnsembleStats:
                 lower_expected = norm.ppf(0.1, loc=mean_expected, scale=std_expected)
                 upper_expected = norm.ppf(0.9, loc=mean_expected, scale=std_expected)
                 npt.assert_allclose(
-                    result["temperature"].sel(ensemble_stat="mean", drop=True).values,
+                    result["temperature"].sel(stat="mean", drop=True).values,
                     mean_expected,
                 )
                 npt.assert_allclose(
-                    result["temperature"].sel(ensemble_stat="std", drop=True).values,
+                    result["temperature"].sel(stat="std", drop=True).values,
                     std_expected,
                 )
                 npt.assert_allclose(
-                    result["temperature"].sel(ensemble_stat="var", drop=True).values,
+                    result["temperature"].sel(stat="var", drop=True).values,
                     var_expected,
                 )
                 npt.assert_allclose(
-                    result["temperature"].sel(ensemble_stat="lower", drop=True).values,
+                    result["temperature"].sel(stat="lower", drop=True).values,
                     lower_expected,
                 )
                 npt.assert_allclose(
-                    result["temperature"].sel(ensemble_stat="upper", drop=True).values,
+                    result["temperature"].sel(stat="upper", drop=True).values,
                     upper_expected,
                 )
-            mean_result_sum += (
-                result["temperature"].sel(ensemble_stat="mean", drop=True).values
-            )
-            std_result_sum += (
-                result["temperature"].sel(ensemble_stat="std", drop=True).values
-            )
+            mean_result_sum += result["temperature"].sel(stat="mean", drop=True).values
+            std_result_sum += result["temperature"].sel(stat="std", drop=True).values
         mean_result_avg = mean_result_sum / repeats
         std_result_avg = std_result_sum / repeats
         var_result_avg = std_result_avg**2
@@ -627,33 +621,27 @@ class TestVarianceDecomposition:
         var_frac_model = var_model / var_total
         var_frac_scenario = var_scenario / var_total
         npt.assert_allclose(
-            result["temperature"].sel(variance_type="internal", drop=True).values,
+            result["temperature"].sel(source="internal", drop=True).values,
             var_internal,
         )
         npt.assert_allclose(
-            result["temperature"].sel(variance_type="model", drop=True).values,
+            result["temperature"].sel(source="model", drop=True).values,
             var_model,
         )
         npt.assert_allclose(
-            result["temperature"].sel(variance_type="scenario", drop=True).values,
+            result["temperature"].sel(source="scenario", drop=True).values,
             var_scenario,
         )
         npt.assert_allclose(
-            result_fractional["temperature"]
-            .sel(variance_type="internal", drop=True)
-            .values,
+            result_fractional["temperature"].sel(source="internal", drop=True).values,
             var_frac_internal,
         )
         npt.assert_allclose(
-            result_fractional["temperature"]
-            .sel(variance_type="model", drop=True)
-            .values,
+            result_fractional["temperature"].sel(source="model", drop=True).values,
             var_frac_model,
         )
         npt.assert_allclose(
-            result_fractional["temperature"]
-            .sel(variance_type="scenario", drop=True)
-            .values,
+            result_fractional["temperature"].sel(source="scenario", drop=True).values,
             var_frac_scenario,
         )
         assert result["temperature"].attrs["units"] == "(Hello there)²"
@@ -704,15 +692,208 @@ class TestVarianceDecomposition:
         xrt.assert_allclose(result1, result2)
         xrt.assert_allclose(result1, result3)
         xrt.assert_allclose(
-            result1["temperature"].sel(variance_type="internal", drop=True),
+            result1["temperature"].sel(source="internal", drop=True),
             ds1["temperature"].var(dim="realization"),
         )
         npt.assert_allclose(
-            result1["temperature"].sel(variance_type="model", drop=True).values, 0
+            result1["temperature"].sel(source="model", drop=True).values, 0
         )
         npt.assert_allclose(
-            result1["temperature"].sel(variance_type="scenario", drop=True).values, 0
+            result1["temperature"].sel(source="scenario", drop=True).values, 0
         )
+
+
+class TestUncertaintyIntervalDecomposition:
+    """Class for testing the uncertainty_interval_decomposition method."""
+
+    def test_uncertainty_interval_decomposition(self):
+        """Main test."""
+        ds = generate_dataset(
+            data_var="temperature",
+            extra_dims={"scenario": 6, "model": 4, "realization": 9},
+        ).isel(lon=0, lat=0)
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
+            ds["temperature"]
+            - ds["temperature"].mean(dim=["scenario", "model", "realization"])
+        )
+        ds["temperature"].attrs = {"reverse": "sweep"}
+        result = ds.climepi.uncertainty_interval_decomposition()
+        # Check that mean and lower/upper bounds for each component are correct
+        z = norm.ppf(0.95)
+        da_var_decomp = ds.climepi.variance_decomposition(fraction=False)["temperature"]
+        internal_upper_expected = z * np.sqrt(
+            da_var_decomp.sel(source="internal").values
+        )
+        internal_lower_expected = -internal_upper_expected
+        model_upper_expected = z * np.sqrt(
+            da_var_decomp.sel(source="internal").values
+            + da_var_decomp.sel(source="model").values
+        )
+        model_lower_expected = -model_upper_expected
+        scenario_upper_expected = z * np.sqrt(da_var_decomp.sum(dim="source").values)
+        scenario_lower_expected = -scenario_upper_expected
+        npt.assert_allclose(
+            result["temperature"].sel(level="baseline").values, 0, atol=1e-7
+        )
+        npt.assert_allclose(
+            result["temperature"].sel(level="internal_lower").values,
+            internal_lower_expected,
+        )
+        npt.assert_allclose(
+            result["temperature"].sel(level="internal_upper").values,
+            internal_upper_expected,
+        )
+        npt.assert_allclose(
+            result["temperature"].sel(level="model_lower").values,
+            model_lower_expected,
+        )
+        npt.assert_allclose(
+            result["temperature"].sel(level="model_upper").values,
+            model_upper_expected,
+        )
+        npt.assert_allclose(
+            result["temperature"].sel(level="scenario_lower").values,
+            scenario_lower_expected,
+        )
+        npt.assert_allclose(
+            result["temperature"].sel(level="scenario_upper").values,
+            scenario_upper_expected,
+        )
+        # Check handling of attributes and bounds
+        assert result["temperature"].attrs == {"reverse": "sweep"}
+        xrt.assert_identical(ds["time_bnds"], result["time_bnds"])
+
+    def test_uncertainty_interval_decomposition_varlist(self):
+        """Test with a list of data variables."""
+        data_vars = ["temperature", "precipitation"]
+        ds = generate_dataset(data_var=data_vars, frequency="monthly")
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
+        result = ds.climepi.uncertainty_interval_decomposition()
+        for data_var in data_vars:
+            xrt.assert_allclose(
+                result[data_var],
+                ds[[data_var]].climepi.uncertainty_interval_decomposition()[data_var],
+            )
+            xrt.assert_allclose(
+                result[data_var],
+                ds.climepi.uncertainty_interval_decomposition(data_var)[data_var],
+            )
+
+    def test_uncertainty_interval_decomposition_internal_only(self):
+        """Test in case where only internal variability is present."""
+        ds = generate_dataset(
+            data_var="temperature",
+            extra_dims={"realization": 231},
+        ).isel(lon=0, lat=0)
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
+            ds["temperature"] - ds["temperature"].mean(dim="realization")
+        )
+        result = ds.climepi.uncertainty_interval_decomposition()["temperature"]
+        # Test that mean and lower/upper bounds for each component are correct
+        lower_expected = ds["temperature"].quantile(0.05, dim="realization").values
+        upper_expected = ds["temperature"].quantile(0.95, dim="realization").values
+        npt.assert_allclose(
+            result.sel(level="baseline").values,
+            0,
+            atol=1e-7,
+        )
+        npt.assert_allclose(
+            result.sel(level="internal_lower").values,
+            lower_expected,
+        )
+        npt.assert_allclose(
+            result.sel(level="internal_upper").values,
+            upper_expected,
+        )
+        xrt.assert_equal(
+            result.sel(level="model_lower", drop=True),
+            result.sel(level="internal_lower", drop=True),
+        )
+        xrt.assert_equal(
+            result.sel(level="model_upper", drop=True),
+            result.sel(level="internal_upper", drop=True),
+        )
+        xrt.assert_equal(
+            result.sel(level="scenario_lower", drop=True),
+            result.sel(level="internal_lower", drop=True),
+        )
+        xrt.assert_equal(
+            result.sel(level="scenario_upper", drop=True),
+            result.sel(level="internal_upper", drop=True),
+        )
+
+    def test_uncertainty_interval_decomposition_model_only(self):
+        """Test with only model uncertainty (not estimating internal variability)."""
+        ds = generate_dataset(
+            data_var="temperature",
+            extra_dims={"model": 17},
+        ).isel(lon=0, lat=0)
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
+            ds["temperature"] - ds["temperature"].mean(dim="model")
+        )
+        result = ds.climepi.uncertainty_interval_decomposition(
+            estimate_internal_variability=False
+        )["temperature"]
+        # Test that mean and lower/upper bounds for each component are correct
+        lower_expected = ds["temperature"].quantile(0.05, dim="model").values
+        upper_expected = ds["temperature"].quantile(0.95, dim="model").values
+        npt.assert_allclose(
+            result.sel(level=["baseline", "internal_lower", "internal_upper"]).values,
+            0,
+            atol=1e-7,
+        )
+        npt.assert_allclose(
+            result.sel(level="model_lower").values,
+            lower_expected,
+        )
+        npt.assert_allclose(
+            result.sel(level="model_upper").values,
+            upper_expected,
+        )
+        xrt.assert_equal(
+            result.sel(level="scenario_lower", drop=True),
+            result.sel(level="model_lower", drop=True),
+        )
+        xrt.assert_equal(
+            result.sel(level="scenario_upper", drop=True),
+            result.sel(level="model_upper", drop=True),
+        )
+
+    def test_uncertainty_interval_decomposition_scenario_only(self):
+        """Test with only scenario uncertainty (not estimating internal variability)."""
+        ds = generate_dataset(
+            data_var="temperature",
+            extra_dims={"scenario": 17},
+        ).isel(lon=0, lat=0)
+        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
+        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
+            ds["temperature"] - ds["temperature"].mean(dim="scenario")
+        )
+        result = ds.climepi.uncertainty_interval_decomposition(
+            estimate_internal_variability=False
+        )["temperature"]
+        # Test that mean and lower/upper bounds for each component are correct
+        lower_expected = ds["temperature"].quantile(0.05, dim="scenario").values
+        upper_expected = ds["temperature"].quantile(0.95, dim="scenario").values
+        npt.assert_allclose(
+            result.sel(
+                level=[
+                    "baseline",
+                    "internal_lower",
+                    "internal_upper",
+                    "model_lower",
+                    "model_upper",
+                ]
+            ).values,
+            0,
+            atol=1e-7,
+        )
+        npt.assert_allclose(result.sel(level="scenario_lower").values, lower_expected)
+        npt.assert_allclose(result.sel(level="scenario_upper").values, upper_expected)
 
 
 def test_plot_time_series():
@@ -771,14 +952,14 @@ def test_plot_variance_decomposition(fraction):
     # Test that lower/upper bounds for each component are correct
     da_var_decomp = ds.climepi.variance_decomposition(fraction=fraction)["temperature"]
     internal_lower_expected = 0
-    internal_upper_expected = da_var_decomp.sel(variance_type="internal").values
+    internal_upper_expected = da_var_decomp.sel(source="internal").values
     model_lower_expected = internal_upper_expected
     model_upper_expected = model_lower_expected + (
-        da_var_decomp.sel(variance_type="model").values
+        da_var_decomp.sel(source="model").values
     )
     scenario_lower_expected = model_upper_expected
     scenario_upper_expected = scenario_lower_expected + (
-        da_var_decomp.sel(variance_type="scenario").values
+        da_var_decomp.sel(source="scenario").values
     )
     npt.assert_allclose(
         result["Internal variability"].data.Baseline.values, internal_lower_expected
@@ -809,130 +990,113 @@ def test_plot_variance_decomposition(fraction):
         assert result.opts["ylabel"] == "Variance of hello (there²)"
 
 
-class TestPlotUncertaintyPlume:
-    """Class for testing the plot_uncertainty_plume method of ClimEpiDatasetAccessor."""
+class TestPlotUncertaintyIntervalDecomposition:
+    """Class for testing the plot_uncertainty_decomposition method."""
 
-    def test_plot_uncertainty_plume(self):
+    def test_plot_uncertainty_interval_decomposition(self):
         """Main test."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"scenario": 6, "model": 4, "realization": 9},
         ).isel(lon=0, lat=0)
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
-            ds["temperature"]
-            - ds["temperature"].mean(dim=["scenario", "model", "realization"])
-        )
-        result = ds.climepi.plot_uncertainty_plume()
+        result = ds.climepi.plot_uncertainty_interval_decomposition()
+        assert list(result.data.keys()) == [
+            ("Area", "Scenario_uncertainty"),
+            ("Area", "I"),  # unlabelled upper portion due to scenario uncertainty
+            ("Area", "Model_uncertainty"),
+            ("Area", "II"),  # unlabelled upper portion due to model uncertainty
+            ("Area", "Internal_variability"),
+            ("Curve", "Mean"),
+        ]
         # Test that mean and lower/upper bounds for each component are correct
-        npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
-        z = norm.ppf(0.95)
-        da_var_decomp = ds.climepi.variance_decomposition(fraction=False)["temperature"]
-        internal_upper_expected = z * np.sqrt(
-            da_var_decomp.sel(variance_type="internal").values
+        da_decomp = ds.climepi.uncertainty_interval_decomposition()["temperature"]
+        npt.assert_allclose(
+            result.Curve.Mean.data.temperature,
+            da_decomp.sel(level="baseline"),
         )
-        internal_lower_expected = -internal_upper_expected
-        model_upper_expected = z * np.sqrt(
-            da_var_decomp.sel(variance_type="internal").values
-            + da_var_decomp.sel(variance_type="model").values
-        )
-        model_lower_expected = -model_upper_expected
-        scenario_upper_expected = z * np.sqrt(
-            da_var_decomp.sum(dim="variance_type").values
-        )
-        scenario_lower_expected = -scenario_upper_expected
         npt.assert_allclose(  # Portion due to internal variability
-            result.Area.Internal_variability.data[["internal_lower", "internal_upper"]],
-            np.array([internal_lower_expected, internal_upper_expected]).T,
+            result.Area.Internal_variability.data.lower,
+            da_decomp.sel(level="internal_lower"),
+        )
+        npt.assert_allclose(
+            result.Area.Internal_variability.data.upper,
+            da_decomp.sel(level="internal_upper"),
         )
         npt.assert_allclose(  # Lower portion due to model uncertainty
-            result.Area.Model_uncertainty.data[["model_lower", "internal_lower"]],
-            np.array([model_lower_expected, internal_lower_expected]).T,
+            result.Area.Model_uncertainty.data.lower,
+            da_decomp.sel(level="model_lower"),
+        )
+        npt.assert_allclose(
+            result.Area.Model_uncertainty.data.upper,
+            da_decomp.sel(level="internal_lower"),
         )
         npt.assert_allclose(  # Upper portion due to model uncertainty
-            result.Area.II.data[["internal_upper", "model_upper"]],
-            np.array([internal_upper_expected, model_upper_expected]).T,
+            result.Area.II.data.lower,
+            da_decomp.sel(level="internal_upper"),
+        )
+        npt.assert_allclose(
+            result.Area.II.data.upper,
+            da_decomp.sel(level="model_upper"),
         )
         npt.assert_allclose(  # Lower portion due to scenario uncertainty
-            result.Area.Scenario_uncertainty.data[["model_lower", "scenario_lower"]],
-            np.array([model_lower_expected, scenario_lower_expected]).T,
+            result.Area.Scenario_uncertainty.data.lower,
+            da_decomp.sel(level="scenario_lower"),
+        )
+        npt.assert_allclose(
+            result.Area.Scenario_uncertainty.data.upper,
+            da_decomp.sel(level="model_lower"),
         )
         npt.assert_allclose(  # Upper portion due to scenario uncertainty
-            result.Area.I.data[["model_upper", "scenario_upper"]],
-            np.array([model_upper_expected, scenario_upper_expected]).T,
+            result.Area.I.data.lower,
+            da_decomp.sel(level="model_upper"),
+        )
+        npt.assert_allclose(
+            result.Area.I.data.upper,
+            da_decomp.sel(level="scenario_upper"),
         )
 
-    def test_plot_uncertainty_plume_internal_only(self):
+    def test_plot_uncertainty_interval_decomposition_internal_only(self):
         """Test in case where only internal variability is present."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"realization": 231},
         ).isel(lon=0, lat=0)
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
-            ds["temperature"] - ds["temperature"].mean(dim="realization")
-        )
-        result = ds.climepi.plot_uncertainty_plume()
-        # Test that mean and lower/upper bounds for each component are correct
-        npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
-        lower_expected = ds["temperature"].quantile(0.05, dim="realization").values
-        upper_expected = ds["temperature"].quantile(0.95, dim="realization").values
-        npt.assert_allclose(
-            result.Area.Internal_variability.data[["internal_lower", "internal_upper"]],
-            np.array([lower_expected, upper_expected]).T,
-        )
+        result = ds.climepi.plot_uncertainty_interval_decomposition()
+        assert list(result.data.keys()) == [
+            ("Area", "Internal_variability"),
+            ("Curve", "Mean"),
+        ]
 
-    def test_plot_uncertainty_plume_model_only(self):
+    def test_plot_uncertainty_interval_decomposition_model_only(self):
         """Test with only model uncertainty (not estimating internal variability)."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"model": 17},
         ).isel(lon=0, lat=0)
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
-            ds["temperature"] - ds["temperature"].mean(dim="model")
+        result = ds.climepi.plot_uncertainty_interval_decomposition(
+            estimate_internal_variability=False
         )
-        result = ds.climepi.plot_uncertainty_plume(estimate_internal_variability=False)
-        # Test that mean and lower/upper bounds for each component are correct
-        npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
-        lower_expected = ds["temperature"].quantile(0.05, dim="model").values
-        upper_expected = ds["temperature"].quantile(0.95, dim="model").values
-        npt.assert_allclose(
-            result.Area.Model_uncertainty.data[["model_lower", "internal_lower"]],
-            np.array([lower_expected, np.zeros(lower_expected.shape)]).T,
-            atol=1e-7,
-        )
-        npt.assert_allclose(
-            result.Area.I.data[["internal_upper", "model_upper"]],
-            np.array([np.zeros(upper_expected.shape), upper_expected]).T,
-            atol=1e-7,
-        )
+        assert list(result.data.keys()) == [
+            ("Area", "Model_uncertainty"),
+            ("Area", "I"),  # unlabelled upper portion due to model uncertainty
+            ("Curve", "Mean"),
+        ]
 
-    def test_plot_uncertainty_plume_scenario_only(self):
-        """Test with only scenario uncertainty (not estimating internal variability)."""
+    def test_plot_uncertainty_interval_decomposition_no_model(self):
+        """Test with no model uncertainty, estimating internal variability."""
         ds = generate_dataset(
             data_var="temperature",
             extra_dims={"scenario": 17},
         ).isel(lon=0, lat=0)
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
-            ds["temperature"] - ds["temperature"].mean(dim="scenario")
-        )
-        result = ds.climepi.plot_uncertainty_plume(estimate_internal_variability=False)
-        # Test that mean and lower/upper bounds for each component are correct
-        npt.assert_allclose(result.Curve.Mean.data.temperature.values, 0, atol=1e-7)
-        lower_expected = ds["temperature"].quantile(0.05, dim="scenario").values
-        upper_expected = ds["temperature"].quantile(0.95, dim="scenario").values
-        npt.assert_allclose(
-            result.Area.Scenario_uncertainty.data[["scenario_lower", "model_lower"]],
-            np.array([lower_expected, np.zeros(lower_expected.shape)]).T,
-            atol=1e-7,
-        )
-        npt.assert_allclose(
-            result.Area.I.data[["model_upper", "scenario_upper"]],
-            np.array([np.zeros(upper_expected.shape), upper_expected]).T,
-            atol=1e-7,
-        )
+        result = ds.climepi.plot_uncertainty_interval_decomposition()
+        assert list(result.data.keys()) == [
+            ("Area", "Scenario_uncertainty"),
+            ("Area", "I"),  # unlabelled upper portion due to scenario uncertainty
+            ("Area", "Internal_variability"),
+            ("Curve", "Mean"),
+        ]
 
 
 def test__process_data_var_argument():
