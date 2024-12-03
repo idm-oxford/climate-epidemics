@@ -67,10 +67,11 @@ class ClimateDataGetter:
                 realizations are retrieved.
             locations : str or list of str, optional
                 Name of one or more locations for which to retrieve data (for each
-                provided location, `geopy` is used to query the corresponding longitude
-                and latitude, and data for the nearest grid point are retrieved). If
-                not provided, the 'lon_range' and 'lat_range' parameters are used
-                instead.
+                provided location, OpenStreetMap data
+                (https://openstreetmap.org/copyright) is used to query the corresponding
+                longitude and latitude, and data for the nearest grid point are
+                retrieved). If not provided, the 'lon_range' and 'lat_range' parameters
+                are used instead.
             lon_range : list or array-like of float, optional
                 Longitude range for which to retrieve data. Should comprise two values
                 giving the minimum and maximum longitudes. Ignored if 'location' is

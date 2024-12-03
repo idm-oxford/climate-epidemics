@@ -11,9 +11,9 @@ import numpy as np
 import scipy.stats
 import xarray as xr
 import xcdat  # noqa # pylint: disable=unused-import
-from geopy.geocoders import Nominatim
 from xarray.plot.utils import label_from_attrs
 
+from climepi._geocoding import geocode
 from climepi.utils import (
     add_bnds_from_other,
     add_var_attrs_from_other,
@@ -65,6 +65,7 @@ class ClimEpiDatasetAccessor:
         geopy's Nominatim geocoder, and returns a new dataset containing the data for
         the nearest grid point.
 
+        Uses OpenStreetMap data (https://openstreetmap.org/copyright).
 
         Parameters
         ----------
@@ -91,7 +92,7 @@ class ClimEpiDatasetAccessor:
                 coords=["lat", "lon", "location"],
             ).swap_dims(location_dim="location")
             return ds_new
-        location_geopy = Nominatim(user_agent="climepi").geocode(location, **kwargs)
+        location_geopy = geocode(location, **kwargs)
         lat = location_geopy.latitude
         lon = location_geopy.longitude  # in the range [-180, 180]
         lon_min = min(self._obj.lon)

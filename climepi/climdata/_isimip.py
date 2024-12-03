@@ -10,10 +10,10 @@ import pandas as pd
 import pooch
 import requests
 import xcdat  # noqa
-from geopy.geocoders import Nominatim
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
+from climepi._geocoding import geocode
 from climepi.climdata._data_getter_class import ClimateDataGetter
 
 
@@ -128,7 +128,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             if isinstance(locations, list):
                 self._subset_remote_data_location_list()
                 return
-            location_geopy = Nominatim(user_agent="climepi").geocode(locations)
+            location_geopy = geocode(locations)
             lat = location_geopy.latitude
             lon = location_geopy.longitude
             bbox = [lat, lat, lon, lon]

@@ -134,7 +134,7 @@ class _Plotter:
         if plot_type == "map":
             plot = ds_plot.climepi.plot_map()
         elif plot_type == "time series":
-            p1 = ds_plot.climepi.plot_uncertainty_plume()
+            p1 = ds_plot.climepi.plot_uncertainty_interval_decomposition()
             p2 = ds_plot.rename(
                 scenario="example scenario",
                 model="example model",
@@ -298,7 +298,10 @@ class _PlotController(param.Parameterized):
         widgets = {
             "plot_type": {"name": "Plot type"},
             "data_var": {"name": "Data variable"},
-            "location_string": {"name": "Location"},
+            "location_string": {
+                "name": "Location (search powered by OpenStreetMap "
+                "[https://openstreetmap.org/copyright])"
+            },
             "location_selection": {"name": "Location"},
             "temporal_scope": {"name": "Temporal"},
             "year_range": {"name": "Year range"},
@@ -314,7 +317,12 @@ class _PlotController(param.Parameterized):
                 "name": "",
             },
         }
-        self.controls.append(pn.Param(self, widgets=widgets, show_name=False))
+        # "location_string": {
+        #     "name": "Location (search powered by OpenStreetMap) - <a href='https://openstreetmap.org' target='_blank'>OpenStreetMap</a>"
+        # },
+        controls_new = pn.Param(self, widgets=widgets, show_name=False)
+        self.controls.append(controls_new)
+        # self.controls.append(pn.Param(self, widgets=widgets, show_name=False))
 
     @param.depends()
     def _initialize_params(self):
@@ -325,6 +333,10 @@ class _PlotController(param.Parameterized):
             plot_type_choices = ["time series", "map", "variance decomposition"]
         elif scope_dict_base["spatial"] in ["single", "list"]:
             plot_type_choices = ["time series", "variance decomposition"]
+        else:
+            raise ValueError(
+                f"Unrecognised spatial scope: {scope_dict_base['spatial']}"
+            )
         self.param.plot_type.objects = plot_type_choices
         self.param.plot_type.default = plot_type_choices[0]
         # Data variable choices
