@@ -19,7 +19,7 @@ class ClimateDataGetter:
     """
     Class for accessing and downloading climate projection data.
 
-    The 'get_data' method controls the process of finding,  downloading and formatting
+    The `get_data` method controls the process of finding,  downloading and formatting
     the data. Intended to be subclassed for specific data sources. Subclasses should
     define the below class attributes, as well as overriding and/or extending the
     methods as necessary.
@@ -216,7 +216,7 @@ class ClimateDataGetter:
         """
         Get a list of file names for saving and retrieving the data.
 
-        See the 'file_name_da' attribute for details on how file names are determined.
+        See the `file_name_da` attribute for details on how file names are determined.
         """
         if self._file_names is None:
             file_name_da = self.file_name_da

@@ -21,25 +21,32 @@ Methods
    :toctree: generated/
    :template: autosummary/accessor_method.rst
 
-   xarray.Dataset.climepi.ensemble_stats
-   xarray.Dataset.climepi.estimate_ensemble_stats
-   xarray.Dataset.climepi.monthly_average
-   xarray.Dataset.climepi.months_suitable
-   xarray.Dataset.climepi.plot_map
-   xarray.Dataset.climepi.plot_time_series
-   xarray.Dataset.climepi.plot_uncertainty_interval_decomposition
-   xarray.Dataset.climepi.plot_variance_decomposition
-   xarray.Dataset.climepi.run_epi_model
-   xarray.Dataset.climepi.sel_geo
-   xarray.Dataset.climepi.temporal_group_average
-   xarray.Dataset.climepi.uncertainty_interval_decomposition
-   xarray.Dataset.climepi.variance_decomposition
-   xarray.Dataset.climepi.yearly_average
+   Dataset.climepi.ensemble_stats
+   Dataset.climepi.estimate_ensemble_stats
+   Dataset.climepi.monthly_average
+   Dataset.climepi.months_suitable
+   Dataset.climepi.plot_map
+   Dataset.climepi.plot_time_series
+   Dataset.climepi.plot_uncertainty_interval_decomposition
+   Dataset.climepi.plot_variance_decomposition
+   Dataset.climepi.run_epi_model
+   Dataset.climepi.sel_geo
+   Dataset.climepi.temporal_group_average
+   Dataset.climepi.uncertainty_interval_decomposition
+   Dataset.climepi.variance_decomposition
+   Dataset.climepi.yearly_average
 
 Climate data subpackage
 -----------------------
 
 .. currentmodule:: climepi
+
+Methods for downloading and accessing climate projection data are contained in the
+``climdata`` subpackage:
+
+.. code-block:: python
+
+    from climepi import climdata
 
 Methods
 ~~~~~~~
@@ -47,12 +54,19 @@ Methods
 .. autosummary::
    :toctree: generated/
 
-   climepi.climdata.get_climate_data
-   climepi.climdata.get_climate_data_file_names
-   climepi.climdata.get_example_dataset
+   climdata.get_climate_data
+   climdata.get_climate_data_file_names
+   climdata.get_example_dataset
 
 Epidemiological model subpackage
 --------------------------------
+
+Classes and methods for running climate-sensitive epidemiological models are contained
+in the ``epimod`` subpackage:
+
+.. code-block:: python
+
+    from climepi import epimod
 
 Classes
 ~~~~~~~
@@ -60,8 +74,8 @@ Classes
 .. autosummary::
    :toctree: generated/
 
-   climepi.epimod.EpiModel
-   climepi.epimod.SuitabilityModel
+   epimod.EpiModel
+   epimod.SuitabilityModel
 
 Methods
 ~~~~~~~
@@ -69,13 +83,20 @@ Methods
 .. autosummary::
    :toctree: generated/
 
-   climepi.epimod.get_example_model
+   epimod.get_example_model
 
 Front-end application subpackage
 --------------------------------
 
-See :ref:`usage` for information on how to run the front-end application from the
-command line.
+A method to run the front-end application is contained in the ``app`` subpackage:
+
+.. code-block:: python
+
+    from climepi import app
+    app.run_app()
+
+See :ref:`usage:Front-end application` for information on how to run the application
+from the command line.
 
 Methods
 ~~~~~~~
@@ -83,4 +104,4 @@ Methods
 .. autosummary::
    :toctree: generated/
 
-   climepi.app.run_app
+   app.run_app
