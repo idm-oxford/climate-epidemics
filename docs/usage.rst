@@ -28,13 +28,30 @@ Front-end application
 ---------------------
 
 This package provides a browser-based front-end application that can be used to run and
-visualize the output of climate-sensitive epidemiological models.
+visualize the output of climate-sensitive epidemiological models (the web application is
+available at https://will-s-hart.github.io/climate-epidemics/app).
 
-If the `climepi` package is installed within the current python virtual environment,
-the application can be initiated from the command line by running
-
+If the `climepi` package is installed within the current python virtual environment, the
+application can also be run locally. To initiate the application from the command line,
+run
 .. code-block:: console
 
     (climepi) climate-epidemics $ python -m climepi.app
+
+In this case, the application will use the default thread-based single-machine Dask
+scheduler to run computations. To instead use the distributed Dask scheduler (which may
+be slower in simple use cases but is more robust if running multiple instances of the
+application simultaneously), first start a local Dask cluster by running
+.. code-block:: console
+
+    (climepi) climate-epidemics $ python -m climepi.app.cluster
+
+Then, from a separate terminal, initiate the application with the command
+.. code-block:: console
+
+    (climepi) climate-epidemics $ python -m climepi.app --dask-distributed
+
+A method is also provided to run the application from within a Python script (see
+:ref:`api/climepi.app.run_app`).
 
 The application is built using the `Panel` library.

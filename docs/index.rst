@@ -3,11 +3,11 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to climepi's documentation!
-===================================
+climepi documentation
+=====================
 
-**climepi** is a Python package for incorporating climate data into
-epidemiological models.
+**climepi** is a Python package for integrating climate projection data into
+climate-sensitive epidemiological models.
 
 .. note::
 

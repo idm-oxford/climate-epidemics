@@ -20,7 +20,7 @@ def run_app(
     **kwargs,
 ):
     """
-    Run the climepi `Panel` app locally in a browser.
+    Run the `climepi` front-end application locally.
 
     Parameters
     ----------
