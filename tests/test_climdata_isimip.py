@@ -18,6 +18,7 @@ import pytest
 import xarray as xr
 import xarray.testing as xrt
 
+import climepi.climdata
 from climepi.climdata._isimip import ISIMIPDataGetter
 from climepi.testing.fixtures import generate_dataset
 
@@ -116,13 +117,13 @@ def test_find_remote_data(mock_session):
 
 
 @patch("requests.Session", autospec=True)
-@patch("climepi.climdata._isimip.Nominatim", autospec=True)
+@patch.object(climepi.climdata._isimip, "geocode", autospec=True)
 @pytest.mark.parametrize(
     "location_mode",
     ["single_named", "multiple_named", "grid_lon_0_360", "grid_lon_180_180", "global"],
 )
 @pytest.mark.parametrize("times_out", [False, True])
-def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_out):
+def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out):
     """
     Test the _subset_remote_data method of the ISIMIPDataGetter class.
 
@@ -151,7 +152,7 @@ def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_o
 
     mock_session.return_value.post.return_value.json = mock_json
 
-    def mock_geocode(location):
+    def _mock_geocode(location):
         if location == "Los Angeles":
             lon = -118
             lat = 34
@@ -162,7 +163,7 @@ def test_subset_remote_data(mock_nominatim, mock_session, location_mode, times_o
             raise ValueError(f"Unexpected location {location}.")
         return types.SimpleNamespace(latitude=lat, longitude=lon)
 
-    mock_nominatim.return_value.geocode = mock_geocode
+    mock_geocode.side_effect = _mock_geocode
 
     # Get inputs and expected bbox values used in subsetting requests
 
