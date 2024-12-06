@@ -97,6 +97,19 @@ class TestGetExampleModel:
             epi_model = epimod.get_example_model("test")
         xrt.assert_identical(epi_model.suitability_table, suitability_table)
 
+    @patch.dict(
+        epimod._examples.EXAMPLES,
+        {"test": {"precipitation_range": [10, 40]}},
+    )
+    def test_get_example_model_formatting_error(self):
+        """
+        Test with a temperature range supplied.
+
+        Checks an EpiModel object with the supplied temperature range is returned.
+        """
+        with pytest.raises(ValueError, match="does not have a recognised format"):
+            epi_model = epimod.get_example_model("test")
+
 
 @patch.dict(epimod._examples.EXAMPLES, {"googly": "back of the hand"})
 def test_get_example_details():
