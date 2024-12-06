@@ -4,6 +4,20 @@ API reference
 Core functionality
 ------------------
 
+The ``climepi`` package provides an accessor class for ``xarray.Dataset`` objects,
+which can be used by chaining the ``climepi`` attribute to a ``Dataset``. For example,
+the :py:meth:`~xarray.Dataset.climepi.sel_geo` method can be used to select a named
+location from a dataset containing data with latitude and longitude coordinates (named
+"lat" and "lon", respectively) as follows:
+
+.. code-block:: python
+
+    import xarray as xr
+    import climepi
+
+    ds = xr.open_dataset("path/to/dataset.nc")
+    ds.climepi.sel_geo("London")
+
 Classes
 ~~~~~~~
 

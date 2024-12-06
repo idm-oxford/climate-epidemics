@@ -4,25 +4,22 @@ Usage
 Installation
 ------------
 
-To use climepi, download the source code from the github repository
-(https://github.com/will-s-hart/climate-epidemics). The package and its dependencies can
-then be installed via ``conda`` into a new virtual environment using the provided
-environment.yml file: working in the repository root directory, run
+``climepi`` is distributed through ``conda-forge``, and can be installed using
+``conda``:
 
 .. code-block:: console
 
-    climate-epidemics $ conda env create -f environment.yml
+    $ conda env create -n <ENV_NAME>
+    $ conda activate <ENV_NAME>
+    (<ENV_NAME>) $ conda install -c conda-forge climepi
 
-.. note::
-    Using ``mamba`` instead of ``conda`` may substantially speed up the installation
-    process.
-
-The virtual environment can be activated using the following
-command:   
+or (recommended) using ``mamba``:
 
 .. code-block:: console
     
-    climate-epidemics $ conda activate climepi
+    $ mamba env create -n <ENV_NAME>
+    $ conda activate <ENV_NAME>
+    (<ENV_NAME>) $ mamba install -c conda-forge climepi
 
 Front-end application
 ---------------------
@@ -31,28 +28,30 @@ This package provides a browser-based front-end application, built using the ``P
 library.
 
 A web application is available at https://will-s-hart.github.io/climate-epidemics/app.
-If the ``climepi`` package is installed within the current python virtual environment,
-theapplication can also be run locally. To initiate the application from the command
-line, run
+If the ``climepi`` package is installed within the current ``conda`` environment, the
+application can also be run locally. To initiate the application from the command line,
+run
 
 .. code-block:: console
 
-    (climepi) climate-epidemics $ python -m climepi.app
+    (<ENV_NAME>) $ python -m climepi.app
 
-In this case, the application will use the default thread-based single-machine Dask
-scheduler to run computations. To instead use the distributed Dask scheduler (which may
-be slower in simple use cases but is more robust if running multiple instances of the
-application simultaneously), first start a local Dask cluster by running
+The application uses ``Dask`` to lazily operate on climate data and parallelize
+computations. By default, the application will use the thread-based single-machine Dask
+scheduler. To instead use the distributed Dask scheduler (which may be slower in simple
+use cases but is more robust if running multiple instances of the application
+simultaneously), first start a local Dask cluster by running
 
 .. code-block:: console
 
-    (climepi) climate-epidemics $ python -m climepi.app.cluster
+    (<ENV_NAME>) $ python -m climepi.app.cluster
 
 Then, from a separate terminal, initiate the application with the command
 
 .. code-block:: console
 
-    (climepi) climate-epidemics $ python -m climepi.app --dask-distributed
+    (<ENV_NAME>) $ python -m climepi.app --dask-distributed
 
 A method is also provided to run the application from within a Python script (see
-:ref:`api:Front-end application subpackage`).
+:ref:`api:Front-end application subpackage`). If more advanced configuration options are
+required, please contact the developers.
