@@ -17,10 +17,10 @@ classifiers = [
 dependencies = [
   "bottleneck",
   "dask",
+  "datashader",
   "flox",
   "geopy",
   "geoviews",
-  "h5netcdf",
   "hvplot",
   "intake",
   "intake-esm",
@@ -33,7 +33,7 @@ dependencies = [
   "requests",
   "s3fs",
   "urllib3",
-  "xarray",
+  "xarray!=2024.10.0",
   "xcdat",
 ]
 
@@ -53,7 +53,8 @@ VCS = "git"
 style = "pep440"
 versionfile_source = "climepi/_version.py"
 versionfile_build = "climepi/_version.py"
-tag_prefix = ""
+tag_prefix = "v"
+parentdir_prefix = "climepi-"
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib --cov-config=pyproject.toml --cov=climepi --cov-report=xml"

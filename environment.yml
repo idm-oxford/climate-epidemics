@@ -13,7 +13,6 @@ dependencies:
   - flox
   - geopy
   - geoviews  
-  - h5netcdf
   - hvplot
   - intake
   - intake-esm  
@@ -32,7 +31,7 @@ dependencies:
   - pip:
     - -e .
   # Versioning
-  - versioneer
+  - versioneer=0.29
   # Linting
   - ruff
   # Testing
