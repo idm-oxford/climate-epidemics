@@ -15,18 +15,14 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-    - name: Setup micromamba environment
-      uses: mamba-org/setup-micromamba@v1
+    - name: Setup pixi
+      uses: prefix-dev/setup-pixi@v0.8.0
       with:
-        environment-file: environment.yml
-    - name: Lint with ruff
-      run: |
-        python -m ruff check climepi --output-format=github
-      shell: micromamba-shell {0}
+        cache: true
+    - name: Lint
+      run: pixi run lint-gh-actions
     - name: Test with pytest
-      run: |
-        python -m pytest tests
-      shell: micromamba-shell {0}
+      run: pixi run test
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
       env:

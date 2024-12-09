@@ -13,14 +13,6 @@ Installation
     $ conda activate <ENV_NAME>
     (<ENV_NAME>) $ conda install -c conda-forge climepi
 
-or (recommended) using ``mamba``:
-
-.. code-block:: console
-    
-    $ mamba env create -n <ENV_NAME>
-    $ conda activate <ENV_NAME>
-    (<ENV_NAME>) $ mamba install -c conda-forge climepi
-
 Front-end application
 ---------------------
 
