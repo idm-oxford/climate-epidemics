@@ -69,7 +69,8 @@ default = { features = ["dev"], solve-group = "default" }
 lint = "ruff check"
 lint-gh-actions = "ruff check --output-format=github"
 test = "pytest"
-docs = "sphinx-build html docs docs/_build"
+docs = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs docs/_build/html"
+docs-rtd = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en $READTHEDOCS_OUTPUT/html"
 
 [tool.setuptools.packages.find]
 include = ["climepi*"]
