@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "climepi"
 dynamic = ["version"]
 authors = [{ name = "William Hart", email = "william.hart@maths.ox.ac.uk" }]
-description = "Combining climate and epidemiological models"
+description = "Combining climate data and epidemiological models"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
