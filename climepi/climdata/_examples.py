@@ -192,7 +192,7 @@ def _fetch_formatted_example_dataset(name, data_dir):
     version = _get_climepi_version()
     url = (
         "https://github.com/will-s-hart/climate-epidemics/raw/"
-        f"{version}/data/examples/{name}"
+        f"v{version}/data/examples/{name}"
     )
     pup = pooch.create(
         base_url=url,
