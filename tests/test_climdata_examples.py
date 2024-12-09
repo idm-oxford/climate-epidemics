@@ -139,7 +139,7 @@ def test_fetch_formatted_example_dataset(_, mock_pooch):
     mock_pooch.assert_called_once()
     assert mock_pooch.call_args.kwargs["base_url"] == (
         "https://github.com/will-s-hart/climate-epidemics/"
-        + "raw/4.2.0/data/examples/leave/"
+        + "raw/v4.2.0/data/examples/leave/"
     )
     assert str(mock_pooch.call_args.kwargs["path"]) == data_dir
     mock_pooch.return_value.load_registry.assert_called_once()
