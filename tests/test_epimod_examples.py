@@ -108,7 +108,7 @@ class TestGetExampleModel:
         Checks an EpiModel object with the supplied temperature range is returned.
         """
         with pytest.raises(ValueError, match="does not have a recognised format"):
-            epi_model = epimod.get_example_model("test")
+            epimod.get_example_model("test")
 
 
 @patch.dict(epimod._examples.EXAMPLES, {"googly": "back of the hand"})

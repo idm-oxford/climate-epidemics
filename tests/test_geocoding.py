@@ -1,6 +1,5 @@
 """Unit tests for the _geocoding module of the climepi package."""
 
-import types
 from unittest.mock import patch
 
 import geopy
