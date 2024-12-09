@@ -30,6 +30,7 @@ dependencies = [
   "panel",
   "param",
   "pooch",
+  "pyogrio",
   "requests",
   "s3fs",
   "urllib3",

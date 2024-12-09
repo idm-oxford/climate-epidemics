@@ -22,6 +22,7 @@ dependencies:
   - panel
   - param
   - pooch
+  - pyogrio # dep of geopandas (installed by geoviews), but not installed automatically
   - requests
   - s3fs # needed when using intake-esm to access CESM data on AWS server
   - urllib3
