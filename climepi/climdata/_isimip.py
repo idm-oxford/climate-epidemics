@@ -207,7 +207,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             except TimeoutError as exc:
                 any_timeout_error = True
                 print(
-                    f"{exc}\n. Continuing to initiate subsetting for remaining "
+                    f"{exc}\nContinuing to initiate subsetting for remaining "
                     "locations."
                 )
         if any_timeout_error:
