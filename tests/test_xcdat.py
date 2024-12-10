@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 def test_xesmf_import_error_handling(caplog):
     """Test that the _xcdat.py module correctly handles an ImportError for `xesmf`."""
-    sys.modules.pop("xesmf", None)
+    assert "xesmf" not in sys.modules
 
-    original_import = __builtins__["__import__"]
+    original_import = __import__
 
     def mock_import(name, *args, **kwargs):
         if name == "xesmf" and "xesmf" not in sys.modules:
