@@ -332,7 +332,7 @@ def test_open_local_data():
     ds_in["temperature"].attrs["units"] = "deg_C"
     ds_in["temperature"].values = np.random.rand(*ds_in["temperature"].shape)
 
-    def _mock_xcdat_open_mfdataset(file_name_list, **kwargs):
+    def _mock_xr_open_mfdataset(file_name_list, **kwargs):
         _scenarios = [str(file_name).split("_")[-3] for file_name in file_name_list]
         _models = [str(file_name).split("_")[-2] for file_name in file_name_list]
         _realizations = [
@@ -345,9 +345,8 @@ def test_open_local_data():
             )
             for s, m, r in zip(_scenarios, _models, _realizations)
         ]
-        # Note data_vars="minimal" is default in xcdat.open_mfdataset but not in
-        # xarray.open_mfdataset (the xcdat version is used in _open_local_data, with
-        # data_vars="minimal" ensuring correct bounds handling)
+        # Note data_vars="minimal" ensures correct bounds handling
+        assert kwargs["data_vars"] == "minimal"
         return xr.combine_by_coords(_ds_list, data_vars="minimal")
 
     data_getter = ClimateDataGetter(
@@ -361,7 +360,7 @@ def test_open_local_data():
     )
     data_getter.data_source = "watto"
 
-    with patch("xarray.open_mfdataset", _mock_xcdat_open_mfdataset):
+    with patch("xarray.open_mfdataset", _mock_xr_open_mfdataset):
         data_getter._open_local_data()
 
     ds_out = data_getter._ds

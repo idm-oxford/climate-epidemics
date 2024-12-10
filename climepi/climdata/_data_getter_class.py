@@ -321,13 +321,14 @@ class ClimateDataGetter:
         # closing the temporary file(s) before they are deleted). The 'kwargs' argument
         # is included to allow for different options to be passed to
         # xarray.open_mfdataset by subclasses which extend this method.
-        kwargs = {"data_vars": "minimal", "chunks": {}, **kwargs}
         temp_save_dir = self._temp_save_dir
         temp_file_names = self._temp_file_names
         temp_file_paths = [
             temp_save_dir / temp_file_name for temp_file_name in temp_file_names
         ]
-        self._ds_temp = xr.open_mfdataset(temp_file_paths, **kwargs)
+        self._ds_temp = xr.open_mfdataset(
+            temp_file_paths, **{"data_vars": "minimal", "chunks": {}, **kwargs}
+        )
         self._ds = self._ds_temp.copy()
         if "time_bnds" in self._ds:
             # Load time bounds to avoid errors saving to file (since no encoding set)
