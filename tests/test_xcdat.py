@@ -5,9 +5,6 @@ import sys
 import types
 from unittest.mock import patch
 
-LOGGER = logging.getLogger("climepi._xcdat")
-LOGGER.propagate = True
-
 
 def test_xesmf_import_error_handling(caplog):
     """Test that the _xcdat.py module correctly handles an ImportError for `xesmf`."""
@@ -21,7 +18,7 @@ def test_xesmf_import_error_handling(caplog):
         return original_import(name, *args, **kwargs)
 
     with patch("builtins.__import__", side_effect=mock_import):
-        with caplog.at_level(logging.WARNING, logger="climepi._xcdat"):
+        with caplog.at_level(logging.WARNING):
             import climepi._xcdat
 
     assert isinstance(sys.modules["xesmf"], types.ModuleType)
