@@ -25,7 +25,7 @@ platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 
 [tool.pixi.dependencies]
 bottleneck = "*"
-dask = "*"
+dask = ">=2024.11.2"   # non-GIL-blocking quantile method from here
 datashader = "*"       #explicit import appears to be needed with hvplot v0.11.1
 flox = "*"
 geopy = "*"
