@@ -5,12 +5,13 @@ The xesmf package is mocked if it cannot be imported (simplifies use on Windows,
 xesmf/esmpy can be difficult to install on Windows but is not required for climepi).
 """
 
+import importlib
 import logging
 import sys
 import types
 
 try:
-    import xesmf
+    importlib.import_module("xesmf")
 except (ImportError, KeyError):
     xesmf = types.ModuleType("xesmf")
     xesmf.Regridder = None
