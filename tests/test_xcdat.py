@@ -11,14 +11,16 @@ import climepi._xcdat
 
 def test_xesmf_import_error_handling(caplog):
     """Test that the _xcdat.py module correctly handles an ImportError for `xesmf`."""
-
     original_xesmf = sys.modules.pop("xesmf", None)
-    original_import_module = importlib.import_module
 
     def mock_importlib_import(name, *args, **kwargs):
         if name == "xesmf":
             raise ImportError("Simulated ImportError for xesmf")
-        return original_import_module(name, *args, **kwargs)
+        raise ValueError(
+            f"Unexpected import: {name}. Attempted imports of modules "
+            "other than `xesmf` through importlib.import while being mocked may cause "
+            "unexpected behavior."
+        )
 
     with patch.object(importlib, "import_module", mock_importlib_import):
         with caplog.at_level(logging.WARNING):
