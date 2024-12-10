@@ -65,7 +65,7 @@ dev = [
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "default" }
 
-[tool.pixi.tasks]
+[tool.pixi.feature.dev.tasks]
 lint = "ruff check"
 lint-gh-actions = "ruff check --output-format=github"
 test = "pytest"
