@@ -126,7 +126,10 @@ def test_file_name_da(
     npt.assert_equal(result["model"].values, np.array(models))
     npt.assert_equal(result["realization"].values, np.array(realizations))
     for (location, loc_str_expected), scenario, model, realization in itertools.product(
-        zip(location_dim_expected, loc_strs_expected), scenarios, models, realizations
+        zip(location_dim_expected, loc_strs_expected, strict=True),
+        scenarios,
+        models,
+        realizations,
     ):
         file_name_result = result.sel(
             location=location, scenario=scenario, model=model, realization=realization
@@ -343,7 +346,7 @@ def test_open_local_data():
             ds_in.sel(scenario=[s], model=[m], realization=[r]).chunk(
                 {"scenario": 1, "model": 1, "realization": 1}
             )
-            for s, m, r in zip(_scenarios, _models, _realizations)
+            for s, m, r in zip(_scenarios, _models, _realizations, strict=True)
         ]
         # Note data_vars="minimal" ensures correct bounds handling
         assert kwargs["data_vars"] == "minimal"

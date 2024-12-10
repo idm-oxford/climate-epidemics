@@ -406,7 +406,7 @@ class ClimEpiDatasetAccessor:
         ds_mean = xr.polyval(
             coord=ds_raw.time,
             coeffs=fitted_polys[poly_coeff_data_var_list],
-        ).rename(dict(zip(poly_coeff_data_var_list, data_var_list)))
+        ).rename(dict(zip(poly_coeff_data_var_list, data_var_list, strict=True)))
         # Estimate ensemble variance/standard deviation using residuals from polynomial
         # fits (with an implicit assumption that the variance is constant in time).
         # Note that the calls to broadcast_like ensure broadcasting along the time
@@ -414,7 +414,7 @@ class ClimEpiDatasetAccessor:
         # concatenating the datasets, but is done explicitly here for clarity).
         poly_residual_data_var_list = [x + "_polyfit_residuals" for x in data_var_list]
         ds_var = (fitted_polys[poly_residual_data_var_list] / ds_raw.time.size).rename(
-            dict(zip(poly_residual_data_var_list, data_var_list))
+            dict(zip(poly_residual_data_var_list, data_var_list, strict=True))
         )
         ds_std = np.sqrt(ds_var)
         ds_var = ds_var.broadcast_like(ds_mean)

@@ -75,7 +75,7 @@ class TestSelGeo:
             lon_expected2 = 160
             lon_expected3 = -180
         for ds, lon_expected in zip(
-            [ds1, ds2, ds3], [lon_expected1, lon_expected2, lon_expected3]
+            [ds1, ds2, ds3], [lon_expected1, lon_expected2, lon_expected3], strict=True
         ):
             if lon_0_360:
                 ds["lon"] = np.sort(ds["lon"].values % 360)
@@ -162,6 +162,7 @@ class TestTemporalGroupAverage:
                     for month_start, month_length in zip(
                         np.cumsum([0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30]),
                         np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]),
+                        strict=True,
                     )
                 ]
             )

@@ -82,7 +82,9 @@ def test_find_remote_data(mock_session):
                     }
                 }
                 for start_year, end_year in zip(
-                    [2015, 2021, 2031, 2041, 2051], [2020, 2030, 2040, 2050, 2060]
+                    [2015, 2021, 2031, 2041, 2051],
+                    [2020, 2030, 2040, 2050, 2060],
+                    strict=True,
                 )
             ],
             "next": next_,
@@ -112,7 +114,9 @@ def test_find_remote_data(mock_session):
             }
         }
         for model in ["mri-esm2-0", "ukesm1-0-ll"]
-        for start_year, end_year in zip([2015, 2021, 2041], [2020, 2030, 2050])
+        for start_year, end_year in zip(
+            [2015, 2021, 2041], [2020, 2030, 2050], strict=True
+        )
     ]
 
 
@@ -217,7 +221,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
     job_ids_expected = [
         f"{x}_to_{y}_bbox_{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}"
         for bbox in bbox_expected_list
-        for x, y in zip([0, 300, 600, 900], [299, 599, 899, 999])
+        for x, y in zip([0, 300, 600, 900], [299, 599, 899, 999], strict=True)
     ]
     st = time.time()
     if times_out:
@@ -352,7 +356,9 @@ def test_open_temp_data(mock_open_mfdataset):
     def mock_open_mfdataset_side_effect(paths, **kwargs):
         ds_list = []
         for (scenario, model, var, time_subset), path in zip(
-            itertools.product(scenarios, models, data_vars, time_subsets), paths
+            itertools.product(scenarios, models, data_vars, time_subsets),
+            paths,
+            strict=True,
         ):
             path = str(path.as_posix())
             assert scenario in path
