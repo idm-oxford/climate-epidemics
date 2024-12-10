@@ -8,10 +8,10 @@ import numpy as np
 import panel as pn
 import param
 import xarray as xr
-import xcdat.temporal
 
 from climepi import climdata, epimod
 from climepi._core import ClimEpiDatasetAccessor  # noqa
+from climepi._xcdat import _infer_freq
 from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
 # Pure functions
@@ -65,7 +65,7 @@ def _run_epi_model_func(
 
 def _get_scope_dict(ds_in):
     # pylint: disable-next=protected-access
-    temporal_scope_xcdat = xcdat.temporal._infer_freq(ds_in.time)  # noqa
+    temporal_scope_xcdat = _infer_freq(ds_in.time)  # noqa
     xcdat_freq_map = {"year": "yearly", "month": "monthly", "day": "daily"}
     temporal_scope = xcdat_freq_map[temporal_scope_xcdat]
     spatial_scope = (

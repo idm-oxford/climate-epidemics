@@ -10,10 +10,10 @@ import hvplot.xarray  # noqa # pylint: disable=unused-import
 import numpy as np
 import scipy.stats
 import xarray as xr
-import xcdat  # noqa # pylint: disable=unused-import
 from xarray.plot.utils import label_from_attrs
 
 from climepi._geocoding import geocode
+from climepi._xcdat import BoundsAccessor, TemporalAccessor, center_times  # noqa
 from climepi.utils import (
     add_bnds_from_other,
     add_var_attrs_from_other,
@@ -161,7 +161,7 @@ class ClimEpiDatasetAccessor:
             # are non-dimension singleton coordinates (otherwise, longitude and/or
             # latitude are incorrectly treated as time coordinates, leading to an error
             # being raised)
-            centered_times = xcdat.center_times(ds_m[["time", "time_bnds"]])
+            centered_times = center_times(ds_m[["time", "time_bnds"]])
             ds_m["time"] = centered_times.time
             ds_m["time_bnds"] = centered_times.time_bnds
         return ds_m

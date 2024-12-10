@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 import pooch
 import requests
-import xcdat  # noqa
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 from climepi._geocoding import geocode
+from climepi._xcdat import BoundsAccessor  # noqa
 from climepi.climdata._data_getter_class import ClimateDataGetter
 
 

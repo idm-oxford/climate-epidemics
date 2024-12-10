@@ -8,7 +8,8 @@ xcdat package (see https://github.com/xCDAT/xcdat/blob/main/tests/fixtures.py)
 import cftime
 import numpy as np
 import xarray as xr
-import xcdat
+
+from climepi._xcdat import swap_lon_axis
 
 # Time
 time_yearly = xr.DataArray(
@@ -340,5 +341,5 @@ def generate_dataset(
         ds["lon"].attrs["bounds"] = "lon_bnds"
         ds["time"].attrs["bounds"] = "time_bnds"
     if not lon_0_360:
-        ds = xcdat.swap_lon_axis(ds, to=(-180, 180))
+        ds = swap_lon_axis(ds, to=(-180, 180))
     return ds
