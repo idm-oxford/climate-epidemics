@@ -82,7 +82,7 @@ def test_init():
         (None, None, None, ("all",)),
         ("gabba", None, None, ("gabba",)),
         (["mcg"], None, None, ("mcg",)),
-        (["gabba", "mcg", "waca"], None, [8, 15], ("gabba", "mcg")),
+        (["gabba", "mcg", "waca"], None, [8, 15], ("gabba", "mcg", "waca")),
         (None, [8, 15], None, ("lon_8_to_15",)),
         (None, None, [7, 44], ("lat_7_to_44",)),
         (None, [7.5, 72], [-6, 17.33], ("lon_7_5_to_72_lat_m6_to_17_33",)),
