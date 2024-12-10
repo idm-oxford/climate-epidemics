@@ -80,16 +80,16 @@ def test_get_example_details():
 @patch.object(climdata._examples, "get_versions", return_value={"version": "4.2.0"})
 def test_get_data_dir(_):
     """Test the _get_data_dir method."""
-    assert (
-        str(climdata._examples._get_data_dir("leave", "not/a/real/dir"))
-        == "not/a/real/dir/leave"
+    assert climdata._examples._get_data_dir("leave", "not/a/real/dir") == pathlib.Path(
+        "not/a/real/dir/leave"
     )
     with patch("pathlib.Path.exists", return_value=False):
-        assert climdata._examples._get_data_dir("leave", None) == pooch.os_cache(
-            "climepi/4.2.0/examples/leave"
+        assert (
+            climdata._examples._get_data_dir("leave", None)
+            == pooch.os_cache("climepi/4.2.0/examples/") / "leave"
         )
     with patch("pathlib.Path.exists", return_value=True):
-        assert str(climdata._examples._get_data_dir("leave", None)).endswith(
+        assert str(climdata._examples._get_data_dir("leave", None).as_posix()).endswith(
             "data/examples/leave"
         )
 
@@ -141,11 +141,11 @@ def test_fetch_formatted_example_dataset(_, mock_pooch):
         "https://github.com/will-s-hart/climate-epidemics/"
         + "raw/v4.2.0/data/examples/leave/"
     )
-    assert str(mock_pooch.call_args.kwargs["path"]) == data_dir
+    assert str(mock_pooch.call_args.kwargs["path"].as_posix()) == data_dir
     mock_pooch.return_value.load_registry.assert_called_once()
     registry_path_used = mock_pooch.return_value.load_registry.call_args.args[0]
     assert registry_path_used.parent.is_dir()
-    assert str(registry_path_used).endswith(
+    assert str(registry_path_used.as_posix()).endswith(
         "climepi/climdata/_example_registry_files/leave.txt"
     )
     assert mock_pooch.return_value.fetch.call_count == 2
@@ -167,7 +167,9 @@ def test_fetch_formatted_example_dataset(_, mock_pooch):
 def test_get_registry_file_path():
     """Test the _get_registry_file_path method."""
     result = climdata._examples._get_registry_file_path("leave")
-    assert str(result).endswith("climepi/climdata/_example_registry_files/leave.txt")
+    assert str(result.as_posix()).endswith(
+        "climepi/climdata/_example_registry_files/leave.txt"
+    )
 
 
 @patch.object(pooch, "make_registry")
@@ -179,8 +181,8 @@ def test_make_example_registry(mock_pooch_make_registry):
 
     data_dir_expected = pathlib.Path(base_dir) / name
     mock_pooch_make_registry.assert_called_once()
-    assert str(mock_pooch_make_registry.call_args.args[0]) == str(data_dir_expected)
-    assert str(mock_pooch_make_registry.call_args.args[1]).endswith(
+    assert mock_pooch_make_registry.call_args.args[0] == data_dir_expected
+    assert str(mock_pooch_make_registry.call_args.args[1].as_posix()).endswith(
         "climepi/climdata/_example_registry_files/leave.txt"
     )
     assert not mock_pooch_make_registry.call_args.kwargs["recursive"]

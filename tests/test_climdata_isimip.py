@@ -252,7 +252,9 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
     # Set up mock methods
 
     def mock_namelist():
-        zip_file_name = str(mock_zipfile.call_args[0][0]).rsplit("/", maxsplit=1)[-1]
+        zip_file_name = str(mock_zipfile.call_args[0][0].as_posix()).rsplit(
+            "/", maxsplit=1
+        )[-1]
         namelist = [
             f"{zip_file_name.split(".")[0]}_file_{x}.nc" for x in [1, 2, 3, 4]
         ] + ["not_a_nc_file.txt"]
@@ -352,7 +354,7 @@ def test_open_temp_data(mock_open_mfdataset):
         for (scenario, model, var, time_subset), path in zip(
             itertools.product(scenarios, models, data_vars, time_subsets), paths
         ):
-            path = str(path)
+            path = str(path.as_posix())
             assert scenario in path
             assert model in path
             assert var in path
