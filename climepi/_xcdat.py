@@ -11,13 +11,15 @@ import types
 
 try:
     import xesmf
-except ImportError:
+except (ImportError, KeyError):
     xesmf = types.ModuleType("xesmf")
     xesmf.Regridder = None
     sys.modules["xesmf"] = xesmf
     logging.warning(
-        "xesmf package could not be imported; using mocked version. This does not "
-        "affect the functionality of `climepi`."
+        "`xesmf` package could not be imported; using mocked version. This does not "
+        "affect the functionality of `climepi` (`xesmf` is an upstream dependency of "
+        "the `xcdat` package, which is used for regridding operations not required by "
+        "`climepi`)."
     )
 
 from xcdat import (  # noqa
