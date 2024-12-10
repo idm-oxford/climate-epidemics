@@ -167,14 +167,17 @@ def _get_data_dir(name, base_dir):
     if base_dir is None:
         base_dir = pathlib.Path(__file__).parents[2] / "data/examples"
         if not base_dir.exists():
-            version = _get_climepi_version()
+            version = _get_data_version()
             base_dir = pooch.os_cache(f"climepi/{version}/examples")
     data_dir = pathlib.Path(base_dir) / name
     return data_dir
 
 
-def _get_climepi_version():
-    return pooch.check_version(get_versions()["version"], fallback="main")
+def _get_data_version():
+    version = pooch.check_version(get_versions()["version"], fallback="main")
+    if version != "main":
+        version = "v" + version
+    return version
 
 
 def _fetch_formatted_example_dataset(name, data_dir):
@@ -189,10 +192,10 @@ def _fetch_formatted_example_dataset(name, data_dir):
         frequency=frequency,
         subset=subset,
     )
-    version = _get_climepi_version()
+    version = _get_data_version()
     url = (
         "https://github.com/will-s-hart/climate-epidemics/raw/"
-        f"v{version}/data/examples/{name}"
+        f"{version}/data/examples/{name}"
     )
     pup = pooch.create(
         base_url=url,
