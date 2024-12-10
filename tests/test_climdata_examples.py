@@ -94,20 +94,20 @@ def test_get_data_dir(_):
         )
 
 
-def test_get_climepi_version():
+def test_get_data_version():
     """
-    Test the _get_climepi_version method.
+    Test the _get_data_version method.
 
     Should default to "main" for development versions.
     """
     with patch.object(
         climdata._examples, "get_versions", return_value={"version": "4.2.0"}
     ):
-        assert climdata._examples._get_climepi_version() == "4.2.0"
+        assert climdata._examples._get_data_version() == "v4.2.0"
     with patch.object(
         climdata._examples, "get_versions", return_value={"version": "4.2.0+10.8dl8dh9"}
     ):
-        assert climdata._examples._get_climepi_version() == "main"
+        assert climdata._examples._get_data_version() == "main"
 
 
 @patch.dict(
