@@ -83,14 +83,16 @@ def test_get_data_dir(_):
     assert climdata._examples._get_data_dir("leave", "not/a/real/dir") == pathlib.Path(
         "not/a/real/dir/leave"
     )
+    with patch("pathlib.Path.exists", return_value=True):
+        # Should use a directory within the parent directory of the climepi package
+        # if it exists
+        assert str(climdata._examples._get_data_dir("leave", None).as_posix()).endswith(
+            "data/examples/leave"
+        )
     with patch("pathlib.Path.exists", return_value=False):
         assert (
             climdata._examples._get_data_dir("leave", None)
-            == pooch.os_cache("climepi/4.2.0/examples/") / "leave"
-        )
-    with patch("pathlib.Path.exists", return_value=True):
-        assert str(climdata._examples._get_data_dir("leave", None).as_posix()).endswith(
-            "data/examples/leave"
+            == pooch.os_cache("climepi/v4.2.0/examples/") / "leave"
         )
 
 
