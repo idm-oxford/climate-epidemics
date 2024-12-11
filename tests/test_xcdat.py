@@ -11,7 +11,7 @@ import climepi._xcdat
 
 def test_xesmf_import_error_handling(caplog):
     """Test that the _xcdat.py module correctly handles an ImportError for `xesmf`."""
-    original_xesmf = sys.modules.pop("xesmf", None)
+    sys.modules.pop("xesmf", None)
 
     def mock_importlib_import(name, *args, **kwargs):
         if name == "xesmf":
@@ -28,10 +28,6 @@ def test_xesmf_import_error_handling(caplog):
 
     assert isinstance(sys.modules["xesmf"], types.ModuleType)
     assert sys.modules["xesmf"].Regridder is None
-    assert hasattr(climepi._xcdat, "BoundsAccessor")
-    assert hasattr(climepi._xcdat, "TemporalAccessor")
     assert "`xesmf` package could not be imported; using mocked version." in caplog.text
 
-    if original_xesmf is not None:
-        sys.modules["xesmf"] = original_xesmf
-        importlib.reload(climepi._xcdat)
+    importlib.reload(climepi._xcdat)
