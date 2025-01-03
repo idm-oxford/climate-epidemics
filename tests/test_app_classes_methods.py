@@ -1,31 +1,37 @@
 """Unit tests for the _app_classes_methods module of the app subpackage."""
 
+import pathlib
 from unittest.mock import patch
 
+import numpy as np
 import pytest
+import xarray.testing as xrt
 
 import climepi.app._app_classes_methods as app_classes_methods
 from climepi import epimod
+from climepi.testing.fixtures import generate_dataset
 
 
-@patch("climepi.app._app_classes_methods.climdata.get_example_dataset")
+@patch("climepi.app._app_classes_methods.climdata.get_example_dataset", autospec=True)
 def test_load_clim_data_func(mock_get_example_dataset):
-    """
-    Unit test for the _load_clim_data_func function.
-
-    This function is currently a thin wrapper around the climdata.get_example_dataset
-    function. This test therefore simply checks that get_example_dataset is called
-    with the correct arguments and that the return value is passed through.
-    """
+    """Unit test for the _load_clim_data_func function."""
     mock_get_example_dataset.return_value = "mocked_dataset"
     result = app_classes_methods._load_clim_data_func("some_example_name", "some/dir")
     mock_get_example_dataset.assert_called_once_with(
         "some_example_name", base_dir="some/dir"
     )
     assert result == "mocked_dataset"
+    # Check cached version is returned if the same example_name and base_dir are
+    # provided
+    mock_get_example_dataset.return_value = "another_mocked_dataset"
+    result_cached = app_classes_methods._load_clim_data_func(
+        "some_example_name", "some/dir"
+    )
+    assert result_cached == "mocked_dataset"
+    mock_get_example_dataset.assert_called_once()
 
 
-@patch("climepi.app._app_classes_methods.epimod.get_example_model")
+@patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
 def test_get_epi_model_func(mock_get_example_model):
     """Unit test for the _get_epi_model_func function."""
     # Test with example_name provided
@@ -55,3 +61,28 @@ def test_get_epi_model_func(mock_get_example_model):
         match="Exactly one of example_name and temperature_range must be provided",
     ):
         app_classes_methods._get_epi_model_func()
+
+
+@patch("climepi.app._app_classes_methods._compute_to_file_reopen", autospec=True)
+@patch.object(pathlib.Path, "unlink", autospec=True)
+def test_run_epi_model_func(mock_path_unlink, mock_compute_to_file_reopen):
+    """Unit test for the _run_epi_model_func function."""
+
+    def _mock_compute_to_file_reopen(ds_in, save_path):
+        return ds_in
+
+    mock_compute_to_file_reopen.side_effect = _mock_compute_to_file_reopen
+
+    ds_clim = generate_dataset(data_var="temperature")
+    ds_clim["temperature"].values = 30 * np.random.rand(*ds_clim["temperature"].shape)
+    epi_model = epimod.SuitabilityModel(temperature_range=(15, 30))
+
+    result = app_classes_methods._run_epi_model_func(
+        ds_clim,
+        epi_model,
+        return_months_suitable=True,
+        save_path=pathlib.Path("some/dir/ds_out.nc"),
+    )
+    xrt.assert_identical(result, epi_model.run(ds_clim, return_months_suitable=True))
+    assert mock_compute_to_file_reopen.call_count == 2
+    mock_path_unlink.assert_called_once_with(pathlib.Path("some/dir/ds_suitability.nc"))
