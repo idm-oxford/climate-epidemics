@@ -7,5 +7,19 @@ _site/
 vendor/
 # OS generated files
 .DS_Store
-# Datasets not synced to GitHub from main branch
+
+
+# Untracked files from main repository
+
+.vscode/
+.coverage
+coverage.xml
+*.egg-info
 data/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+# Sphinx documentation
+docs/_build/
+docs/generated/
