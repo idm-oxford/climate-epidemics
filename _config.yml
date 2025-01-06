@@ -3,8 +3,18 @@ theme: jekyll-theme-cayman
 description: "Python package and web app for integrating climate data into epidemiological models"
 navigation:
   - name: Home
-    link: https://will-s-hart.github.io/climate-epidemics/
+    link: /
   - name: Web app
-    link: https://will-s-hart.github.io/climate-epidemics/app
+    link: /app
   - name: Python package documentation
     link: https://climate-epidemics.readthedocs.io/en/latest/
+exclude:
+  - .vscode/
+  - .coverage
+  - coverage.xml
+  - climepi/
+  - climepi.egg-info/
+  - data/
+  - docs/
+  - tests/
+  - .pixi/
