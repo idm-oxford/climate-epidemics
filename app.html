@@ -1,66 +1,42 @@
 ---
 layout: default
+title: climepi web app
+description: " "
 ---
 
 <style>
-    /* Spacer to push the footer below the iframe */
-    .spacer {
-        height: calc(100vh + 15px);
-        background: transparent;
-    }
-
-    /* Ensure the iframe container takes up full width without unnecessary gaps */
     .embed-container {
-        width: 100vw;
         height: 100vh;
-        position: absolute;
-        top: 400px;
-        left: 0;
-        right: 0;
-        margin: 0;
-        padding: 0;
     }
 
-    /* Ensure the iframe takes up the full width and height of the container */
-    iframe {
+    .embed-container iframe {
+        position: absolute;
+        left: 0;
         width: 100vw;
         height: 100vh;
         border: none;
-        display: none;
-        /* Hidden initially until it loads */
-    }
-
-    /* Loading message while iframe is loading */
-    .loading-message {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        font-size: 1.5em;
-        color: #555;
-        background-color: #f0f0f0;
-        z-index: 10;
-        /* Keep above iframe */
     }
 </style>
 
-<!-- Spacer to ensure footer is not overlapped -->
-<div class="spacer"></div>
-
-<div class="embed-container">
-    <div id="loading" class="loading-message">Loading the app, please wait...</div>
-    <iframe id="appFrame" src="https://will-s-hart-climepi-web-app.hf.space" allowfullscreen></iframe>
+<div>
+    <p> Web app for visualising uncertainty in climate-sensitive epidemiological
+        projections (hosted on
+        <a href="https://huggingface.co/spaces/will-s-hart/climepi-web-app">
+            Hugging Face Spaces</a>). The app can also be run locally (see the
+        accompanying Python package
+        <a href="https://climate-epidemics.readthedocs.io/en/latest/usage.html">
+            documentation</a>).
+    </p>
 </div>
-
-<script>
-    const iframe = document.getElementById('appFrame');
-    const loadingMessage = document.getElementById('loading');
-    iframe.onload = function () {
-        loadingMessage.style.display = 'none';
-        iframe.style.display = 'block';
-    };
-</script>
+<div class="embed-container">
+    <iframe src="https://will-s-hart-climepi-web-app.hf.space"></iframe>
+</div>
+<div>
+    <p> THIS APP IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+        FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+        COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+        IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+        CONNECTION WITH THE APP OR THE USE OR OTHER DEALINGS IN THE APP.
+    </p>
+</div>
