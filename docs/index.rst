@@ -7,7 +7,8 @@ climepi documentation
 =====================
 
 **climepi** is a Python package for integrating climate projection data into
-climate-sensitive epidemiological models.
+climate-sensitive epidemiological models. See also the project's `homepage
+<https://will-s-hart.github.io/climate-epidemics/>`_.
 
 .. note::
 
@@ -19,8 +20,6 @@ climate-sensitive epidemiological models.
 
    usage
    api
-
-
 
 Indices and tables
 ==================
