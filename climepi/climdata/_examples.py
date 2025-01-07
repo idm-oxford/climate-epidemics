@@ -194,7 +194,7 @@ def _fetch_formatted_example_dataset(name, data_dir):
     )
     version = _get_data_version()
     url = (
-        "https://github.com/will-s-hart/climate-epidemics/raw/"
+        "https://github.com/idm-oxford/climate-epidemics/raw/"
         f"{version}/data/examples/{name}"
     )
     pup = pooch.create(

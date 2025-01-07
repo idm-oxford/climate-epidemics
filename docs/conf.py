@@ -64,7 +64,7 @@ html_theme = "sphinx_book_theme"
 # https://sphinx-book-theme.readthedocs.io/en/latest/configure.html
 html_title = "climepi documentation"
 html_theme_options = {
-    "repository_url": "https://github.com/will-s-hart/climate-epidemics",
+    "repository_url": "https://github.com/idm-oxford/climate-epidemics",
     "repository_branch": "main",
     "path_to_docs": "docs",
     "use_edit_page_button": True,
