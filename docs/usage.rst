@@ -19,7 +19,7 @@ Front-end application
 This package provides a browser-based front-end application, built using the ``Panel``
 library.
 
-A web application is available at https://will-s-hart.github.io/climate-epidemics/app.
+A web application is available at https://idm-oxford.github.io/climate-epidemics/app.
 If the ``climepi`` package is installed within the current ``conda`` environment, the
 application can also be run locally. To initiate the application from the command line,
 run

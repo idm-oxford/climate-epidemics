@@ -16,8 +16,8 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/will-s-hart/climate-epidemics"
-"Bug Tracker" = "https://github.com/will-s-hart/climate-epidemics/issues"
+"Homepage" = "https://github.com/idm-oxford/climate-epidemics"
+"Bug Tracker" = "https://github.com/idm-oxford/climate-epidemics/issues"
 
 [tool.pixi.project]
 channels = ["conda-forge"]
