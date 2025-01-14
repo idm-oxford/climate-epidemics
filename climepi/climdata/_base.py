@@ -20,7 +20,7 @@ def get_climate_data(
 
     Parameters
     ----------
-    data_source : str, optional
+    data_source : str
         Data source to retrieve data from. Currently supported sources are 'lens2' (for
         CESM2 LENS data) and 'isimip' (for ISIMIP data).
     frequency : str, optional
