@@ -105,11 +105,6 @@ def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
         downloaded to and accessed from a subdirectory of this directory with the same
         name as the `name` argument. If not specified, a directory within the OS cache
         will be used.
-    base_dir : str or pathlib.Path, optional
-        Base directory in which example datasets are stored. The example dataset will be
-        downloaded to and accessed from a subdirectory of this directory with the same
-        name as the `name` argument. If not specified, a directory within the OS cache
-        will be used.
     force_remake : bool, optional
         If True, force the download/formatting of the raw underlying data, even if the
         formatted dataset already exists locally and/or is available for direct
