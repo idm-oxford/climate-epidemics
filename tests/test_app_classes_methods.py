@@ -86,3 +86,36 @@ def test_run_epi_model_func(mock_path_unlink, mock_compute_to_file_reopen):
     xrt.assert_identical(result, epi_model.run(ds_clim, return_months_suitable=True))
     assert mock_compute_to_file_reopen.call_count == 2
     mock_path_unlink.assert_called_once_with(pathlib.Path("some/dir/ds_suitability.nc"))
+
+
+@pytest.mark.parametrize("temporal", ["daily", "monthly", "yearly"])
+@pytest.mark.parametrize("spatial", ["single", "list", "grid"])
+@pytest.mark.parametrize("ensemble", ["single", "multiple"])
+@pytest.mark.parametrize("scenario", ["single", "multiple"])
+@pytest.mark.parametrize("model", ["single", "multiple"])
+def test_get_scope_dict(temporal, spatial, ensemble, scenario, model):
+    """Unit test for the _get_scope_dict function."""
+    ds = generate_dataset(
+        data_var="temperature",
+        frequency=temporal,
+        extra_dims={"realization": 3, "scenario": 2, "model": 2},
+    )
+    if spatial == "single":
+        ds = ds.isel(lat=0, lon=0)
+    elif spatial == "list":
+        ds = ds.climepi.sel_geo(["lords", "gabba"])
+    if ensemble == "single":
+        ds = ds.isel(realization=0, drop=True)
+    if scenario == "single":
+        ds = ds.isel(scenario=0)
+    if model == "single":
+        ds = ds.isel(model=[0])
+    result = app_classes_methods._get_scope_dict(ds)
+    expected = {
+        "temporal": temporal,
+        "spatial": spatial,
+        "ensemble": ensemble,
+        "scenario": scenario,
+        "model": model,
+    }
+    assert result == expected
