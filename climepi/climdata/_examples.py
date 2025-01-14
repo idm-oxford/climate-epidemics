@@ -28,7 +28,7 @@ from climepi.climdata._base import get_climate_data, get_climate_data_file_names
 #       example dataset is available for direct download. If not specified, it is
 #       assumed to be False.
 EXAMPLES = {
-    "isimip_cities": {
+    "isimip_cities_monthly": {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
@@ -56,6 +56,7 @@ EXAMPLES = {
                 "Istanbul",
             ],
         },
+        "formatted_data_downloadable": True,
     },
     "lens2_cities": {
         "data_source": "lens2",
@@ -94,11 +95,11 @@ def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        "isimip_cities" (ISIMIP monthly data for London, Los Angeles, Paris, Cape Town,
-        and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP daily data for the
-        same cities and years), "lens2_cities" (CESM LENS2 monthly data for the same
-        cities and years), and "lens2_2030_2060_2090" (CESM LENS2 monthly data for 2030,
-        2060 and 2090).
+        "isimip_cities_monthly" (ISIMIP monthly data for London, Paris, Los Angeles,
+        Cape Town and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP daily data
+        for the same cities and years), "lens2_cities" (CESM LENS2 monthly data for the
+        same cities and years), and "lens2_2030_2060_2090" (CESM LENS2 monthly data for
+        2030, 2060 and 2090).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same
