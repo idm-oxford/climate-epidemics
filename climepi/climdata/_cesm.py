@@ -73,6 +73,8 @@ class CESMDataGetter(ClimateDataGetter):
         years = self._subset["years"]
         realizations = self._subset["realizations"]
         locations = self._subset["locations"]
+        lon = self._subset["lon"]
+        lat = self._subset["lat"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         ds_subset = self._ds.copy()
@@ -82,8 +84,12 @@ class CESMDataGetter(ClimateDataGetter):
             # Use the climepi package to find the nearest grid points to the provided
             # locations, and subset the data accordingly (ensure locations is a list
             # so "location" is made a dimension coordinate).
-            locations = np.atleast_1d(locations).tolist()
-            ds_subset = ds_subset.climepi.sel_geo(locations)
+            location_list = np.atleast_1d(locations).tolist()
+            lon_list = np.atleast_1d(lon).tolist() if lon is not None else None
+            lat_list = np.atleast_1d(lat).tolist() if lat is not None else None
+            ds_subset = ds_subset.climepi.sel_geo(
+                location_list, lon=lon_list, lat=lat_list
+            )
         else:
             if lon_range is not None:
                 # Note the remote data are stored with longitudes in the range 0 to 360.

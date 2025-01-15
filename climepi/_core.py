@@ -57,20 +57,32 @@ class ClimEpiDatasetAccessor:
         ds_epi = epi_model.run(self._obj, **kwargs)
         return ds_epi
 
-    def sel_geo(self, location, **kwargs):
+    def sel_geo(self, location, lon=None, lat=None, **kwargs):
         """
         Get data for the nearest grid point(s) to a specified location(s).
 
-        Obtains the latitude and longitude co-ordinates of a specified location using
-        geopy's Nominatim geocoder, and returns a new dataset containing the data for
-        the nearest grid point.
-
-        Uses OpenStreetMap data (https://openstreetmap.org/copyright).
+        Finds the nearest grid point(s) using either provided longitude and latitude
+        values, or if these are not provided, using geopy's Nominatim geocoder (uses
+        OpenStreetMap data https://openstreetmap.org/copyright). Returns a dataset with
+        a new "location" coordinate, which is used as a dimension coordinate in place of
+        the lon and lat coordinates if multiple locations are provided.
 
         Parameters
         ----------
         location : str or list of str
-            Name(s) of the location(s) to select.
+            Name(s) of the location(s) to select. If 'lon' and 'lat' are not provided,
+            the location(s) will be geocoded using geopy's Nominatim geocoder, with
+            the location(s) provided used as search strings.
+        lon : float or list of float, optional
+            Longitude(s) of the location(s) to select. If provided, 'lat' must also be
+            provided. If 'location' is a list, 'lon' and 'lat' must also be lists of the
+            same length (if provided). If not provided, the location(s) will be geocoded
+            using geopy's Nominatim geocoder.
+        lat : float or list of float, optional
+            Latitude(s) of the location(s) to select. If provided, 'lon' must also be
+            provided. If 'location' is a list, 'lon' and 'lat' must also be lists of the
+            same length (if provided). If not provided, the location(s) will be geocoded
+            using geopy's Nominatim geocoder.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the geocode method of the Nominatim
             geocoder.
@@ -81,8 +93,14 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the data for the specified location.
         """
         if isinstance(location, list):
+            if lon is None and lat is None:
+                lon = [None] * len(location)
+                lat = [None] * len(location)
             ds_list = [
-                self.sel_geo(location_curr, **kwargs) for location_curr in location
+                self.sel_geo(location_curr, lon=lon_curr, lat=lat_curr, **kwargs)
+                for location_curr, lon_curr, lat_curr in zip(
+                    location, lon, lat, strict=True
+                )
             ]
             concat_vars = [var for var in self._obj.data_vars if var != "time_bnds"]
             ds_new = xr.concat(
@@ -92,9 +110,14 @@ class ClimEpiDatasetAccessor:
                 coords=["lat", "lon", "location"],
             ).swap_dims(location_dim="location")
             return ds_new
-        location_geopy = geocode(location, **kwargs)
-        lat = location_geopy.latitude
-        lon = location_geopy.longitude  # in the range [-180, 180]
+        if lon is None and lat is None:
+            location_geopy = geocode(location, **kwargs)
+            lat = location_geopy.latitude
+            lon = location_geopy.longitude  # in the range [-180, 180]
+        elif lon is None or lat is None:
+            raise ValueError(
+                "If 'lon' or 'lat' is provided, both 'lon' and 'lat' must be provided.",
+            )
         lon_min = min(self._obj.lon)
         lon_max = max(self._obj.lon)
         if lon_max > 180.0001:
