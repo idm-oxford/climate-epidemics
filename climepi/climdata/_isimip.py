@@ -305,12 +305,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # atleast_1d to ensure "location" is made a dimension)
         if locations is not None:
             location_list = np.atleast_1d(locations).tolist()
-            if lon is not None and lat is not None:
-                lon_list = np.atleast_1d(lon).tolist()
-                lat_list = np.atleast_1d(lat).tolist()
-            else:
-                lon_list = None
-                lat_list = None
+            lon_list = np.atleast_1d(lon).tolist() if lon is not None else None
+            lat_list = np.atleast_1d(lat).tolist() if lat is not None else None
             ds_processed = ds_processed.climepi.sel_geo(
                 location_list, lon=lon_list, lat=lat_list
             )

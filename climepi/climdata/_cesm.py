@@ -85,12 +85,8 @@ class CESMDataGetter(ClimateDataGetter):
             # locations, and subset the data accordingly (ensure locations is a list
             # so "location" is made a dimension coordinate).
             location_list = np.atleast_1d(locations).tolist()
-            if lon is not None and lat is not None:
-                lon_list = np.atleast_1d(lon).tolist()
-                lat_list = np.atleast_1d(lat).tolist()
-            else:
-                lon_list = None
-                lat_list = None
+            lon_list = np.atleast_1d(lon).tolist() if lon is not None else None
+            lat_list = np.atleast_1d(lat).tolist() if lat is not None else None
             ds_subset = ds_subset.climepi.sel_geo(
                 location_list, lon=lon_list, lat=lat_list
             )
