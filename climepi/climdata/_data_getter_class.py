@@ -66,12 +66,22 @@ class ClimateDataGetter:
                 Realizations for which to retrieve data. If not provided, all available
                 realizations are retrieved.
             locations : str or list of str, optional
-                Name of one or more locations for which to retrieve data (for each
-                provided location, OpenStreetMap data
-                (https://openstreetmap.org/copyright) is used to query the corresponding
-                longitude and latitude, and data for the nearest grid point are
-                retrieved). If not provided, the 'lon_range' and 'lat_range' parameters
-                are used instead.
+                Name of one or more locations for which to retrieve data. If provided,
+                and the 'lon' and 'lat' parameters are not provided, OpenStreetMap data
+                (https://openstreetmap.org/copyright) is used to query corresponding
+                longitude and latitudes, and data for the nearest grid point to each
+                location are retrieved). If 'lon' and 'lat' are also provided, these are
+                used to retrieve the data (the locations parameter is still used as a
+                dimension coordinate in the output dataset). If not provided, the
+                'lon_range' and 'lat_range' parameters are used instead.
+            lon: float or list of float, optional
+                Longitude(s) for which to retrieve data. If provided, both 'location'
+                and 'lat' should also be provided. If 'location' is a list, 'lon' and
+                'lat' must also be lists of the same length (if provided).
+            lat: float or list of float, optional
+                Latitude(s) for which to retrieve data. If provided, both 'location'
+                and 'lon' should also be provided. If 'location' is a list, 'lon' and
+                'lat' must also be lists of the same length (if provided).
             lon_range : list or array-like of float, optional
                 Longitude range for which to retrieve data. Should comprise two values
                 giving the minimum and maximum longitudes. Ignored if 'location' is
@@ -104,6 +114,8 @@ class ClimateDataGetter:
             "models": self.available_models,
             "realizations": self.available_realizations,
             "locations": None,
+            "lon": None,
+            "lat": None,
             "lon_range": None,
             "lat_range": None,
         }
@@ -123,9 +135,9 @@ class ClimateDataGetter:
     @property
     def file_name_da(self):
         """
-        Get an array defining file names for saving and retrieving the data.
+        Get and xarray DataArray defining file names for saving and retrieving the data.
 
-        Defines an xarray data array mapping each scenario/model/realization combination
+        Defines an xarray DataArray mapping each scenario/model/realization combination
         to a file name for saving and retrieving the corresponding data (without the
         directory path). The file names are determined based on the provided data
         subsetting options.
