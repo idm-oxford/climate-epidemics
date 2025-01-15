@@ -75,22 +75,22 @@ class ClimateDataGetter:
                 dimension coordinate in the output dataset). If not provided, the
                 'lon_range' and 'lat_range' parameters are used instead.
             lon: float or list of float, optional
-                Longitude(s) for which to retrieve data. If provided, both 'location'
-                and 'lat' should also be provided. If 'location' is a list, 'lon' and
+                Longitude(s) for which to retrieve data. If provided, both 'locations'
+                and 'lat' should also be provided. If 'locations' is a list, 'lon' and
                 'lat' must also be lists of the same length (if provided).
             lat: float or list of float, optional
-                Latitude(s) for which to retrieve data. If provided, both 'location'
-                and 'lon' should also be provided. If 'location' is a list, 'lon' and
+                Latitude(s) for which to retrieve data. If provided, both 'locations'
+                and 'lon' should also be provided. If 'locations' is a list, 'lon' and
                 'lat' must also be lists of the same length (if provided).
             lon_range : list or array-like of float, optional
                 Longitude range for which to retrieve data. Should comprise two values
-                giving the minimum and maximum longitudes. Ignored if 'location' is
-                provided. If not provided, and 'location' is also not provided, all
+                giving the minimum and maximum longitudes. Ignored if 'locations' is
+                provided. If not provided, and 'locations' is also not provided, all
                 longitudes are retrieved.
             lat_range : list or array-like of float, optional
                 Latitude range for which to retrieve data. Should comprise two values
-                giving the minimum and maximum latitudes. Ignored if 'location' is
-                provided. If not provided, and 'location' is also not provided, all
+                giving the minimum and maximum latitudes. Ignored if 'locations' is
+                provided. If not provided, and 'locations' is also not provided, all
                 latitudes are retrieved.
     save_dir : str or pathlib.Path, optional
         Directory to which downloaded data are saved to and accessed from. If not

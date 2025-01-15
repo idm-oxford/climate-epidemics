@@ -50,12 +50,12 @@ def get_climate_data(
                 dimension coordinate in the output dataset). If not provided, the
                 'lon_range' and 'lat_range' parameters are used instead.
             lon: float or list of float, optional
-                Longitude(s) for which to retrieve data. If provided, both 'location'
-                and 'lat' should also be provided. If 'location' is a list, 'lon' and
+                Longitude(s) for which to retrieve data. If provided, both 'locations'
+                and 'lat' should also be provided. If 'locations' is a list, 'lon' and
                 'lat' must also be lists of the same length (if provided).
             lat: float or list of float, optional
-                Latitude(s) for which to retrieve data. If provided, both 'location'
-                and 'lon' should also be provided. If 'location' is a list, 'lon' and
+                Latitude(s) for which to retrieve data. If provided, both 'locations'
+                and 'lon' should also be provided. If 'locations' is a list, 'lon' and
                 'lat' must also be lists of the same length (if provided).
             lon_range : list or array-like of float, optional
                 Longitude range for which to retrieve data. Should comprise two values
