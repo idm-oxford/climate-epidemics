@@ -129,6 +129,8 @@ def test_subset_remote_data(year_mode, location_mode):
         lon_range = [-30, 60]
         lat_inds_expected = [1]
         lon_inds_expected = [0, 1, 4]
+    else:
+        raise ValueError(f"Invalid location_mode: {location_mode}")
     subset = {
         "years": years,
         "realizations": [0, 2],
