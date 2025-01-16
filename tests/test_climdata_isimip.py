@@ -270,12 +270,19 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         mock_session.return_value.close.assert_called_once()
 
 
-@patch.object(pooch, "retrieve", autospec=True)
+@patch.object(pooch, "create", autospec=True)
 @patch.object(pathlib.Path, "unlink", autospec=True)
 @patch("zipfile.ZipFile", autospec=True)
 @pytest.mark.parametrize("data_subsetted", [False, True])
-def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_subsetted):
+def test_download_remote_data(mock_zipfile, mock_unlink, mock_create, data_subsetted):
     """Test the _download_remote_data method of the ISIMIPDataGetter class."""
+    temp_save_dir = pathlib.Path("gully")
+
+    if data_subsetted:
+        base_url = "https://files.isimip.org/api/v1/output"
+    else:
+        base_url = "https://files.isimip.org"
+
     # Set up mock methods
 
     def mock_namelist():
@@ -290,26 +297,25 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
     # (Note __enter__ needed as zipfile.ZipFile is used as a context manager)
     mock_zipfile.return_value.__enter__.return_value.namelist = mock_namelist
 
-    def mock_retrieve_side_effect(*args, **kwargs):
-        return kwargs["path"] / kwargs["fname"]
+    def mock_fetch_side_effect(*args, **kwargs):
+        return temp_save_dir / args[0]
 
-    mock_retrieve.side_effect = mock_retrieve_side_effect
+    mock_fetch = mock_create.return_value.fetch
+    mock_fetch.side_effect = mock_fetch_side_effect
 
     # Set up DataGetter and run _download_remote_data
-
-    temp_save_dir = pathlib.Path("gully")
 
     data_getter = ISIMIPDataGetter()
     data_getter._temp_save_dir = temp_save_dir
     if data_subsetted:
         data_getter._client_results = [
-            {"file_name": x, "file_url": "https://files.isimip.org/api/v1/output/" + x}
-            for x in ["batch_1.zip", "batch_2.zip"]
+            {"file_name": x, "file_url": base_url + x}
+            for x in ["/batch_1.zip", "/batch_2.zip"]
         ]
     else:
         data_getter._client_results = [
-            {"name": x, "file_url": "https://files.isimip.org/" + x}
-            for x in ["file_1.nc", "file_2.nc", "file_3.nc"]
+            {"name": x, "file_url": base_url + x}
+            for x in ["/file_1.nc", "/file_2.nc", "/file_3.nc"]
         ]
     data_getter._download_remote_data()
 
@@ -320,11 +326,14 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
             f"batch_{x}_file_{y}.nc" for x in [1, 2] for y in [1, 2, 3, 4]
         ]
         for batch in [1, 2]:
-            mock_retrieve.assert_any_call(
-                f"https://files.isimip.org/api/v1/output/batch_{batch}.zip",
-                known_hash=None,
-                fname=f"batch_{batch}.zip",
+            mock_create.assert_any_call(
+                base_url=base_url,
                 path=temp_save_dir,
+                registry={f"batch_{batch}.zip": None},
+                retry_if_failed=5,
+            )
+            mock_fetch.assert_any_call(
+                f"batch_{batch}.zip",
                 progressbar=True,
             )
             mock_zipfile.return_value.__enter__.return_value.extractall.assert_any_call(
@@ -335,11 +344,14 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
     else:
         assert data_getter._temp_file_names == ["file_1.nc", "file_2.nc", "file_3.nc"]
         for file_no in [1, 2, 3]:
-            mock_retrieve.assert_any_call(
-                f"https://files.isimip.org/file_{file_no}.nc",
-                known_hash=None,
-                fname=f"file_{file_no}.nc",
+            mock_create.assert_any_call(
+                base_url=base_url,
                 path=temp_save_dir,
+                registry={f"file_{file_no}.nc": None},
+                retry_if_failed=5,
+            )
+            mock_fetch.assert_any_call(
+                f"file_{file_no}.nc",
                 progressbar=True,
             )
         mock_zipfile.return_value.__enter__.return_value.extractall.assert_not_called()

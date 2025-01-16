@@ -238,15 +238,17 @@ class ISIMIPDataGetter(ClimateDataGetter):
         temp_file_names = []
         for results in client_results:
             file_url = results["file_url"]
-            try:
-                download_file_name = results["file_name"]
-            except KeyError:
-                download_file_name = results["name"]
-            download_path_curr = pooch.retrieve(
-                file_url,
-                known_hash=None,
-                fname=download_file_name,
+            url_parts = file_url.split("/")
+            download_file_name = url_parts[-1]
+            base_url = "/".join(url_parts[:-1])
+            pup = pooch.create(
+                base_url=base_url,
                 path=temp_save_dir,
+                registry={download_file_name: None},
+                retry_if_failed=5,
+            )
+            download_path_curr = pup.fetch(
+                download_file_name,
                 progressbar=True,
             )
             if pathlib.Path(download_path_curr).suffix == ".zip":
