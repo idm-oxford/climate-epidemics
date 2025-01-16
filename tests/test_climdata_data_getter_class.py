@@ -47,6 +47,8 @@ def test_init():
                 "models": ["googly"],
                 "realizations": None,
                 "locations": "gabba",
+                "lon": None,
+                "lat": None,
                 "lon_range": None,
                 "lat_range": None,
             },
@@ -468,6 +470,8 @@ def test_process_data(location_mode, lon_res_set):
     elif location_mode in ["multiple_named", "grid_lat_lon"]:
         no_lons = 4
         no_lats = 4
+    else:
+        raise ValueError(f"Unknown location_mode: {location_mode}")
     if location_mode in ["single_lat_lon", "grid_lat_lon"]:
         lon_vals = 179 + lon_res * np.arange(no_lons)
         lat_vals = -20 + lat_res * np.arange(no_lats)
@@ -499,6 +503,8 @@ def test_process_data(location_mode, lon_res_set):
                 "lat": xr.DataArray(lat_vals, dims=["location"]),
             },
         )
+    else:
+        raise ValueError(f"Unknown location_mode: {location_mode}")
     ds_in["lon"].attrs = {"long_name": "Longitude", "units": "degrees_east"}
     ds_in["lat"].attrs = {"long_name": "Latitude", "units": "degrees_north"}
     # Run the _process_data method

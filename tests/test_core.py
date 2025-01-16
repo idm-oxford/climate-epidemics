@@ -81,13 +81,34 @@ class TestSelGeo:
                 ds["lon"] = np.sort(ds["lon"].values % 360)
                 lon_expected = lon_expected % 360
             result = ds.climepi.sel_geo(location=location)
-            npt.assert_equal(result.lat.values, lat_expected)
-            npt.assert_equal(result.lon.values, lon_expected)
+            npt.assert_equal(result["lon"].values, lon_expected)
+            npt.assert_equal(result["lat"].values, lat_expected)
             npt.assert_equal(result["location"].values, location)
             npt.assert_equal(
                 result["hello"].values,
                 ds["hello"].sel(lon=lon_expected, lat=lat_expected).values,
             )
+
+    def test_sel_geo_lon_lat_provided(self):
+        """Test with lon and lat provided as arguments."""
+        ds = (
+            generate_dataset(data_var="beamer", extra_dims={"covers": 2})
+            .drop_vars(("lat_bnds", "lon_bnds"))
+            .assign_coords(
+                lat=np.array([-90, -30, 30, 90]), lon=np.array([90, 120, 150, 180])
+            )
+        )
+        location = "Mustafar"
+        lon = 125
+        lat = 30
+        result = ds.climepi.sel_geo(location, lat=lat, lon=lon)
+        npt.assert_equal(result["lon"].values, 120)
+        npt.assert_equal(result["lat"].values, 30)
+        npt.assert_equal(result["location"].values, "Mustafar")
+
+        # Check that providing only one of lon or lat raises an error
+        with pytest.raises(ValueError):
+            ds.climepi.sel_geo(location, lon=lon)
 
     @pytest.mark.parametrize("location_list", [["Miami", "Cape Town"], ["Miami"]])
     def test_sel_geo_location_list(self, location_list):

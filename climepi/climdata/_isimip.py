@@ -119,6 +119,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # Request server-side subsetting of the data to the requested location(s) and
         # update the _client_results attribute with the results of the subsetting.
         locations = self._subset["locations"]
+        lon = self._subset["lon"]
+        lat = self._subset["lat"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         client_results = self._client_results
@@ -128,9 +130,10 @@ class ISIMIPDataGetter(ClimateDataGetter):
             if isinstance(locations, list):
                 self._subset_remote_data_location_list()
                 return
-            location_geopy = geocode(locations)
-            lat = location_geopy.latitude
-            lon = location_geopy.longitude
+            if lon is None and lat is None:
+                location_geopy = geocode(locations)
+                lon = location_geopy.longitude
+                lat = location_geopy.latitude
             bbox = [lat, lat, lon, lon]
         else:
             if lon_range is None:
@@ -195,12 +198,19 @@ class ISIMIPDataGetter(ClimateDataGetter):
     def _subset_remote_data_location_list(self):
         # Request server-side subsetting of the data to a list of locations
         locations = self._subset["locations"]
+        lon = self._subset["lon"]
+        lat = self._subset["lat"]
+        if lon is None and lat is None:
+            lon = [None] * len(locations)
+            lat = [None] * len(locations)
         client_results = []
         any_timeout_error = False
-        for location_curr in locations:
+        for location_curr, lon_curr, lat_curr in zip(locations, lon, lat, strict=True):
             print(f"Initiating subsetting request for location: {location_curr}")
             data_getter_curr = deepcopy(self)
             data_getter_curr._subset["locations"] = location_curr
+            data_getter_curr._subset["lon"] = lon_curr
+            data_getter_curr._subset["lat"] = lat_curr
             try:
                 data_getter_curr._subset_remote_data()
                 client_results += data_getter_curr._client_results
@@ -228,15 +238,17 @@ class ISIMIPDataGetter(ClimateDataGetter):
         temp_file_names = []
         for results in client_results:
             file_url = results["file_url"]
-            try:
-                download_file_name = results["file_name"]
-            except KeyError:
-                download_file_name = results["name"]
-            download_path_curr = pooch.retrieve(
-                file_url,
-                known_hash=None,
-                fname=download_file_name,
+            url_parts = file_url.split("/")
+            download_file_name = url_parts[-1]
+            base_url = "/".join(url_parts[:-1])
+            pup = pooch.create(
+                base_url=base_url,
                 path=temp_save_dir,
+                registry={download_file_name: None},
+                retry_if_failed=5,
+            )
+            download_path_curr = pup.fetch(
+                download_file_name,
                 progressbar=True,
             )
             if pathlib.Path(download_path_curr).suffix == ".zip":
@@ -289,11 +301,16 @@ class ISIMIPDataGetter(ClimateDataGetter):
         frequency = self._frequency
         years = self._subset["years"]
         locations = self._subset["locations"]
+        lon = self._subset["lon"]
+        lat = self._subset["lat"]
         # Ensure the data are indexed by location string if locations are provided (use
         # atleast_1d to ensure "location" is made a dimension)
         if locations is not None:
+            location_list = np.atleast_1d(locations).tolist()
+            lon_list = np.atleast_1d(lon).tolist() if lon is not None else None
+            lat_list = np.atleast_1d(lat).tolist() if lat is not None else None
             ds_processed = ds_processed.climepi.sel_geo(
-                np.atleast_1d(locations).tolist()
+                location_list, lon=lon_list, lat=lat_list
             )
         # Subset the data to the requested years
         ds_processed = ds_processed.isel(time=ds_processed.time.dt.year.isin(years))

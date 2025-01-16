@@ -27,19 +27,18 @@ from climepi.climdata._base import get_climate_data, get_climate_data_file_names
 #   formatted_data_downloadable: Optional, boolean indicating whether the formatted
 #       example dataset is available for direct download. If not specified, it is
 #       assumed to be False.
+_EXAMPLE_CITY_NAME_LIST = ["London", "Paris", "Los Angeles", "Istanbul", "Cape Town"]
+_EXAMPLE_CITY_LON_LIST = [-0.25, 2.25, -118.25, 28.75, 18.75]  # matched to ISIMIP grid
+_EXAMPLE_CITY_LAT_LIST = [51.75, 48.75, 33.75, 41.25, -33.75]
 EXAMPLES = {
-    "isimip_cities": {
+    "isimip_cities_monthly": {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
             "years": np.arange(2030, 2101),
-            "locations": [
-                "London",
-                "Los Angeles",
-                "Paris",
-                "Cape Town",
-                "Istanbul",
-            ],
+            "locations": _EXAMPLE_CITY_NAME_LIST,
+            "lon": _EXAMPLE_CITY_LON_LIST,
+            "lat": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
     },
@@ -48,27 +47,20 @@ EXAMPLES = {
         "frequency": "daily",
         "subset": {
             "years": np.arange(2030, 2101),
-            "locations": [
-                "London",
-                "Los Angeles",
-                "Paris",
-                "Cape Town",
-                "Istanbul",
-            ],
+            "locations": _EXAMPLE_CITY_NAME_LIST,
+            "lon": _EXAMPLE_CITY_LON_LIST,
+            "lat": _EXAMPLE_CITY_LAT_LIST,
         },
+        "formatted_data_downloadable": True,
     },
     "lens2_cities": {
         "data_source": "lens2",
         "frequency": "monthly",
         "subset": {
             "years": np.arange(2030, 2101),
-            "locations": [
-                "London",
-                "Los Angeles",
-                "Paris",
-                "Istanbul",
-                "Cape Town",
-            ],
+            "locations": _EXAMPLE_CITY_NAME_LIST,
+            "lon": _EXAMPLE_CITY_LON_LIST,
+            "lat": _EXAMPLE_CITY_LAT_LIST,
         },
     },
     "lens2_2030_2060_2090": {
@@ -94,16 +86,11 @@ def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        "isimip_cities" (ISIMIP monthly data for London, Los Angeles, Paris, Cape Town,
-        and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP daily data for the
-        same cities and years), "lens2_cities" (CESM LENS2 monthly data for the same
-        cities and years), and "lens2_2030_2060_2090" (CESM LENS2 monthly data for 2030,
-        2060 and 2090).
-    base_dir : str or pathlib.Path, optional
-        Base directory in which example datasets are stored. The example dataset will be
-        downloaded to and accessed from a subdirectory of this directory with the same
-        name as the `name` argument. If not specified, a directory within the OS cache
-        will be used.
+        "isimip_cities_monthly" (ISIMIP monthly data for London, Paris, Los Angeles,
+        Cape Town and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP daily data
+        for the same cities and years), "lens2_cities" (CESM LENS2 monthly data for the
+        same cities and years), and "lens2_2030_2060_2090" (CESM LENS2 monthly data for
+        2030, 2060 and 2090).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same
