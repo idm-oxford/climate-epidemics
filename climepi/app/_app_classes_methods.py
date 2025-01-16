@@ -64,7 +64,6 @@ def _run_epi_model_func(
 
 
 def _get_scope_dict(ds_in):
-    # pylint: disable-next=protected-access
     temporal_scope_xcdat = _infer_freq(ds_in.time)  # noqa
     xcdat_freq_map = {"year": "yearly", "month": "monthly", "day": "daily"}
     temporal_scope = xcdat_freq_map[temporal_scope_xcdat]
@@ -77,14 +76,14 @@ def _get_scope_dict(ds_in):
     )
     ensemble_scope = (
         "multiple"
-        if "realization" in ds_in.dims and len(ds_in.realization) > 1
+        if "realization" in ds_in.dims and ds_in.realization.size > 1
         else "single"
     )
     scenario_scope = (
-        "multiple" if "scenario" in ds_in.dims and len(ds_in.scenario) > 1 else "single"
+        "multiple" if "scenario" in ds_in.dims and ds_in.scenario.size > 1 else "single"
     )
     model_scope = (
-        "multiple" if "model" in ds_in.dims and len(ds_in.model) > 1 else "single"
+        "multiple" if "model" in ds_in.dims and ds_in.model.size > 1 else "single"
     )
     scope_dict = {
         "temporal": temporal_scope,
