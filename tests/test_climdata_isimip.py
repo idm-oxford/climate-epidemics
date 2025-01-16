@@ -31,6 +31,8 @@ def test_init():
             "years": [2015, 2021],
             "models": ["mri-esm2-0", "ukesm1-0-ll"],
             "locations": ["gabba", "mcg"],
+            "lon": [153, 144],
+            "lat": [-27, -37],
         },
         subset_check_interval=15,
     )
@@ -46,6 +48,8 @@ def test_init():
                 "models": ["mri-esm2-0", "ukesm1-0-ll"],
                 "realizations": [0],
                 "locations": ["gabba", "mcg"],
+                "lon": [153, 144],
+                "lat": [-27, -37],
                 "lon_range": None,
                 "lat_range": None,
             },
@@ -172,12 +176,18 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
     # Get inputs and expected bbox values used in subsetting requests
 
     if location_mode == "single_named":
-        locations = "Los Angeles"
+        # Use a single named location with provided lon and lat
+        locations = "Gabba"
+        lon = 153
+        lat = -27
         lat_range = None
         lon_range = None
-        bbox_expected_list = [[34, 34, -118, -118]]
+        bbox_expected_list = [[-27, -27, 153, 153]]
     elif location_mode == "multiple_named":
+        # Use multiple named locations with geocoding to get lon and lat
         locations = ["Los Angeles", "Melbourne"]
+        lon = None
+        lat = None
         lat_range = None
         lon_range = None
         bbox_expected_list = [
@@ -185,20 +195,31 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
             [-37, -37, 144, 144],
         ]
     elif location_mode == "grid_lon_0_360":
+        # Use a grid of lon/lat values with lon in 0-360 range
         locations = None
+        lon = None
+        lat = None
         lat_range = [10, 60]
         lon_range = [15, 240]
         bbox_expected_list = [["10", "60", "15", "-120"]]
     elif location_mode == "grid_lon_180_180":
+        # Use a grid of lon/lat values with lon in -180-180 range
         locations = None
+        lon = None
+        lat = None
         lat_range = None
         lon_range = [-30, 60]
         bbox_expected_list = [["-90", "90", "-30", "60"]]
     elif location_mode == "global":
+        # Use all global data
         locations = None
+        lon = None
+        lat = None
         lat_range = None
         lon_range = None
         bbox_expected_list = [["-90", "90", "-180", "180"]]
+    else:
+        raise ValueError(f"Unexpected location_mode {location_mode}.")
 
     # Set up DataGetter
 
@@ -208,6 +229,8 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
             "years": [2015, 2021, 2046],
             "models": ["mri-esm2-0", "ukesm1-0-ll"],
             "locations": locations,
+            "lon": lon,
+            "lat": lat,
             "lat_range": lat_range,
             "lon_range": lon_range,
         },
@@ -247,12 +270,19 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         mock_session.return_value.close.assert_called_once()
 
 
-@patch.object(pooch, "retrieve", autospec=True)
+@patch.object(pooch, "create", autospec=True)
 @patch.object(pathlib.Path, "unlink", autospec=True)
 @patch("zipfile.ZipFile", autospec=True)
 @pytest.mark.parametrize("data_subsetted", [False, True])
-def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_subsetted):
+def test_download_remote_data(mock_zipfile, mock_unlink, mock_create, data_subsetted):
     """Test the _download_remote_data method of the ISIMIPDataGetter class."""
+    temp_save_dir = pathlib.Path("gully")
+
+    if data_subsetted:
+        base_url = "https://files.isimip.org/api/v1/output"
+    else:
+        base_url = "https://files.isimip.org"
+
     # Set up mock methods
 
     def mock_namelist():
@@ -267,26 +297,25 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
     # (Note __enter__ needed as zipfile.ZipFile is used as a context manager)
     mock_zipfile.return_value.__enter__.return_value.namelist = mock_namelist
 
-    def mock_retrieve_side_effect(*args, **kwargs):
-        return kwargs["path"] / kwargs["fname"]
+    def mock_fetch_side_effect(*args, **kwargs):
+        return temp_save_dir / args[0]
 
-    mock_retrieve.side_effect = mock_retrieve_side_effect
+    mock_fetch = mock_create.return_value.fetch
+    mock_fetch.side_effect = mock_fetch_side_effect
 
     # Set up DataGetter and run _download_remote_data
-
-    temp_save_dir = pathlib.Path("gully")
 
     data_getter = ISIMIPDataGetter()
     data_getter._temp_save_dir = temp_save_dir
     if data_subsetted:
         data_getter._client_results = [
-            {"file_name": x, "file_url": "https://files.isimip.org/api/v1/output/" + x}
-            for x in ["batch_1.zip", "batch_2.zip"]
+            {"file_name": x, "file_url": base_url + x}
+            for x in ["/batch_1.zip", "/batch_2.zip"]
         ]
     else:
         data_getter._client_results = [
-            {"name": x, "file_url": "https://files.isimip.org/" + x}
-            for x in ["file_1.nc", "file_2.nc", "file_3.nc"]
+            {"name": x, "file_url": base_url + x}
+            for x in ["/file_1.nc", "/file_2.nc", "/file_3.nc"]
         ]
     data_getter._download_remote_data()
 
@@ -297,11 +326,14 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
             f"batch_{x}_file_{y}.nc" for x in [1, 2] for y in [1, 2, 3, 4]
         ]
         for batch in [1, 2]:
-            mock_retrieve.assert_any_call(
-                f"https://files.isimip.org/api/v1/output/batch_{batch}.zip",
-                known_hash=None,
-                fname=f"batch_{batch}.zip",
+            mock_create.assert_any_call(
+                base_url=base_url,
                 path=temp_save_dir,
+                registry={f"batch_{batch}.zip": None},
+                retry_if_failed=5,
+            )
+            mock_fetch.assert_any_call(
+                f"batch_{batch}.zip",
                 progressbar=True,
             )
             mock_zipfile.return_value.__enter__.return_value.extractall.assert_any_call(
@@ -312,11 +344,14 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_retrieve, data_sub
     else:
         assert data_getter._temp_file_names == ["file_1.nc", "file_2.nc", "file_3.nc"]
         for file_no in [1, 2, 3]:
-            mock_retrieve.assert_any_call(
-                f"https://files.isimip.org/file_{file_no}.nc",
-                known_hash=None,
-                fname=f"file_{file_no}.nc",
+            mock_create.assert_any_call(
+                base_url=base_url,
                 path=temp_save_dir,
+                registry={f"file_{file_no}.nc": None},
+                retry_if_failed=5,
+            )
+            mock_fetch.assert_any_call(
+                f"file_{file_no}.nc",
                 progressbar=True,
             )
         mock_zipfile.return_value.__enter__.return_value.extractall.assert_not_called()
@@ -434,9 +469,11 @@ def test_process_data(frequency):
     # Set up DataGetter and run _process_data
 
     locations = ["Brisbane"]
+    lon = [150]
+    lat = [-27]
     data_getter = ISIMIPDataGetter(
         frequency=frequency,
-        subset={"locations": locations},
+        subset={"locations": locations, "lon": lon, "lat": lat},
     )
     data_getter._ds = ds_unprocessed
     data_getter._process_data()
