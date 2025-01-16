@@ -31,6 +31,8 @@ def test_init():
             "years": [2015, 2021],
             "models": ["mri-esm2-0", "ukesm1-0-ll"],
             "locations": ["gabba", "mcg"],
+            "lon": [153, 144],
+            "lat": [-27, -37],
         },
         subset_check_interval=15,
     )
@@ -46,6 +48,8 @@ def test_init():
                 "models": ["mri-esm2-0", "ukesm1-0-ll"],
                 "realizations": [0],
                 "locations": ["gabba", "mcg"],
+                "lon": [153, 144],
+                "lat": [-27, -37],
                 "lon_range": None,
                 "lat_range": None,
             },
@@ -172,12 +176,18 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
     # Get inputs and expected bbox values used in subsetting requests
 
     if location_mode == "single_named":
-        locations = "Los Angeles"
+        # Use a single named location with provided lon and lat
+        locations = "Gabba"
+        lon = 153
+        lat = -27
         lat_range = None
         lon_range = None
-        bbox_expected_list = [[34, 34, -118, -118]]
+        bbox_expected_list = [[-27, -27, 153, 153]]
     elif location_mode == "multiple_named":
+        # Use multiple named locations with geocoding to get lon and lat
         locations = ["Los Angeles", "Melbourne"]
+        lon = None
+        lat = None
         lat_range = None
         lon_range = None
         bbox_expected_list = [
@@ -185,20 +195,31 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
             [-37, -37, 144, 144],
         ]
     elif location_mode == "grid_lon_0_360":
+        # Use a grid of lon/lat values with lon in 0-360 range
         locations = None
+        lon = None
+        lat = None
         lat_range = [10, 60]
         lon_range = [15, 240]
         bbox_expected_list = [["10", "60", "15", "-120"]]
     elif location_mode == "grid_lon_180_180":
+        # Use a grid of lon/lat values with lon in -180-180 range
         locations = None
+        lon = None
+        lat = None
         lat_range = None
         lon_range = [-30, 60]
         bbox_expected_list = [["-90", "90", "-30", "60"]]
     elif location_mode == "global":
+        # Use all global data
         locations = None
+        lon = None
+        lat = None
         lat_range = None
         lon_range = None
         bbox_expected_list = [["-90", "90", "-180", "180"]]
+    else:
+        raise ValueError(f"Unexpected location_mode {location_mode}.")
 
     # Set up DataGetter
 
@@ -208,6 +229,8 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
             "years": [2015, 2021, 2046],
             "models": ["mri-esm2-0", "ukesm1-0-ll"],
             "locations": locations,
+            "lon": lon,
+            "lat": lat,
             "lat_range": lat_range,
             "lon_range": lon_range,
         },
@@ -434,9 +457,11 @@ def test_process_data(frequency):
     # Set up DataGetter and run _process_data
 
     locations = ["Brisbane"]
+    lon = [150]
+    lat = [-27]
     data_getter = ISIMIPDataGetter(
         frequency=frequency,
-        subset={"locations": locations},
+        subset={"locations": locations, "lon": lon, "lat": lat},
     )
     data_getter._ds = ds_unprocessed
     data_getter._process_data()
