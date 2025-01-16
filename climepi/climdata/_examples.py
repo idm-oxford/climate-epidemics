@@ -27,19 +27,18 @@ from climepi.climdata._base import get_climate_data, get_climate_data_file_names
 #   formatted_data_downloadable: Optional, boolean indicating whether the formatted
 #       example dataset is available for direct download. If not specified, it is
 #       assumed to be False.
+_EXAMPLE_CITY_NAME_LIST = ["London", "Paris", "Los Angeles", "Istanbul", "Cape Town"]
+_EXAMPLE_CITY_LON_LIST = [-0.25, 2.25, -118.25, 28.75, 18.75]  # matched to ISIMIP grid
+_EXAMPLE_CITY_LAT_LIST = [51.75, 48.75, 33.75, 41.25, -33.75]
 EXAMPLES = {
     "isimip_cities_monthly": {
         "data_source": "isimip",
         "frequency": "monthly",
         "subset": {
             "years": np.arange(2030, 2101),
-            "locations": [
-                "London",
-                "Los Angeles",
-                "Paris",
-                "Cape Town",
-                "Istanbul",
-            ],
+            "locations": _EXAMPLE_CITY_NAME_LIST,
+            "lon": _EXAMPLE_CITY_LON_LIST,
+            "lat": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
     },
@@ -48,13 +47,9 @@ EXAMPLES = {
         "frequency": "daily",
         "subset": {
             "years": np.arange(2030, 2101),
-            "locations": [
-                "London",
-                "Los Angeles",
-                "Paris",
-                "Cape Town",
-                "Istanbul",
-            ],
+            "locations": _EXAMPLE_CITY_NAME_LIST,
+            "lon": _EXAMPLE_CITY_LON_LIST,
+            "lat": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
     },
@@ -63,13 +58,9 @@ EXAMPLES = {
         "frequency": "monthly",
         "subset": {
             "years": np.arange(2030, 2101),
-            "locations": [
-                "London",
-                "Los Angeles",
-                "Paris",
-                "Istanbul",
-                "Cape Town",
-            ],
+            "locations": _EXAMPLE_CITY_NAME_LIST,
+            "lon": _EXAMPLE_CITY_LON_LIST,
+            "lat": _EXAMPLE_CITY_LAT_LIST,
         },
     },
     "lens2_2030_2060_2090": {
