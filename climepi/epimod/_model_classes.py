@@ -115,23 +115,27 @@ class SuitabilityModel(EpiModel):
             self._suitability_var_name = suitability_var_name
             self._suitability_var_long_name = suitability_var_long_name
 
-    def run(self, ds_clim, return_months_suitable=False, suitability_threshold=0):
+    def run(
+        self, ds_clim, return_yearly_portion_suitable=False, suitability_threshold=0
+    ):
         """
         Run the epidemiological model on a given climate dataset.
 
-        Extends the parent method to include the option to return the number of months
-        suitable each year, rather than the full suitability dataset.
+        Extends the parent method to include the option to return the number of days/
+        months suitable each year (depending on the resolution of the climate data),
+        rather than the full suitability dataset.
 
         Parameters
         ----------
         ds_clim : xarray.Dataset
             The input climate dataset.
-        return_months_suitable : bool, optional
-            Whether to return the number of months suitable each year, rather than the
-            full suitability dataset. Default is False.
+        return_yearly_portion_suitable : bool, optional
+            Whether to return the number of days/months suitable each year (depending on
+            the resolution of the climate data), rather than the full suitability
+            dataset. Default is False.
         suitability_threshold : float, optional
-            The minimum suitability threshold for a month to be considered suitable.
-            Only used if `return_months_suitable` is True. Default is 0.
+            The minimum suitability threshold for a day/month to be considered suitable.
+            Only used if `return_yearly_portion_suitable` is True. Default is 0.
 
         Returns
         -------
@@ -156,8 +160,8 @@ class SuitabilityModel(EpiModel):
                 self._suitability_var_long_name
             )
         ds_epi = add_bnds_from_other(ds_epi, ds_clim)
-        if return_months_suitable:
-            ds_epi = ds_epi.climepi.months_suitable(
+        if return_yearly_portion_suitable:
+            ds_epi = ds_epi.climepi.yearly_portion_suitable(
                 suitability_threshold=suitability_threshold
             )
         return ds_epi

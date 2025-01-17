@@ -13,7 +13,12 @@ import xarray as xr
 from xarray.plot.utils import label_from_attrs
 
 from climepi._geocoding import geocode
-from climepi._xcdat import BoundsAccessor, TemporalAccessor, center_times  # noqa
+from climepi._xcdat import (  # noqa
+    BoundsAccessor,
+    TemporalAccessor,
+    _infer_freq,
+    center_times,
+)
 from climepi.utils import (
     add_bnds_from_other,
     add_var_attrs_from_other,
@@ -43,11 +48,11 @@ class ClimEpiDatasetAccessor:
             The epidemiological model to run.
         **kwargs : dict, optional
             Keyword arguments to pass to the model's run method. For suitability models,
-            passing "return_months_suitable=True" will return the number of months
-            suitable each year, rather than the full suitability dataset, and
-            additionally passing a value for "suitability_threshold" will set the
-            minimum suitability threshold for a month to be considered suitable (default
-            is 0).
+            passing "return_yearly_portion_suitable=True" will return the number of
+            days/months suitable each year (depending on the resolution of the data),
+            rather than the full suitability dataset, and additionally passing a value
+            for "suitability_threshold" will set the minimum suitability threshold for a
+            day/month to be considered suitable (default is 0).
 
         Returns
         -------
@@ -175,7 +180,12 @@ class ClimEpiDatasetAccessor:
             return ds_copy.climepi.temporal_group_average(data_var, frequency, **kwargs)
         xcdat_freq_map = {"yearly": "year", "monthly": "month", "daily": "day"}
         xcdat_freq = xcdat_freq_map[frequency]
-        ds_m = self._obj.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
+        # Add time bounds if necessary and ensure these are loaded into memory (can
+        # play weirdly with Dask otherwise)
+        ds_in = self._obj.bounds.add_missing_bounds(axes="T")
+        ds_in["time_bnds"] = ds_in["time_bnds"].compute()
+        # Compute the group average
+        ds_m = ds_in.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
         if ds_m.time.size > 1:
             # Add time bounds and center times (only if there is more than one time
             # point, as xcdat add_time_bounds does not work for a single time point)
@@ -236,9 +246,15 @@ class ClimEpiDatasetAccessor:
             data_var=data_var, frequency="monthly", **kwargs
         )
 
-    def months_suitable(self, suitability_var_name=None, suitability_threshold=0):
+    def yearly_portion_suitable(
+        self, suitability_var_name=None, suitability_threshold=0
+    ):
         """
-        Calculate the number of months suitable each year from monthly suitability data.
+        Calculate the portion of each year that is suitable given suitability data.
+
+        Suitability data must be provided on either a monthly or daily basis; the
+        suitable portion of each year is given as the number of months or days that are
+        suitable in the respective cases.
 
         Parameters
         ----------
@@ -252,7 +268,8 @@ class ClimEpiDatasetAccessor:
         Returns
         -------
         xarray.Dataset:
-            Dataset with a single non-bound data variable "months_suitable".
+            Dataset with a single non-bound data variable "portion_suitable", with units
+            of months for monthly suitability data and days for daily suitability data.
         """
         if suitability_var_name is None:
             non_bnd_data_vars = list_non_bnd_data_vars(self._obj)
@@ -268,22 +285,33 @@ class ClimEpiDatasetAccessor:
                     variable is not named "suitability", specify the name using the
                     suitability_var_name argument.""",
                 )
+        freq_xcdat = _infer_freq(self._obj.time)  # noqa
+        if freq_xcdat not in ["month", "day"]:
+            raise ValueError(
+                "Suitability data must be provided on either a monthly or daily "
+                f"basis. Inferred frequency of the time coordinate is '{freq_xcdat}'.",
+            )
         da_suitability = self._obj[suitability_var_name]
         ds_suitable_bool = xr.Dataset(
             {"suitable": da_suitability > suitability_threshold}
         )
-        ds_suitable_bool = add_bnds_from_other(ds_suitable_bool, self._obj)
-        ds_suitable_mean = ds_suitable_bool.climepi.yearly_average(weighted=False)
-        ds_months_suitable = ds_suitable_mean.assign(
-            months_suitable=12 * ds_suitable_mean["suitable"]
-        ).drop_vars("suitable")
-        ds_months_suitable.months_suitable.attrs.update(
-            long_name="Months where "
-            + suitability_var_name
-            + " > "
-            + str(suitability_threshold)
+        ds_portion_suitable = (
+            ds_suitable_bool.groupby("time.year")
+            .sum("time")
+            .rename(suitable="portion_suitable", year="time")
         )
-        return ds_months_suitable
+        # Fairly hacky way to convert years to datetime objects and add bounds
+        # (likely inefficient if not using Dask)
+        time_bnds = self._obj.climepi.yearly_average(suitability_var_name)["time_bnds"]
+        ds_portion_suitable = ds_portion_suitable.assign_coords(
+            time=time_bnds.time
+        ).assign(time_bnds=time_bnds)
+        # Add long_name attribute
+        ds_portion_suitable["portion_suitable"].attrs = {
+            "long_name": f"{freq_xcdat.capitalize()}s where {suitability_var_name} > "
+            + str(suitability_threshold)
+        }
+        return ds_portion_suitable
 
     def ensemble_stats(
         self,
@@ -342,13 +370,6 @@ class ClimEpiDatasetAccessor:
             )
         # Compute ensemble statistics
         ds_raw = self._obj[data_var_list]  # drops bounds for now (re-add at end)
-        # if ds_raw.chunks:
-        #     # Currently need to explicitly rechunk along the realization dimension for
-        #     # the quantile method to work [may be fixed in dask 2024.11 - check
-        #     # lens2_2030_2060_2090 notebook to see if safe to remove this, since
-        #     # only rechunking before quantile method could be problematic with map
-        #     # plots]
-        #     ds_raw = ds_raw.chunk({"realization": -1})
         ds_mean = ds_raw.mean(dim="realization").expand_dims(
             dim={"stat": ["mean"]}, axis=-1
         )
