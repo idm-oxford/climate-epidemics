@@ -41,25 +41,25 @@ def _get_epi_model_func(example_name=None, temperature_range=None):
 def _run_epi_model_func(
     ds_clim,
     epi_model,
-    return_months_suitable=False,
+    return_yearly_portion_suitable=False,
     suitability_threshold=0,
     save_path=None,
 ):
     # Get and run the epidemiological model.
     ds_suitability = ds_clim.climepi.run_epi_model(epi_model)
-    if return_months_suitable:
+    if return_yearly_portion_suitable:
         save_path_suitability = save_path.parent / "ds_suitability.nc"
     else:
         save_path_suitability = save_path
     ds_suitability = _compute_to_file_reopen(ds_suitability, save_path_suitability)
-    if return_months_suitable:
-        ds_months_suitable = ds_suitability.climepi.months_suitable(
+    if return_yearly_portion_suitable:
+        ds_portion_suitable = ds_suitability.climepi.yearly_portion_suitable(
             suitability_threshold=suitability_threshold
         )
-        ds_months_suitable = _compute_to_file_reopen(ds_months_suitable, save_path)
+        ds_portion_suitable = _compute_to_file_reopen(ds_portion_suitable, save_path)
         ds_suitability.close()
         save_path_suitability.unlink()
-        return ds_months_suitable
+        return ds_portion_suitable
     return ds_suitability
 
 
@@ -316,9 +316,6 @@ class _PlotController(param.Parameterized):
                 "name": "",
             },
         }
-        # "location_string": {
-        #     "name": "Location (search powered by OpenStreetMap) - <a href='https://openstreetmap.org' target='_blank'>OpenStreetMap</a>"
-        # },
         controls_new = pn.Param(self, widgets=widgets, show_name=False)
         self.controls.append(controls_new)
         # self.controls.append(pn.Param(self, widgets=widgets, show_name=False))
@@ -519,10 +516,10 @@ class Controller(param.Parameterized):
     )
     epi_output_choice = param.ObjectSelector(
         objects=[
-            "Months of suitability each year",
+            "Suitable portion of each year",
             "Suitability values",
         ],
-        default="Months of suitability each year",
+        default="Suitable portion of each year",
         precedence=-1,
     )
     suitabilty_threshold = param.Number(
@@ -682,15 +679,15 @@ class Controller(param.Parameterized):
             return
         try:
             self.epi_model_status = "Running model..."
-            return_months_suitable = bool(
-                self.epi_output_choice == "Months of suitability each year"
+            return_yearly_portion_suitable = bool(
+                self.epi_output_choice == "Suitable portion of each year"
             )
             if self._ds_epi is not None:
                 self._ds_epi.close()
             ds_epi = _run_epi_model_func(
                 self._ds_clim,
                 self._epi_model,
-                return_months_suitable=return_months_suitable,
+                return_yearly_portion_suitable=return_yearly_portion_suitable,
                 suitability_threshold=self.suitabilty_threshold,
                 save_path=self._ds_epi_path,
             )
@@ -741,7 +738,7 @@ class Controller(param.Parameterized):
         # Update the suitability threshold parameter.
         if self.epi_output_choice == "Suitability values":
             self.param.suitabilty_threshold.precedence = -1
-        elif self.epi_output_choice == "Months of suitability each year":
+        elif self.epi_output_choice == "Suitable portion of each year":
             if self._epi_model.temperature_range is not None:
                 self.suitabilty_threshold = 0
                 self.param.suitabilty_threshold.precedence = -1

@@ -86,7 +86,7 @@ class TestSuitabilityModel:
     def test_run_range(self):
         """Test the run method with a temperature range."""
         model = epimod.SuitabilityModel(temperature_range=[0, 0.5])
-        ds_clim = generate_dataset(data_var="temperature")
+        ds_clim = generate_dataset(data_var="temperature", frequency="monthly")
         ds_clim.attrs = {"did": "you"}
         ds_clim["temperature"].values = np.random.rand(*ds_clim["temperature"].shape)
         ds_suitability = model.run(ds_clim)
@@ -99,12 +99,12 @@ class TestSuitabilityModel:
             ds_suitability[["lon_bnds", "lat_bnds", "time_bnds"]],
             ds_clim[["lon_bnds", "lat_bnds", "time_bnds"]],
         )
-        # Check that running return_months_suitable=True gives the same result as
-        # calculating months suitable from the suitability dataset.
-        ds_months_suitable = model.run(ds_clim, return_months_suitable=True)
+        # Check that running return_yearly_portion_suitable=True gives the same result
+        # as calculating months suitable from the suitability dataset.
+        ds_months_suitable = model.run(ds_clim, return_yearly_portion_suitable=True)
         xrt.assert_equal(
             ds_months_suitable,
-            ds_suitability.climepi.months_suitable(),
+            ds_suitability.climepi.yearly_portion_suitable(),
         )
 
     def test_run_temp_table(self):

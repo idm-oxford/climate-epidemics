@@ -212,6 +212,8 @@ class TestTemporalGroupAverage:
             temperature_values_expected = temperature_values_in
             ds_time_bnds_expected = ds[["time_bnds"]]
             time_index_expected = ds.get_index("time")
+        else:
+            raise ValueError(f"Invalid frequency: {frequency}")
         npt.assert_allclose(temperature_values_result, temperature_values_expected)
         assert time_index_result.equals(time_index_expected)
         if frequency in ["monthly", "daily"]:
@@ -275,16 +277,45 @@ def test_monthly_average():
     xrt.assert_identical(result, expected)
 
 
-class TestMonthsSuitable:
-    """Class for testing the months_suitable method of ClimEpiDatasetAccessor."""
+class TestYearlyPortionSuitable:
+    """Class for testing the yearly_portion_suitable method."""
 
-    def test_months_suitable(self):
+    @pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
+    def test_yearly_portion_suitable(self, frequency):
         """Main test."""
-        time_lb = xr.cftime_range(start="2001-01-01", periods=24, freq="MS")
-        time_rb = xr.cftime_range(start="2001-02-01", periods=24, freq="MS")
+        if frequency == "daily":
+            time_lb = xr.cftime_range(
+                start="2001-01-01",
+                periods=730,
+                freq="D",
+                calendar="noleap",
+            )
+            time_rb = xr.cftime_range(
+                start="2001-01-02",
+                periods=730,
+                freq="D",
+                calendar="noleap",
+            )
+        elif frequency == "monthly":
+            time_lb = xr.cftime_range(start="2001-01-01", periods=24, freq="MS")
+            time_rb = xr.cftime_range(start="2001-02-01", periods=24, freq="MS")
+        elif frequency == "yearly":
+            time_lb = xr.cftime_range(start="2001-01-01", periods=2, freq="YS")
+            time_rb = xr.cftime_range(start="2002-01-01", periods=2, freq="YS")
+        else:
+            raise ValueError(f"Invalid frequency: {frequency}")
         time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "bnds"))
         time = time_bnds.mean(dim="bnds")
-        suitability_values_in = np.random.rand(24, 2)
+        units_per_year = (
+            365
+            if frequency == "daily"
+            else 12
+            if frequency == "monthly"
+            else 1
+            if frequency == "yearly"
+            else None
+        )
+        suitability_values_in = np.random.rand(2 * units_per_year, 2)
         ds = xr.Dataset(
             {
                 "suitability": (("time", "kenobi"), suitability_values_in),
@@ -295,52 +326,84 @@ class TestMonthsSuitable:
         ds.time.attrs.update(bounds="time_bnds")
         ds["time"].encoding.update(calendar="standard")
         suitability_threshold = 0.5
-        result = ds.climepi.months_suitable(suitability_threshold=suitability_threshold)
-        months_suitable_values_result = result.months_suitable.values
-        months_suitable_values_expected = np.array(
+        if frequency == "yearly":
+            # The method should only work with daily or monthly data
+            with pytest.raises(
+                ValueError,
+                match="Suitability data must be provided on either a monthly or daily "
+                "basis. Inferred frequency of the time coordinate is 'year'.",
+            ):
+                ds.climepi.yearly_portion_suitable(
+                    suitability_threshold=suitability_threshold
+                )
+            return
+        result = ds.climepi.yearly_portion_suitable(
+            suitability_threshold=suitability_threshold
+        )
+        portion_suitable_values_result = result.portion_suitable.values
+        portion_suitable_values_expected = np.array(
             [
-                np.sum(suitability_values_in[:12, :] > suitability_threshold, axis=0),
-                np.sum(suitability_values_in[12:, :] > suitability_threshold, axis=0),
+                np.sum(
+                    suitability_values_in[:units_per_year, :] > suitability_threshold,
+                    axis=0,
+                ),
+                np.sum(
+                    suitability_values_in[units_per_year:, :] > suitability_threshold,
+                    axis=0,
+                ),
             ]
         )
         npt.assert_allclose(
-            months_suitable_values_result, months_suitable_values_expected
+            portion_suitable_values_result, portion_suitable_values_expected
         )
-        assert (
-            result.months_suitable.attrs["long_name"]
-            == "Months where suitability > 0.5"
-        )
+        if frequency == "monthly":
+            assert (
+                result.portion_suitable.attrs["long_name"]
+                == "Months where suitability > 0.5"
+            )
+        elif frequency == "daily":
+            assert (
+                result.portion_suitable.attrs["long_name"]
+                == "Days where suitability > 0.5"
+            )
+        else:
+            raise ValueError(f"Invalid frequency: {frequency}")
+        assert "time_bnds" in result
 
-    def test_months_suitable_var_names(self):
+    def test_yearly_portion_suitable_var_names(self):
         """Test with different data variable names present in the dataset."""
         data_vars = ["suitability", "also_suitability", "temperature"]
-        ds = generate_dataset(data_var=data_vars)
+        ds = generate_dataset(data_var=data_vars, frequency="monthly")
         ds["suitability"].values = np.random.rand(*ds["suitability"].shape)
         ds["also_suitability"].values = ds["suitability"].values
         ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         suitability_threshold = 0.2
-        result1 = ds.climepi.months_suitable(
+        result1 = ds.climepi.yearly_portion_suitable(
             suitability_threshold=suitability_threshold
         )
-        result2 = ds.climepi.months_suitable(
+        result2 = ds.climepi.yearly_portion_suitable(
             suitability_threshold=suitability_threshold,
             suitability_var_name="also_suitability",
         )
-        xrt.assert_allclose(result1["months_suitable"], result2["months_suitable"])
-        result3 = ds[["also_suitability", "time_bnds"]].climepi.months_suitable(
+        xrt.assert_allclose(result1["portion_suitable"], result2["portion_suitable"])
+        result3 = ds[["also_suitability", "time_bnds"]].climepi.yearly_portion_suitable(
             suitability_threshold=suitability_threshold,
         )
-        xrt.assert_allclose(result1["months_suitable"], result3["months_suitable"])
-        result4 = ds.climepi.months_suitable(
+        xrt.assert_allclose(result1["portion_suitable"], result3["portion_suitable"])
+        result4 = ds.climepi.yearly_portion_suitable(
             suitability_threshold=suitability_threshold,
             suitability_var_name="temperature",
         )
         with pytest.raises(AssertionError):
-            xrt.assert_allclose(result1["months_suitable"], result4["months_suitable"])
+            xrt.assert_allclose(
+                result1["portion_suitable"], result4["portion_suitable"]
+            )
         with pytest.raises(ValueError):
             ds[
                 ["also_suitability", "temperature", "time_bnds"]
-            ].climepi.months_suitable(suitability_threshold=suitability_threshold)
+            ].climepi.yearly_portion_suitable(
+                suitability_threshold=suitability_threshold
+            )
 
 
 class TestEnsembleStats:

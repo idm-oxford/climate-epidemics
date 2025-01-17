@@ -38,7 +38,6 @@ Methods
    Dataset.climepi.ensemble_stats
    Dataset.climepi.estimate_ensemble_stats
    Dataset.climepi.monthly_average
-   Dataset.climepi.months_suitable
    Dataset.climepi.plot_map
    Dataset.climepi.plot_time_series
    Dataset.climepi.plot_uncertainty_interval_decomposition
@@ -49,6 +48,7 @@ Methods
    Dataset.climepi.uncertainty_interval_decomposition
    Dataset.climepi.variance_decomposition
    Dataset.climepi.yearly_average
+   Dataset.climepi.yearly_portion_suitable
 
 Climate data subpackage
 -----------------------

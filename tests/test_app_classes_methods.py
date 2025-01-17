@@ -73,17 +73,19 @@ def test_run_epi_model_func(mock_path_unlink, mock_compute_to_file_reopen):
 
     mock_compute_to_file_reopen.side_effect = _mock_compute_to_file_reopen
 
-    ds_clim = generate_dataset(data_var="temperature")
+    ds_clim = generate_dataset(data_var="temperature", frequency="monthly")
     ds_clim["temperature"].values = 30 * np.random.rand(*ds_clim["temperature"].shape)
     epi_model = epimod.SuitabilityModel(temperature_range=(15, 30))
 
     result = app_classes_methods._run_epi_model_func(
         ds_clim,
         epi_model,
-        return_months_suitable=True,
+        return_yearly_portion_suitable=True,
         save_path=pathlib.Path("some/dir/ds_out.nc"),
     )
-    xrt.assert_identical(result, epi_model.run(ds_clim, return_months_suitable=True))
+    xrt.assert_identical(
+        result, epi_model.run(ds_clim, return_yearly_portion_suitable=True)
+    )
     assert mock_compute_to_file_reopen.call_count == 2
     mock_path_unlink.assert_called_once_with(pathlib.Path("some/dir/ds_suitability.nc"))
 

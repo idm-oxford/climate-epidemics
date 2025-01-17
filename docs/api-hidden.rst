@@ -4,7 +4,6 @@
    climepi.ClimEpiDatasetAccessor.ensemble_stats
    climepi.ClimEpiDatasetAccessor.estimate_ensemble_stats
    climepi.ClimEpiDatasetAccessor.monthly_average
-   climepi.ClimEpiDatasetAccessor.months_suitable
    climepi.ClimEpiDatasetAccessor.plot_map
    climepi.ClimEpiDatasetAccessor.plot_time_series
    climepi.ClimEpiDatasetAccessor.plot_uncertainty_interval_decomposition
@@ -15,6 +14,7 @@
    climepi.ClimEpiDatasetAccessor.uncertainty_interval_decomposition
    climepi.ClimEpiDatasetAccessor.variance_decomposition
    climepi.ClimEpiDatasetAccessor.yearly_average
+   climepi.ClimEpiDatasetAccessor.yearly_portion_suitable
 
    climepi.epimod.EpiModel.run
 
