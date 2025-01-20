@@ -187,7 +187,9 @@ def get_example_model(name):
         precipitation_vals = precipitation_range[0] + precipitation_diff * np.arange(
             -0.005, 1.01, 0.01
         )
-        suitability_vals = np.ones((len(temperature_vals), len(precipitation_vals)))
+        suitability_vals = np.ones(
+            (len(temperature_vals), len(precipitation_vals)), dtype=bool
+        )
         suitability_vals[0, :] = 0
         suitability_vals[-1, :] = 0
         suitability_vals[:, 0] = 0
