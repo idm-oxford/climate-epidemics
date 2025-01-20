@@ -759,7 +759,15 @@ class Controller(param.Parameterized):
         if self.epi_output_choice == "Suitability values":
             self.param.suitabilty_threshold.precedence = -1
         elif self.epi_output_choice == "Suitable portion of each year":
-            if self._epi_model.temperature_range is not None:
+            if self._epi_model.temperature_range is not None or (
+                self._epi_model.suitability_table is not None
+                and np.issubdtype(
+                    self._epi_model.suitability_table[
+                        self._epi_model._suitability_var_name
+                    ].dtype,
+                    bool,
+                )
+            ):
                 self.suitabilty_threshold = 0
                 self.param.suitabilty_threshold.precedence = -1
             else:
