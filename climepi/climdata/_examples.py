@@ -47,6 +47,9 @@ EXAMPLES = {
             "lat": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
+        "doc": "Monthly temperature and precipitation projections for London, Paris, "
+        "Los Angeles, Istanbul and Cape Town for 2030-2100 from the ISIMIP repository "
+        "(https://data.isimip.org/).",
     },
     "isimip_cities_daily": {
         "data_source": "isimip",
@@ -58,6 +61,9 @@ EXAMPLES = {
             "lat": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
+        "doc": "Daily temperature and precipitation projections for London, Paris, Los "
+        "Angeles, Istanbul and Cape Town for 2030-2100 from the ISIMIP repository "
+        "(https://data.isimip.org/).",
     },
     "lens2_cities": {
         "data_source": "lens2",
@@ -68,6 +74,9 @@ EXAMPLES = {
             "lon": _EXAMPLE_CITY_LON_LIST,
             "lat": _EXAMPLE_CITY_LAT_LIST,
         },
+        "doc": "Monthly temperature and precipitation projections for London, Paris, "
+        "Los Angeles, Istanbul and Cape Town for 2030-2100 from the CESM2 LENS project "
+        "(https://registry.opendata.aws/ncar-cesm2-lens/).",
     },
     "lens2_2030_2060_2090": {
         "data_source": "lens2",
@@ -75,6 +84,9 @@ EXAMPLES = {
         "subset": {
             "years": [2030, 2060, 2090],
         },
+        "doc": "Monthly global temperature and precipitation projections for 2030, "
+        "2060 and 2090 from the CESM2 LENS project "
+        "(https://registry.opendata.aws/ncar-cesm2-lens/).",
     },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
