@@ -18,6 +18,13 @@ def get_climate_data(
     """
     Retrieve and download climate projection data from a remote server.
 
+    Currently available data sources are CESM2 LENS (data_source='lens2') and ISIMIP
+    (data_source='isimip'). CESM2 LENS data are taken from an AWS server
+    (https://registry.opendata.aws/ncar-cesm2-lens/), and terms of use can be found at
+    https://www.ucar.edu/terms-of-use/data. ISIMIP data are taken from the ISIMIP
+    repository (https://data.isimip.org/), and terms of use can be found at
+    https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
+
     Parameters
     ----------
     data_source : str
