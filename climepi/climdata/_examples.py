@@ -88,15 +88,19 @@ def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
     formatted dataset if possible, or retrieves/downloads/formats the raw underlying
     data from the relevant server.
 
+    Please note the terms of use of the underlying ISIMIP
+    (https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/)
+    and CESM2 LENS (https://www.ucar.edu/terms-of-use/data) data.
+
     Parameters
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        "isimip_cities_monthly" (ISIMIP monthly data for London, Paris, Los Angeles,
-        Cape Town and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP daily data
-        for the same cities and years), "lens2_cities" (CESM LENS2 monthly data for the
-        same cities and years), and "lens2_2030_2060_2090" (CESM LENS2 monthly data for
-        2030, 2060 and 2090).
+        "isimip_cities_monthly" (ISIMIP monthly projections for London, Paris, Los
+        Angeles, Cape Town and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP
+        daily projections for the same cities and years), "lens2_cities" (CESM LENS2
+        monthly projections for the same cities and years), and "lens2_2030_2060_2090"
+        (CESM LENS2 monthly projections for 2030, 2060 and 2090).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same
@@ -215,18 +219,25 @@ def _make_example_registry(name, base_dir):
 
 def _make_all_examples(base_dir=None, force_remake=False):
     # Create all example datasets by downloading and formatting the relevant data.
-    exc = None
+    timed_out = []
     for example_name in EXAMPLES:
         try:
             get_example_dataset(
                 example_name, base_dir=base_dir, force_remake=force_remake
             )
             _make_example_registry(example_name, base_dir=base_dir)
-        except TimeoutError as _exc:
-            exc = _exc
+        except TimeoutError as exc:
+            print(
+                f"Timeout error creating example '{example_name}': {exc}\n"
+                "Continuing with any remaining examples."
+            )
+            timed_out.append(example_name)
     # Raise a TimeoutError if any of the datasets failed to download
-    if exc:
-        raise TimeoutError("Some downloads timed out. Please try again later.") from exc
+    if timed_out:
+        raise TimeoutError(
+            f"Downloads for the following examples timed out: {", ".join(timed_out)}."
+            "\n Please check the output above for more information."
+        )
 
 
 if __name__ == "__main__":
