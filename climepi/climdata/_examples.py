@@ -28,8 +28,14 @@ from climepi.climdata._base import get_climate_data, get_climate_data_file_names
 #       example dataset is available for direct download. If not specified, it is
 #       assumed to be False.
 _EXAMPLE_CITY_NAME_LIST = ["London", "Paris", "Los Angeles", "Istanbul", "Cape Town"]
-_EXAMPLE_CITY_LON_LIST = [-0.25, 2.25, -118.25, 28.75, 18.75]  # matched to ISIMIP grid
-_EXAMPLE_CITY_LAT_LIST = [51.75, 48.75, 33.75, 41.25, -33.75]
+_EXAMPLE_CITY_LON_LIST = [
+    -0.08,  # for Tower of London
+    2.35,  # for Hotel de Ville, Paris
+    -118.42,  # for Los Angeles International Airport
+    28.98,  # for Topkapi Palace, Istanbul
+    18.42,  # for Cape Town City Hall
+]
+_EXAMPLE_CITY_LAT_LIST = [51.51, 48.86, 33.94, 41.01, -33.93]
 EXAMPLES = {
     "isimip_cities_monthly": {
         "data_source": "isimip",
