@@ -155,13 +155,10 @@ def get_example_model(name):
     Parameters
     ----------
     name : str
-        The name of the example model to return. Currently available examples are:
-        "kaye_ae_aegypti" (the temperature and rainfall suitability model for
-        Ae. aegypti from https://doi.org/10.1101/2023.08.31.23294902),
-        "mordecai_ae_aegypti" (the temperature suitability model for Ae. aegypti from
-        https://doi.org/10.1371/journal.pntd.0005568), and "mordecai_ae_albopictus" (the
-        temperature suitability model for Ae. albopictus from
-        https://doi.org/10.1371/journal.pntd.0005568).
+        The name of the example model to return. A list of available example names can
+        be accessed as climepi.epimod.EXAMPLE_NAMES, and a description of each example
+        can be accessed via the climepi.epimod.EXAMPLES dictionary (e.g.
+        climepi.epimod.EXAMPLES["mordecai_ae_aegypti_niche"]["doc"]).
 
     Returns
     -------
