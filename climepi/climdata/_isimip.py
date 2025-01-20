@@ -22,7 +22,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
     Class for accessing and downloading ISIMIP data.
 
     Data are taken from the ISIMIP repository
-    (https://www.isimip.org/outputdata/isimip-repository/).
+    (https://data.isimip.org/).
 
     Available years that can be specified in the `subset` argument of the class
     constructor range from 2015 to 2100, and a single realization (here labelled as 0)
