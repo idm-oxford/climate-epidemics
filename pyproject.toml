@@ -66,6 +66,7 @@ dev = [
 default = { features = ["dev"], solve-group = "default" }
 
 [tool.pixi.feature.dev.tasks]
+app = "python -m climepi.app"
 lint = "ruff check"
 lint-gh-actions = "ruff check --output-format=github"
 test = "pytest"
