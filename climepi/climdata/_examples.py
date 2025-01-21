@@ -247,7 +247,7 @@ def _make_all_examples(base_dir=None, force_remake=False):
     # Raise a TimeoutError if any of the datasets failed to download
     if timed_out:
         raise TimeoutError(
-            f"Downloads for the following examples timed out: {", ".join(timed_out)}."
+            f"Downloads for the following examples timed out: {', '.join(timed_out)}."
             "\n Please check the output above for more information."
         )
 
