@@ -268,8 +268,9 @@ class ClimEpiDatasetAccessor:
         Returns
         -------
         xarray.Dataset:
-            Dataset with a single non-bound data variable "portion_suitable", with units
-            of months for monthly suitability data and days for daily suitability data.
+            Dataset with a single non-bounds data variable "portion_suitable", with
+            units of months (for monthly suitability data) or days (for daily
+            suitability data) each year.
         """
         if suitability_var_name is None:
             non_bnd_data_vars = list_non_bnd_data_vars(self._obj)
