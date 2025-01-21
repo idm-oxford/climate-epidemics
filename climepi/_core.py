@@ -268,8 +268,9 @@ class ClimEpiDatasetAccessor:
         Returns
         -------
         xarray.Dataset:
-            Dataset with a single non-bound data variable "portion_suitable", with units
-            of months for monthly suitability data and days for daily suitability data.
+            Dataset with a single non-bounds data variable "portion_suitable", with
+            units of months (for monthly suitability data) or days (for daily
+            suitability data) each year.
         """
         if suitability_var_name is None:
             non_bnd_data_vars = list_non_bnd_data_vars(self._obj)
@@ -302,10 +303,9 @@ class ClimEpiDatasetAccessor:
         )
         # Fairly hacky way to convert years to datetime objects and add bounds
         # (likely inefficient if not using Dask)
-        time_bnds = self._obj.climepi.yearly_average(suitability_var_name)["time_bnds"]
-        ds_portion_suitable = ds_portion_suitable.assign_coords(
-            time=time_bnds.time
-        ).assign(time_bnds=time_bnds)
+        ds_yearly_avg = self._obj.climepi.yearly_average(suitability_var_name)
+        ds_portion_suitable = ds_portion_suitable.assign_coords(time=ds_yearly_avg.time)
+        ds_portion_suitable = add_bnds_from_other(ds_portion_suitable, ds_yearly_avg)
         # Add long_name attribute
         ds_portion_suitable["portion_suitable"].attrs = {
             "long_name": f"{freq_xcdat.capitalize()}s where {suitability_var_name} > "

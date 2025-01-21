@@ -318,7 +318,6 @@ class _PlotController(param.Parameterized):
         }
         controls_new = pn.Param(self, widgets=widgets, show_name=False)
         self.controls.append(controls_new)
-        # self.controls.append(pn.Param(self, widgets=widgets, show_name=False))
 
     @param.depends()
     def _initialize_params(self):
