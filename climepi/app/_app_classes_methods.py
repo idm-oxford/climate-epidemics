@@ -302,7 +302,7 @@ class _PlotController(param.Parameterized):
                 "[https://openstreetmap.org/copyright])"
             },
             "location_selection": {"name": "Location"},
-            "temporal_scope": {"name": "Temporal"},
+            "temporal_scope": {"name": "Temporal resolution"},
             "year_range": {"name": "Year range"},
             "scenario": {"name": "Scenario"},
             "model": {"name": "Model"},
@@ -344,7 +344,7 @@ class _PlotController(param.Parameterized):
             location_values = ["all", *ds_base.location.values.tolist()]
             self.param.location_selection.objects = location_values
             self.param.location_selection.default = location_values[0]
-        # Temporal scope choices
+        # Temporal resolution choices
         if scope_dict_base["temporal"] == "yearly":
             temporal_scope_choices = ["yearly"]
         elif scope_dict_base["temporal"] == "monthly":
@@ -502,6 +502,7 @@ class Controller(param.Parameterized):
     """Main controller class for the dashboard."""
 
     clim_dataset_name = param.ObjectSelector(precedence=1)
+    clim_dataset_doc = param.String(precedence=1)
     clim_data_load_initiator = param.Event(default=False, precedence=1)
     clim_data_loaded = param.Boolean(default=False, precedence=-1)
     clim_data_status = param.String(default="Data not loaded", precedence=1)
@@ -511,6 +512,7 @@ class Controller(param.Parameterized):
         precedence=-1,
     )
     epi_example_name = param.ObjectSelector(precedence=1)
+    epi_example_doc = param.String(precedence=1)
     epi_temperature_range = param.Range(
         default=(15, 30), bounds=(0, 50), step=0.25, precedence=-1
     )
@@ -549,6 +551,7 @@ class Controller(param.Parameterized):
         )
         self.param.clim_dataset_name.default = self.param.clim_dataset_name.objects[0]
         self.clim_dataset_name = self.param.clim_dataset_name.default
+        self._update_clim_dataset_doc()
         self.param.epi_example_name.objects = (
             epi_model_example_names or epimod.EXAMPLE_NAMES
         )
@@ -556,6 +559,7 @@ class Controller(param.Parameterized):
         self.epi_example_name = self.param.epi_example_name.default
         if enable_custom_epi_model:
             self.param.epi_model_option.precedence = 1
+        self._update_epi_example_doc()
         self._clim_dataset_example_base_dir = clim_dataset_example_base_dir
         self._ds_clim = None
         self._epi_model = None
@@ -565,6 +569,7 @@ class Controller(param.Parameterized):
         )
         data_widgets = {
             "clim_dataset_name": {"name": "Climate dataset"},
+            "clim_dataset_doc": {"widget_type": pn.widgets.StaticText, "name": ""},
             "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
             "clim_data_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -572,6 +577,7 @@ class Controller(param.Parameterized):
             },
             "epi_model_option": {"name": "Epidemiological model option"},
             "epi_example_name": {"name": "Example epidemiological model"},
+            "epi_example_doc": {"widget_type": pn.widgets.StaticText, "name": ""},
             "epi_temperature_range": {"name": "Temperature range of suitability (°C)"},
             "epi_output_choice": {"name": "Return"},
             "suitabilty_threshold": {"name": "Suitability threshold"},
@@ -719,6 +725,20 @@ class Controller(param.Parameterized):
         self.epi_model_status = "Model has not been run"
         self.epi_model_ran = False
 
+    @param.depends("clim_dataset_name", watch=True)
+    def _update_clim_dataset_doc(self):
+        # Details of the climate dataset.
+        self.clim_dataset_doc = climdata.EXAMPLES[self.clim_dataset_name].get("doc", "")
+
+    @param.depends("epi_model_option", "epi_example_name", watch=True)
+    def _update_epi_example_doc(self):
+        # Details of the epidemiological model.
+        if self.epi_model_option == "Example model":
+            self.epi_example_doc = epimod.EXAMPLES[self.epi_example_name].get("doc", "")
+            self.param.epi_example_doc.precedence = 1
+        else:
+            self.param.epi_example_doc.precedence = -1
+
     @param.depends("epi_model_option", watch=True)
     def _update_epi_example_model_temperature_range_precedence(self):
         # Update the example model and temperature range parameter precedence.
@@ -739,7 +759,15 @@ class Controller(param.Parameterized):
         if self.epi_output_choice == "Suitability values":
             self.param.suitabilty_threshold.precedence = -1
         elif self.epi_output_choice == "Suitable portion of each year":
-            if self._epi_model.temperature_range is not None:
+            if self._epi_model.temperature_range is not None or (
+                self._epi_model.suitability_table is not None
+                and np.issubdtype(
+                    self._epi_model.suitability_table[
+                        self._epi_model._suitability_var_name
+                    ].dtype,
+                    bool,
+                )
+            ):
                 self.suitabilty_threshold = 0
                 self.param.suitabilty_threshold.precedence = -1
             else:

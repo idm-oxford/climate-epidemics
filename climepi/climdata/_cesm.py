@@ -13,7 +13,8 @@ class CESMDataGetter(ClimateDataGetter):
     """
     Class for accessing and downloading CESM2 LENS data.
 
-    Data are taken from the aws server (https://registry.opendata.aws/ncar-cesm2-lens/).
+    Data are taken from an AWS server (https://registry.opendata.aws/ncar-cesm2-lens/).
+    Terms of use can be found at https://www.ucar.edu/terms-of-use/data.
 
     Available years that can be specified in the `subset` argument of the class
     constructor range from 1850 to 2100, and 100 realizations (here labelled as 0 to 99)

@@ -8,30 +8,44 @@ import xarray as xr
 from climepi.epimod._model_classes import SuitabilityModel
 
 EXAMPLES = {
-    "mordecai_ae_aegypti_niche": {  # from https://doi.org/10.1371/journal.pntd.0005568
+    "mordecai_ae_aegypti_niche": {
         "temperature_range": [17.8, 34.6],
+        "doc": "Posterior mean temperature range of suitability for virus transmission "
+        "by Ae. aegypti from Mordecai et al., PLOS Negl Trop Dis, 2017 "
+        "(https://doi.org/10.1371/journal.pntd.0005568).",
     },
     "mordecai_ae_albopictus_niche": {
-        # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_range": [16.2, 31.6],
+        "doc": "Posterior mean temperature range of suitability for virus transmission "
+        "by Ae. albopictus from Mordecai et al., PLOS Negl Trop Dis, 2017 "
+        "(https://doi.org/10.1371/journal.pntd.0005568).",
     },
     "ryan_ae_aegypti_niche": {
-        # from https://doi.org/10.1371/journal.pntd.0007213
         "temperature_range": [21.3, 34.0],
+        "doc": "Temperature range of 97.5% posterior probability of suitability for "
+        "virus transmission by Ae. aegypti from Ryan et al., PLOS Negl Trop Dis, 2019 "
+        "(https://doi.org/10.1371/journal.pntd.0007213).",
     },
     "ryan_ae_albopictus_niche": {
-        # from https://doi.org/10.1371/journal.pntd.0007213
         "temperature_range": [19.9, 29.4],
+        "doc": "Temperature range of 97.5% posterior probability of suitability for "
+        "virus transmission by Ae. albopictus from Ryan et al., PLOS Negl Trop Dis, "
+        "2019 (https://doi.org/10.1371/journal.pntd.0007213).",
     },
-    "kaye_ae_aegypti_niche": {  # from https://doi.org/10.1101/2023.08.31.23294902
+    "kaye_ae_aegypti_niche": {
         "suitability_table_path": str(pathlib.Path(__file__).parent)
         + "/_example_data/kaye_ae_aegypti_niche.nc",
+        "doc": "Median temperature/rainfall suitability region for Ae. aegypti from "
+        "Kaye et al., Lancet Planet Health, 2024 "
+        "(https://doi.org/10.1016/S2542-5196(24)00238-9).",
     },
-    "yang_ae_aegypti_niche": {  # from https://doi.org/10.1017/S0950268809002040,
-        # range where offspring number is at least 1
+    "yang_ae_aegypti_niche": {
         "temperature_range": [13.6, 36.55],
+        "doc": "Temperature range in which the offspring number of Ae. aegypti is at "
+        "least one from Yang et al., Epidemiol Infect, 2009 "
+        "(https://doi.org/10.1017/S0950268809002040).",
     },
-    "mordecai_ae_aegypti_suitability": {  # from https://doi.org/10.1371/journal.pntd.0005568
+    "mordecai_ae_aegypti_suitability": {
         "temperature_vals": np.arange(18, 37),
         "suitability_vals": np.array(
             [
@@ -56,9 +70,11 @@ EXAMPLES = {
                 0,
             ]
         ),
+        "doc": "Relative (posterior mean) suitability of different temperatures for "
+        "virus transmission by Ae. aegypti from Mordecai et al., PLOS Negl Trop Dis, "
+        "2017 (https://doi.org/10.1371/journal.pntd.0005568).",
     },
     "mordecai_ae_albopictus_suitability": {
-        # from https://doi.org/10.1371/journal.pntd.0005568
         "temperature_vals": np.arange(16, 35),
         "suitability_vals": np.array(
             [
@@ -83,22 +99,47 @@ EXAMPLES = {
                 0,
             ]
         ),
+        "doc": "Relative (posterior mean) suitability of different temperatures for "
+        "virus transmission by Ae. albopictus from Mordecai et al., PLOS Negl Trop "
+        "Dis, 2017 (https://doi.org/10.1371/journal.pntd.0005568).",
     },
     "villena_an_stephensi_p_falciparum_niche": {
-        # from https://doi.org/10.1002/ecy.3685
-        "temperature_range": [16.0, 36.5],
+        "temperature_range": [15.3, 37.2],
+        "doc": "Posterior median temperature range of suitability for P. falciparum "
+        "malaria parasite transmission by An. stephensi from Villena et al., Ecology, "
+        "2022 (https://doi.org/10.1002/ecy.3685).",
     },
     "villena_an_stephensi_p_vivax_niche": {
-        # from https://doi.org/10.1002/ecy.3685
-        "temperature_range": [16.6, 31.7],
+        "temperature_range": [15.7, 32.5],
+        "doc": "Posterior median temperature range of suitability for P. vivax malaria "
+        "parasite transmission by An. stephensi from Villena et al., Ecology, 2022 "
+        "(https://doi.org/10.1002/ecy.3685).",
+    },
+    "villena_an_gambiae_p_falciparum_niche": {
+        "temperature_range": [19.1, 30.1],
+        "doc": "Posterior median temperature range of suitability for P. falciparum "
+        "malaria parasite transmission by An. gambiae from Villena et al., Ecology, "
+        "2022 (https://doi.org/10.1002/ecy.3685).",
+    },
+    "villena_an_gambiae_p_vivax_niche": {
+        "temperature_range": [19.2, 31.7],
+        "doc": "Posterior median temperature range of suitability for P. vivax malaria "
+        "parasite transmission by An. gambiae from Villena et al., Ecology, 2022 "
+        "(https://doi.org/10.1002/ecy.3685).",
     },
     "taylor_hlb_range_niche": {
-        # from https://doi.org/10.1111/1365-2664.13455
         "temperature_range": [16, 33],
+        "doc": "Approximate temperature range of suitability for HLB transmission by "
+        "D. citri from Taylor et al., J Appl Ecol, 2019"
+        "(https://doi.org/10.1111/1365-2664.13455).",
     },
-    "parham_anopheles_niche": {  # from https://doi.org/10.1007/978-1-4419-6064-1_13
+    "parham_anopheles_niche": {
         "temperature_range": [12.1606, 40],
-        "precipitation_range": [0.001, 50],
+        "precipitation_range": [0.0001, 50],
+        "doc": "Temperature and precipitation ranges of suitability for Anopheles "
+        "mosquitoes from Parham et al., 2010 "
+        "(https://doi.org/10.1007/978-1-4419-6064-1_13), as reconstructed by Kaye et "
+        "al. (https://doi.org/10.1016/S2542-5196(24)00238-9).",
     },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
@@ -114,13 +155,10 @@ def get_example_model(name):
     Parameters
     ----------
     name : str
-        The name of the example model to return. Currently available examples are:
-        "kaye_ae_aegypti" (the temperature and rainfall suitability model for
-        Ae. aegypti from https://doi.org/10.1101/2023.08.31.23294902),
-        "mordecai_ae_aegypti" (the temperature suitability model for Ae. aegypti from
-        https://doi.org/10.1371/journal.pntd.0005568), and "mordecai_ae_albopictus" (the
-        temperature suitability model for Ae. albopictus from
-        https://doi.org/10.1371/journal.pntd.0005568).
+        The name of the example model to return. A list of available example names can
+        be accessed as climepi.epimod.EXAMPLE_NAMES, and a description of each example
+        can be accessed via the climepi.epimod.EXAMPLES dictionary (e.g.
+        climepi.epimod.EXAMPLES["mordecai_ae_aegypti_niche"]["doc"]).
 
     Returns
     -------
@@ -149,7 +187,9 @@ def get_example_model(name):
         precipitation_vals = precipitation_range[0] + precipitation_diff * np.arange(
             -0.005, 1.01, 0.01
         )
-        suitability_vals = np.ones((len(temperature_vals), len(precipitation_vals)))
+        suitability_vals = np.ones(
+            (len(temperature_vals), len(precipitation_vals)), dtype=bool
+        )
         suitability_vals[0, :] = 0
         suitability_vals[-1, :] = 0
         suitability_vals[:, 0] = 0

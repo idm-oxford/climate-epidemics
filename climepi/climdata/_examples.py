@@ -28,8 +28,14 @@ from climepi.climdata._base import get_climate_data, get_climate_data_file_names
 #       example dataset is available for direct download. If not specified, it is
 #       assumed to be False.
 _EXAMPLE_CITY_NAME_LIST = ["London", "Paris", "Los Angeles", "Istanbul", "Cape Town"]
-_EXAMPLE_CITY_LON_LIST = [-0.25, 2.25, -118.25, 28.75, 18.75]  # matched to ISIMIP grid
-_EXAMPLE_CITY_LAT_LIST = [51.75, 48.75, 33.75, 41.25, -33.75]
+_EXAMPLE_CITY_LON_LIST = [
+    -0.08,  # for Tower of London
+    2.35,  # for Hotel de Ville, Paris
+    -118.42,  # for Los Angeles International Airport
+    28.98,  # for Topkapi Palace, Istanbul
+    18.42,  # for Cape Town City Hall
+]
+_EXAMPLE_CITY_LAT_LIST = [51.51, 48.86, 33.94, 41.01, -33.93]
 EXAMPLES = {
     "isimip_cities_monthly": {
         "data_source": "isimip",
@@ -41,6 +47,9 @@ EXAMPLES = {
             "lat": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
+        "doc": "Monthly temperature and precipitation projections for London, Paris, "
+        "Los Angeles, Istanbul and Cape Town for 2030-2100 from the ISIMIP repository "
+        "(https://data.isimip.org/).",
     },
     "isimip_cities_daily": {
         "data_source": "isimip",
@@ -52,6 +61,9 @@ EXAMPLES = {
             "lat": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
+        "doc": "Daily temperature and precipitation projections for London, Paris, Los "
+        "Angeles, Istanbul and Cape Town for 2030-2100 from the ISIMIP repository "
+        "(https://data.isimip.org/).",
     },
     "lens2_cities": {
         "data_source": "lens2",
@@ -62,6 +74,9 @@ EXAMPLES = {
             "lon": _EXAMPLE_CITY_LON_LIST,
             "lat": _EXAMPLE_CITY_LAT_LIST,
         },
+        "doc": "Monthly temperature and precipitation projections for London, Paris, "
+        "Los Angeles, Istanbul and Cape Town for 2030-2100 from the CESM2 LENS project "
+        "(https://registry.opendata.aws/ncar-cesm2-lens/).",
     },
     "lens2_2030_2060_2090": {
         "data_source": "lens2",
@@ -69,6 +84,9 @@ EXAMPLES = {
         "subset": {
             "years": [2030, 2060, 2090],
         },
+        "doc": "Monthly global temperature and precipitation projections for 2030, "
+        "2060 and 2090 from the CESM2 LENS project "
+        "(https://registry.opendata.aws/ncar-cesm2-lens/).",
     },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
@@ -82,15 +100,19 @@ def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
     formatted dataset if possible, or retrieves/downloads/formats the raw underlying
     data from the relevant server.
 
+    Please note the terms of use of the underlying ISIMIP
+    (https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/)
+    and CESM2 LENS (https://www.ucar.edu/terms-of-use/data) data.
+
     Parameters
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        "isimip_cities_monthly" (ISIMIP monthly data for London, Paris, Los Angeles,
-        Cape Town and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP daily data
-        for the same cities and years), "lens2_cities" (CESM LENS2 monthly data for the
-        same cities and years), and "lens2_2030_2060_2090" (CESM LENS2 monthly data for
-        2030, 2060 and 2090).
+        "isimip_cities_monthly" (ISIMIP monthly projections for London, Paris, Los
+        Angeles, Cape Town and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP
+        daily projections for the same cities and years), "lens2_cities" (CESM LENS2
+        monthly projections for the same cities and years), and "lens2_2030_2060_2090"
+        (CESM LENS2 monthly projections for 2030, 2060 and 2090).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same
@@ -209,18 +231,25 @@ def _make_example_registry(name, base_dir):
 
 def _make_all_examples(base_dir=None, force_remake=False):
     # Create all example datasets by downloading and formatting the relevant data.
-    exc = None
+    timed_out = []
     for example_name in EXAMPLES:
         try:
             get_example_dataset(
                 example_name, base_dir=base_dir, force_remake=force_remake
             )
             _make_example_registry(example_name, base_dir=base_dir)
-        except TimeoutError as _exc:
-            exc = _exc
+        except TimeoutError as exc:
+            print(
+                f"Timeout error creating example '{example_name}': {exc}\n"
+                "Continuing with any remaining examples."
+            )
+            timed_out.append(example_name)
     # Raise a TimeoutError if any of the datasets failed to download
-    if exc:
-        raise TimeoutError("Some downloads timed out. Please try again later.") from exc
+    if timed_out:
+        raise TimeoutError(
+            f"Downloads for the following examples timed out: {", ".join(timed_out)}."
+            "\n Please check the output above for more information."
+        )
 
 
 if __name__ == "__main__":
