@@ -326,18 +326,21 @@ def test_open_local_data():
     scenarios = ["overcast", "sunny"]
     models = ["bouncer", "inswinger", "length"]
     realizations = np.arange(1, 3)
+    locations = ["mcg", "gabba"]
     ds_in = generate_dataset(
         data_var="temperature",
         extra_dims={
             "scenario": scenarios,
             "model": models,
             "realization": realizations,
+            "location": locations,
         },
     )
     ds_in["temperature"].attrs["units"] = "deg_C"
     ds_in["temperature"].values = np.random.rand(*ds_in["temperature"].shape)
 
     def _mock_xr_open_mfdataset(file_name_list, **kwargs):
+        _locations = [str(file_name).split("_")[-4] for file_name in file_name_list]
         _scenarios = [str(file_name).split("_")[-3] for file_name in file_name_list]
         _models = [str(file_name).split("_")[-2] for file_name in file_name_list]
         _realizations = [
@@ -345,10 +348,12 @@ def test_open_local_data():
             for file_name in file_name_list
         ]
         _ds_list = [
-            ds_in.sel(scenario=[s], model=[m], realization=[r]).chunk(
-                {"scenario": 1, "model": 1, "realization": 1}
+            ds_in.sel(scenario=[S], model=[M], realization=[R], location=[L]).chunk(
+                {"scenario": 1, "model": 1, "realization": 1, "location": 1}
             )
-            for s, m, r in zip(_scenarios, _models, _realizations, strict=True)
+            for S, M, R, L in zip(
+                _scenarios, _models, _realizations, _locations, strict=True
+            )
         ]
         # Note data_vars="minimal" ensures correct bounds handling
         assert kwargs["data_vars"] == "minimal"
@@ -360,7 +365,7 @@ def test_open_local_data():
             "models": models,
             "realizations": realizations,
             "years": [2015, 2016, 2018, 2100],
-            "locations": "gabba",
+            "locations": locations,
         },
     )
     data_getter.data_source = "watto"
