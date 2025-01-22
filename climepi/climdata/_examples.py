@@ -27,16 +27,30 @@ from climepi.climdata._base import get_climate_data, get_climate_data_file_names
 #   formatted_data_downloadable: Optional, boolean indicating whether the formatted
 #       example dataset is available for direct download. If not specified, it is
 #       assumed to be False.
-_EXAMPLE_CITY_NAME_LIST = ["London", "Paris", "Los Angeles", "Istanbul", "Cape Town"]
+_EXAMPLE_CITY_NAME_LIST = ["London", "Paris", "Istanbul", "Cape Town", "Los Angeles"]
 _EXAMPLE_CITY_LON_LIST = [
     -0.08,  # for Tower of London
     2.35,  # for Hotel de Ville, Paris
-    -118.42,  # for Los Angeles International Airport
     28.98,  # for Topkapi Palace, Istanbul
     18.42,  # for Cape Town City Hall
+    -118.42,  # for Los Angeles International Airport
 ]
-_EXAMPLE_CITY_LAT_LIST = [51.51, 48.86, 33.94, 41.01, -33.93]
+_EXAMPLE_CITY_LAT_LIST = [51.51, 48.86, 41.01, -33.93, 33.94]
 EXAMPLES = {
+    "isimip_cities_daily": {
+        "data_source": "isimip",
+        "frequency": "daily",
+        "subset": {
+            "years": np.arange(2030, 2101),
+            "locations": _EXAMPLE_CITY_NAME_LIST,
+            "lon": _EXAMPLE_CITY_LON_LIST,
+            "lat": _EXAMPLE_CITY_LAT_LIST,
+        },
+        "formatted_data_downloadable": True,
+        "doc": "Daily temperature and precipitation projections for London, Paris, "
+        "Istanbul, Cape Town and Los Angeles for 2030-2100 from the ISIMIP repository "
+        "(https://data.isimip.org/).",
+    },
     "isimip_cities_monthly": {
         "data_source": "isimip",
         "frequency": "monthly",
@@ -48,24 +62,10 @@ EXAMPLES = {
         },
         "formatted_data_downloadable": True,
         "doc": "Monthly temperature and precipitation projections for London, Paris, "
-        "Los Angeles, Istanbul and Cape Town for 2030-2100 from the ISIMIP repository "
+        "Istanbul, Cape Town and Los Angeles for 2030-2100 from the ISIMIP repository "
         "(https://data.isimip.org/).",
     },
-    "isimip_cities_daily": {
-        "data_source": "isimip",
-        "frequency": "daily",
-        "subset": {
-            "years": np.arange(2030, 2101),
-            "locations": _EXAMPLE_CITY_NAME_LIST,
-            "lon": _EXAMPLE_CITY_LON_LIST,
-            "lat": _EXAMPLE_CITY_LAT_LIST,
-        },
-        "formatted_data_downloadable": True,
-        "doc": "Daily temperature and precipitation projections for London, Paris, Los "
-        "Angeles, Istanbul and Cape Town for 2030-2100 from the ISIMIP repository "
-        "(https://data.isimip.org/).",
-    },
-    "lens2_cities": {
+    "lens2_cities_monthly": {
         "data_source": "lens2",
         "frequency": "monthly",
         "subset": {
@@ -75,10 +75,10 @@ EXAMPLES = {
             "lat": _EXAMPLE_CITY_LAT_LIST,
         },
         "doc": "Monthly temperature and precipitation projections for London, Paris, "
-        "Los Angeles, Istanbul and Cape Town for 2030-2100 from the CESM2 LENS project "
+        "Istanbul, Cape Town and Los Angeles for 2030-2100 from the CESM2 LENS project "
         "(https://registry.opendata.aws/ncar-cesm2-lens/).",
     },
-    "lens2_2030_2060_2090": {
+    "lens2_2030_2060_2090_monthly": {
         "data_source": "lens2",
         "frequency": "monthly",
         "subset": {
