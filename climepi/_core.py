@@ -318,7 +318,7 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         uncertainty_level=90,
         estimate_internal_variability=True,
-        polyfit_degree=4,
+        polyfit_degree=3,
     ):
         """
         Compute a range of ensemble statistics for a data variable.
@@ -337,7 +337,7 @@ class ClimEpiDatasetAccessor:
             (ignored if multiple realizations are available). Default is True.
         polyfit_degree : int, optional
             Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 4.
+            variability. Default is 3.
 
         Returns
         -------
@@ -395,7 +395,7 @@ class ClimEpiDatasetAccessor:
         return ds_stat
 
     def estimate_ensemble_stats(
-        self, data_var=None, uncertainty_level=90, polyfit_degree=4
+        self, data_var=None, uncertainty_level=90, polyfit_degree=3
     ):
         """
         Estimate ensemble statistics for a data variable.
@@ -412,7 +412,7 @@ class ClimEpiDatasetAccessor:
             Uncertainty level (percentage) for computing ensemble percentiles. Default
             is 90.
         polyfit_degree : int, optional
-            Degree of the polynomial to fit to the time series. Default is 4.
+            Degree of the polynomial to fit to the time series. Default is 3.
 
         Returns
         -------
@@ -483,7 +483,7 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         fraction=False,
         estimate_internal_variability=True,
-        polyfit_degree=4,
+        polyfit_degree=3,
     ):
         """
         Decompose variance contributions from different climate uncertainty sources.
@@ -504,7 +504,7 @@ class ClimEpiDatasetAccessor:
             are available). Default is True.
         polyfit_degree : int, optional
             Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 4.
+            variability. Default is 3.
 
         Returns
         -------
@@ -585,7 +585,7 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         uncertainty_level=90,
         estimate_internal_variability=True,
-        polyfit_degree=4,
+        polyfit_degree=3,
     ):
         """
         Decompose uncertainty interval contributions.
@@ -605,7 +605,7 @@ class ClimEpiDatasetAccessor:
             available for each model and realization. Default is True.
         polyfit_degree : int, optional
             Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 4.
+            variability. Default is 3.
 
         Returns
         -------
@@ -806,7 +806,7 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         fraction=False,
         estimate_internal_variability=True,
-        polyfit_degree=4,
+        polyfit_degree=3,
         **kwargs,
     ):
         """
@@ -831,7 +831,7 @@ class ClimEpiDatasetAccessor:
             are available). Default is True.
         polyfit_degree : int, optional
             Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 4.
+            variability. Default is 3.
         **kwargs : dict, optional
             Additional keyword arguments to pass to hvplot.area.
 
@@ -879,7 +879,7 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         uncertainty_level=90,
         estimate_internal_variability=True,
-        polyfit_degree=4,
+        polyfit_degree=3,
         kwargs_baseline=None,
         **kwargs_area,
     ):
@@ -903,7 +903,7 @@ class ClimEpiDatasetAccessor:
             available for each model and realization. Default is True.
         polyfit_degree : int, optional
             Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 4.
+            variability. Default is 3.
         kwargs_baseline : dict, optional
             Additional keyword arguments to pass to hvplot.line for the baseline
             estimate.

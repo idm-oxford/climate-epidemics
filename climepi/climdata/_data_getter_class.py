@@ -302,6 +302,10 @@ class ClimateDataGetter:
         # files are not found), and store the dataset in the _ds attribute.
         save_dir = self._save_dir
         file_names = self.file_names
+        locations = self._subset["locations"]
+        scenarios = self._subset["scenarios"]
+        models = self._subset["models"]
+        realizations = self._subset["realizations"]
         ds = xr.open_mfdataset(
             [save_dir / file_name for file_name in file_names],
             **{"data_vars": "minimal", "chunks": {}, **kwargs},
@@ -309,6 +313,14 @@ class ClimateDataGetter:
         if "time_bnds" in ds:
             # Load time bounds to avoid errors saving to file (since no encoding set)
             ds.time_bnds.load()
+        # Ensure that the dataset is ordered as provided in the subsetting options
+        ds = ds.sel(
+            realization=realizations,
+            scenario=scenarios,
+            model=models,
+        )
+        if locations is not None:
+            ds = ds.sel(location=np.atleast_1d(locations))
         self._ds = ds
 
     def _find_remote_data(self):

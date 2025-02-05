@@ -562,13 +562,13 @@ class TestEstimateEnsembleStats:
             )
             ds["time"].encoding.update(calendar="standard")
             result = ds.climepi.estimate_ensemble_stats(
-                uncertainty_level=80, polyfit_degree=3
+                uncertainty_level=80, polyfit_degree=5
             )
             if repeat == 0:
                 # Just check for the first repeat that the results match those obtained
                 # by directly applying numpy's polynomial fitting method.
                 polyfit_for_expected_values = np.polynomial.Polynomial.fit(
-                    days_from_start, temperature_values_in, 3, full=True
+                    days_from_start, temperature_values_in, 5, full=True
                 )
                 mean_expected = polyfit_for_expected_values[0](days_from_start)
                 var_expected = polyfit_for_expected_values[1][0][0] / len(
