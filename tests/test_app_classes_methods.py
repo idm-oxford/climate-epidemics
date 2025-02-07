@@ -3,9 +3,11 @@
 import pathlib
 from unittest.mock import patch
 
+import holoviews as hv
 import numpy as np
 import pytest
 import xarray.testing as xrt
+from holoviews.element.comparison import Comparison as hvt
 
 import climepi.app._app_classes_methods as app_classes_methods
 from climepi import epimod
@@ -121,3 +123,33 @@ def test_get_scope_dict(temporal, spatial, ensemble, scenario, model):
         "model": model,
     }
     assert result == expected
+
+
+def test_get_view_func():
+    """
+    Unit test for the _get_view_func function.
+
+    Since the function is a wrapper around the generate_plot method of the _Plotter
+    class, we only check that the function returns the same result as the method.
+    """
+    ds = generate_dataset(data_var="temperature", frequency="monthly")
+    plot_settings = {
+        "plot_type": "time series",
+        "data_var": "temperature",
+        "temporal_scope": "monthly",
+        "year_range": [2000, 2001],
+        "location_string": "not used",
+        "realization": "not used",
+        "ensemble_stat": "not used",
+        "model": "not used",
+        "scenario": "not used",
+    }
+    result = app_classes_methods._get_view_func(ds, plot_settings)
+
+    # Check that the result is the same as the view attribute of a _Plotter instance
+    # with the same inputs after calling the generate_plot method
+    plotter = app_classes_methods._Plotter(ds_in=ds, plot_settings=plot_settings)
+    plotter.generate_plot()
+    expected = plotter.view
+    assert isinstance(result[1].object, hv.Overlay)
+    hvt.assertEqual(result[1].object, expected[1].object)
