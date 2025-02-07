@@ -135,9 +135,11 @@ class _Plotter:
         elif plot_type == "time series":
             p1 = ds_plot.climepi.plot_uncertainty_interval_decomposition()
             p2 = ds_plot.rename(
-                scenario="example scenario",
-                model="example model",
-                realization="example realization",
+                {
+                    key: f"example {key}"
+                    for key in ["realization", "model", "scenario"]
+                    if key in ds_plot
+                }
             ).climepi.plot_time_series(label="Example trajectory")
             plot = (p1 * p2).opts(legend_position="top_left")
         elif plot_type == "variance decomposition":
