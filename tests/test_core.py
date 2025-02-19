@@ -120,7 +120,6 @@ class TestSelGeo:
                 lat=np.array([-90, -30, 30, 90]), lon=np.array([90, 120, 150, 180])
             )
         )
-        ds["beamer"].values = np.random.rand(*ds["beamer"].shape)
         result = ds.climepi.sel_geo(location=location_list)
         assert "location" in result.dims
         npt.assert_equal(result["location"].values, location_list)
@@ -236,7 +235,7 @@ class TestTemporalGroupAverage:
             xrt.assert_identical(result[data_var], expected[data_var])
 
     def test_temporal_group_average_datatypes(self, frequency):
-        """Test with different data types."""
+        """Test with different data types of the input dataset."""
         ds_bool = generate_dataset(data_var="temperature", dtype=bool)
         ds_int = ds_bool.copy()
         ds_int["temperature"] = ds_int["temperature"].astype(int)
@@ -374,9 +373,7 @@ class TestYearlyPortionSuitable:
         """Test with different data variable names present in the dataset."""
         data_vars = ["suitability", "also_suitability", "temperature"]
         ds = generate_dataset(data_var=data_vars, frequency="monthly")
-        ds["suitability"].values = np.random.rand(*ds["suitability"].shape)
         ds["also_suitability"].values = ds["suitability"].values
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         suitability_threshold = 0.2
         result1 = ds.climepi.yearly_portion_suitable(
             suitability_threshold=suitability_threshold
@@ -420,7 +417,6 @@ class TestEnsembleStats:
         ds = generate_dataset(
             data_var="temperature", extra_dims={"realization": 12, "ouch": 4}
         )
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         result = ds.climepi.ensemble_stats(uncertainty_level=60)
         xrt.assert_allclose(
             result["temperature"].sel(stat="mean", drop=True),
@@ -463,8 +459,6 @@ class TestEnsembleStats:
         """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars, extra_dims={"realization": 3})
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
         result = ds.climepi.ensemble_stats()
         for data_var in data_vars:
             xrt.assert_allclose(
@@ -485,7 +479,6 @@ class TestEnsembleStats:
         which is tested separately).
         """
         ds1 = generate_dataset(data_var="temperature")
-        ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
         ds2 = ds1.copy()
         ds2["temperature"] = ds2["temperature"].expand_dims("realization")
         ds3 = ds1.copy()
@@ -502,7 +495,6 @@ class TestEnsembleStats:
     def test_ensemble_stats_single_realization_no_estimation(self):
         """Test with a single realization without estimating internal variability."""
         ds1 = generate_dataset(data_var="temperature")
-        ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
         ds2 = ds1.copy()
         ds2["temperature"] = ds2["temperature"].expand_dims("realization")
         ds3 = ds1.copy()
@@ -638,8 +630,6 @@ class TestEstimateEnsembleStats:
         """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars, frequency="monthly")
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
         result = ds.climepi.ensemble_stats()
         for data_var in data_vars:
             xrt.assert_allclose(
@@ -661,7 +651,6 @@ class TestEstimateEnsembleStats:
         greater than 1.
         """
         ds_base = generate_dataset(data_var="temperature", frequency="monthly")
-        ds_base["temperature"].values = np.random.rand(*ds_base["temperature"].shape)
         ds1 = ds_base.copy()
         ds1["temperature"] = ds1["temperature"].expand_dims("realization")
         ds2 = ds_base.copy()
@@ -673,7 +662,6 @@ class TestEstimateEnsembleStats:
         xrt.assert_allclose(result1, expected)
         xrt.assert_allclose(result2, expected)
         ds3 = generate_dataset(extra_dims={"realization": 3})
-        ds3["temperature"].values = np.random.rand(*ds3["temperature"].shape)
         with pytest.raises(ValueError):
             ds3.climepi.estimate_ensemble_stats()
 
@@ -687,7 +675,6 @@ class TestVarianceDecomposition:
             data_var="temperature",
             extra_dims={"scenario": 6, "model": 4, "realization": 9},
         )
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         ds["temperature"].attrs.update(
             units="Hello there", long_name="General Kenobi you are a bold one"
         )
@@ -748,8 +735,6 @@ class TestVarianceDecomposition:
         """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars, frequency="monthly")
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
         result = ds.climepi.variance_decomposition()
         for data_var in data_vars:
             xrt.assert_allclose(
@@ -764,7 +749,6 @@ class TestVarianceDecomposition:
     def test_variance_decomposition_single_scenario_model(self):
         """Test with datasets containing a single scenario and model."""
         ds1 = generate_dataset(data_var="temperature", extra_dims={"realization": 9})
-        ds1["temperature"].values = np.random.rand(*ds1["temperature"].shape)
         ds2 = ds1.copy()
         ds2["temperature"] = ds2["temperature"].expand_dims(["model", "scenario"])
         ds3 = ds1.copy()
@@ -797,7 +781,6 @@ class TestUncertaintyIntervalDecomposition:
             data_var="temperature",
             extra_dims={"scenario": 6, "model": 4, "realization": 9},
         ).isel(lon=0, lat=0)
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
             ds["temperature"]
             - ds["temperature"].mean(dim=["scenario", "model", "realization"])
@@ -853,8 +836,6 @@ class TestUncertaintyIntervalDecomposition:
         """Test with a list of data variables."""
         data_vars = ["temperature", "precipitation"]
         ds = generate_dataset(data_var=data_vars, frequency="monthly")
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-        ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
         result = ds.climepi.uncertainty_interval_decomposition()
         for data_var in data_vars:
             xrt.assert_allclose(
@@ -872,7 +853,6 @@ class TestUncertaintyIntervalDecomposition:
             data_var="temperature",
             extra_dims={"realization": 231},
         ).isel(lon=0, lat=0)
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
             ds["temperature"] - ds["temperature"].mean(dim="realization")
         )
@@ -916,7 +896,6 @@ class TestUncertaintyIntervalDecomposition:
             data_var="temperature",
             extra_dims={"model": 17},
         ).isel(lon=0, lat=0)
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
             ds["temperature"] - ds["temperature"].mean(dim="model")
         )
@@ -954,7 +933,6 @@ class TestUncertaintyIntervalDecomposition:
             data_var="temperature",
             extra_dims={"scenario": 17},
         ).isel(lon=0, lat=0)
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         ds["temperature"] = (  # Make mean 0 at each time to simplify expected values
             ds["temperature"] - ds["temperature"].mean(dim="scenario")
         )
@@ -991,8 +969,6 @@ def test_plot_time_series():
     ds = generate_dataset(
         data_var=["temperature", "precipitation"], extra_dims={"realization": 3}
     )
-    ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
-    ds["precipitation"].values = np.random.rand(*ds["precipitation"].shape)
     kwargs = {"by": ["realization", "lat", "lon"]}
     result = ds.climepi.plot_time_series("precipitation", **kwargs)
     expected = ds["precipitation"].hvplot.line(x="time", **kwargs)
@@ -1009,7 +985,6 @@ def test_plot_map():
     ds = generate_dataset(
         data_var=["temperature", "precipitation"], lon_0_360=False
     ).isel(time=0)
-    ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
     result = ds.climepi.plot_map("temperature", rasterize=False)
     quadmesh_expected = ds["temperature"].hvplot.quadmesh(
         x="lon",
@@ -1031,7 +1006,6 @@ def test_plot_variance_decomposition(fraction):
         data_var="temperature",
         extra_dims={"scenario": 6, "model": 4, "realization": 9},
     ).isel(lon=0, lat=0)
-    ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
     ds["temperature"].attrs.update(units="there", long_name="Hello")
     result = ds.climepi.plot_variance_decomposition(fraction=fraction)
     # Test that lower/upper bounds for each component are correct
@@ -1084,7 +1058,6 @@ class TestPlotUncertaintyIntervalDecomposition:
             data_var="temperature",
             extra_dims={"scenario": 6, "model": 4, "realization": 9},
         ).isel(lon=0, lat=0)
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         result = ds.climepi.plot_uncertainty_interval_decomposition()
         assert list(result.data.keys()) == [
             ("Area", "Scenario_uncertainty"),
@@ -1147,7 +1120,6 @@ class TestPlotUncertaintyIntervalDecomposition:
             data_var="temperature",
             extra_dims={"realization": 231},
         ).isel(lon=0, lat=0)
-        ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
         result = ds.climepi.plot_uncertainty_interval_decomposition()
         assert list(result.data.keys()) == [
             ("Area", "Internal_variability"),
