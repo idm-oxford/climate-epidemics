@@ -1,6 +1,7 @@
 """Unit tests for the _app_classes_methods module of the app subpackage."""
 
 import pathlib
+import tempfile
 from unittest.mock import patch
 
 import holoviews as hv
@@ -130,7 +131,8 @@ def test_get_view_func():
     Unit test for the _get_view_func function.
 
     Since the function is a wrapper around the generate_plot method of the _Plotter
-    class, we only check that the function returns the same result as the method.
+    class, we only check that the function returns the same result as applying the
+    generate_plot method to a _Plotter instance.
     """
     ds = generate_dataset(data_var="temperature", frequency="monthly")
     plot_settings = {
@@ -153,3 +155,21 @@ def test_get_view_func():
     expected = plotter.view
     assert isinstance(result[1].object, hv.Overlay)
     hvt.assertEqual(result[1].object, expected[1].object)
+
+
+def test_compute_to_file_reopen():
+    """Unit test for the _compute_to_file_reopen function."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ds_in = generate_dataset(data_var="temperature", frequency="monthly")
+        ds_in["temperature"] = ds_in["temperature"].chunk(
+            {"time": 2, "lat": 1, "lon": 1}
+        )
+        save_path = pathlib.Path(tmpdir) / "test.nc"
+
+        ds_out = app_classes_methods._compute_to_file_reopen(ds_in, save_path)
+        ds_out["time_bnds"] = ds_out["time_bnds"].compute()
+
+        assert pathlib.Path(save_path).exists(), "File not saved."
+        xrt.assert_identical(ds_in, ds_out)
+        for var in ["time", "lat", "lon"]:
+            assert ds_out.chunks[var] == ds_in.chunks[var], f"Chunks for {var} differ."
