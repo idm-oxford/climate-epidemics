@@ -5,7 +5,6 @@ The EpiModel and SuitabilityModel classes are tested.
 """
 
 import holoviews as hv
-import numpy as np
 import numpy.testing as npt
 import pytest
 import xarray as xr
