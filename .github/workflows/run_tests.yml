@@ -26,8 +26,13 @@ jobs:
       run: pixi run lint-gh-actions
     - name: Test with pytest
       run: pixi run test
-    - name: Upload coverage reports to Codecov
+    - name: Upload coverage to Codecov
       if: ${{ matrix.os == 'ubuntu-latest' }}
       uses: codecov/codecov-action@v5
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }} && ${{ matrix.os == 'ubuntu-latest' }}
+      uses: codecov/test-results-action@v1
+      with:
+          token: ${{ secrets.CODECOV_TOKEN }}

@@ -89,7 +89,7 @@ tag_prefix = "v"
 parentdir_prefix = "climepi-"
 
 [tool.pytest.ini_options]
-addopts = "--import-mode=importlib --cov-config=pyproject.toml --cov=climepi --cov-report=xml"
+addopts = "--import-mode=importlib --cov=climepi --cov-config=pyproject.toml --junitxml=junit.xml"
 
 [tool.coverage.run]
 omit = ["climepi/_version.py"]
