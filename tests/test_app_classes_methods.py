@@ -173,3 +173,5 @@ def test_compute_to_file_reopen():
         xrt.assert_identical(ds_in, ds_out)
         for var in ["time", "lat", "lon"]:
             assert ds_out.chunks[var] == ds_in.chunks[var], f"Chunks for {var} differ."
+
+        ds_out.close()
