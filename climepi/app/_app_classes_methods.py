@@ -147,7 +147,7 @@ class _Plotter:
             p2 = ds_plot.climepi.plot_variance_decomposition(fraction=True)
             plot = (p1 + p2).cols(1).opts(shared_axes=False)
         else:
-            raise ValueError("Unsupported plot options")
+            raise ValueError(f"Unsupported plot type: {plot_type}")
         view = pn.panel(
             plot,
             center=True,
