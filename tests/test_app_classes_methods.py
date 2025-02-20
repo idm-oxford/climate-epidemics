@@ -6,13 +6,28 @@ from unittest.mock import patch
 
 import holoviews as hv
 import numpy as np
+import numpy.testing as npt
+import panel as pn
 import pytest
 import xarray.testing as xrt
 from holoviews.element.comparison import Comparison as hvt
 
+import climepi  # noqa
 import climepi.app._app_classes_methods as app_classes_methods
 from climepi import epimod
 from climepi.testing.fixtures import generate_dataset
+
+original_plot_map = climepi.ClimEpiDatasetAccessor.plot_map
+
+
+def _plot_map(self, *args, **kwargs):
+    """
+    Run dataset.climepi.plot_map method but insisting rasterize=False.
+
+    This is needed because the default rasterize=True option seems to cause an error
+    when in debug mode.
+    """
+    return original_plot_map(self, *args, **{**kwargs, "rasterize": False})
 
 
 @patch("climepi.app._app_classes_methods.climdata.get_example_dataset", autospec=True)
@@ -175,3 +190,141 @@ def test_compute_to_file_reopen():
             assert ds_out.chunks[var] == ds_in.chunks[var], f"Chunks for {var} differ."
 
         ds_out.close()
+
+
+class TestPlotter:
+    """Unit tests for the _Plotter class."""
+
+    def test_init(self):
+        """Unit test for the __init__ method."""
+        ds_in = generate_dataset(
+            data_var="temperature", frequency="monthly", extra_dims={"realization": 3}
+        )
+        plot_settings = {"swing": "miss"}
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        assert plotter.view is None
+        xrt.assert_identical(plotter._ds_base, ds_in)
+        assert plotter._scope_dict_base == {
+            "temporal": "monthly",
+            "spatial": "grid",
+            "ensemble": "multiple",
+            "scenario": "single",
+            "model": "single",
+        }
+        assert plotter._plot_settings == plot_settings
+        assert plotter._ds_plot is None
+
+    @patch(
+        "climepi.app._app_classes_methods.ClimEpiDatasetAccessor.plot_map",
+        new=_plot_map,
+    )
+    @pytest.mark.parametrize(
+        "plot_type",
+        ["time series", "map", "variance decomposition", "unsupported_type"],
+    )
+    def test_generate_plot(self, plot_type):
+        """Unit test for the generate_plot method."""
+        ds_in = generate_dataset(
+            data_var="temperature", frequency="monthly", extra_dims={"realization": 3}
+        )
+        plot_settings = {
+            "plot_type": plot_type,
+            "data_var": "temperature",
+            "temporal_scope": "monthly",
+            "year_range": [2000, 2001],
+            "location_string": "SCG",
+            "realization": "all",
+            "model": "not used",
+            "scenario": "not used",
+            "ensemble_stat": "mean",
+        }
+
+        # Mock ds.climepi.plot_map to set rasterize=False (true causes failure )
+
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        if plot_type == "unsupported_type":
+            with pytest.raises(ValueError, match="Unsupported"):
+                plotter.generate_plot()
+            return
+        plotter.generate_plot()
+        if plot_type == "map":
+            view_panel = plotter.view[1][0]
+        else:
+            view_panel = plotter.view[1]
+        assert isinstance(view_panel, pn.pane.HoloViews)
+        assert not view_panel.linked_axes
+        assert view_panel.widget_location == "bottom"
+        assert view_panel.center
+        plot_obj = view_panel.object
+        if plot_type == "map":
+            assert isinstance(plot_obj, hv.HoloMap)
+            assert plot_obj.kdims == [hv.Dimension("time")]
+            plot_obj_last = plot_obj.last
+            assert isinstance(plot_obj_last, hv.Overlay)
+            assert plot_obj_last.keys() == [
+                ("QuadMesh", "I"),
+                ("Coastline", "I"),
+                ("Ocean", "I"),
+            ]
+        elif plot_type == "time series":
+            assert isinstance(plot_obj, hv.Overlay)
+            assert plot_obj.keys() == [
+                ("Area", "Internal_variability"),
+                ("Curve", "Mean"),
+                ("Curve", "Example_trajectory"),
+            ]
+        elif plot_type == "variance decomposition":
+            assert isinstance(plot_obj, hv.Layout)
+            assert not plot_obj.opts["shared_axes"]
+            assert (
+                list(plot_obj.NdOverlay.I.data.keys())
+                == list(plot_obj.NdOverlay.II.data.keys())
+                == [
+                    ("Internal variability",),
+                    ("Model uncertainty",),
+                    ("Scenario uncertainty",),
+                ]
+            )
+            # Second fractional plot should show all variance being from internal
+            # variability
+            npt.assert_allclose(
+                plot_obj.NdOverlay.II.data[("Internal variability",)].data[
+                    "Internal variability"
+                ],
+                1,
+            )
+        else:
+            raise ValueError("Unexpected plot type provided to test.")
+
+    def test_get_ds_plot(self):
+        """Unit test for the _get_ds_plot method."""
+        ds_in = generate_dataset(
+            data_var=["temperature", "precipitation"],
+            frequency="monthly",
+            extra_dims={
+                "realization": [0, 1, 2],
+                "model": ["a", "b"],
+                "scenario": ["x", "y"],
+            },
+        )
+        plot_settings = {
+            "plot_type": "time series",
+            "data_var": "temperature",
+            "temporal_scope": "yearly",
+            "year_range": [2000, 2000],
+            "location_string": "SCG",
+            "realization": 1,
+            "model": "a",
+            "scenario": "y",
+            "ensemble_stat": "unused",
+        }
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        plotter._get_ds_plot()
+        xrt.assert_identical(
+            plotter._ds_plot,
+            ds_in[["temperature", "time_bnds", "lat_bnds", "lon_bnds"]]
+            .climepi.sel_geo("SCG")
+            .isel(time=ds_in.time.dt.year == 2000)
+            .sel(realization=1, model="a", scenario="y")
+            .climepi.yearly_average(),
+        )
