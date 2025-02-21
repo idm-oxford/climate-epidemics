@@ -135,9 +135,11 @@ class _Plotter:
         elif plot_type == "time series":
             p1 = ds_plot.climepi.plot_uncertainty_interval_decomposition()
             p2 = ds_plot.rename(
-                scenario="example scenario",
-                model="example model",
-                realization="example realization",
+                {
+                    key: f"example {key}"
+                    for key in ["realization", "model", "scenario"]
+                    if key in ds_plot
+                }
             ).climepi.plot_time_series(label="Example trajectory")
             plot = (p1 * p2).opts(legend_position="top_left")
         elif plot_type == "variance decomposition":
@@ -145,7 +147,7 @@ class _Plotter:
             p2 = ds_plot.climepi.plot_variance_decomposition(fraction=True)
             plot = (p1 + p2).cols(1).opts(shared_axes=False)
         else:
-            raise ValueError("Unsupported plot options")
+            raise ValueError(f"Unsupported plot type: {plot_type}")
         view = pn.panel(
             plot,
             center=True,
@@ -240,7 +242,7 @@ class _Plotter:
             if temporal_scope_base != "yearly":
                 ds_plot = ds_plot.climepi.yearly_average()
             if "time_bnds" in ds_plot:
-                ds_plot = ds_plot.drop("time_bnds")
+                ds_plot = ds_plot.drop_vars("time_bnds")
             year_range = self._plot_settings["year_range"]
             ds_plot = ds_plot.sel(time=str(year_range[1])).squeeze(
                 "time", drop=True

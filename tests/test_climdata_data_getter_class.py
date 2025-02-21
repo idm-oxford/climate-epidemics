@@ -337,7 +337,6 @@ def test_open_local_data():
         },
     )
     ds_in["temperature"].attrs["units"] = "deg_C"
-    ds_in["temperature"].values = np.random.rand(*ds_in["temperature"].shape)
 
     def _mock_xr_open_mfdataset(file_name_list, **kwargs):
         _locations = [str(file_name).split("_")[-4] for file_name in file_name_list]
@@ -568,7 +567,6 @@ def test_save_processed_data(mock_to_netcdf, mock_mkdir, named_locations):
             "realization": realizations,
         },
     )
-    ds["temperature"].values = np.random.rand(*ds["temperature"].shape)
     if named_locations:
         locations = ["lords", "gabba"]
         ds = ds.climepi.sel_geo(locations)

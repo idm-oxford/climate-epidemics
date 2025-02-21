@@ -5,7 +5,6 @@ The EpiModel and SuitabilityModel classes are tested.
 """
 
 import holoviews as hv
-import numpy as np
 import numpy.testing as npt
 import pytest
 import xarray as xr
@@ -88,7 +87,6 @@ class TestSuitabilityModel:
         model = epimod.SuitabilityModel(temperature_range=[0, 0.5])
         ds_clim = generate_dataset(data_var="temperature", frequency="monthly")
         ds_clim.attrs = {"did": "you"}
-        ds_clim["temperature"].values = np.random.rand(*ds_clim["temperature"].shape)
         ds_suitability = model.run(ds_clim)
         npt.assert_equal(
             ds_suitability["suitability"].values, ds_clim["temperature"].values < 0.5
