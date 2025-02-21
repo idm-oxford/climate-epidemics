@@ -488,6 +488,7 @@ class TestPlotter:
         "ensemble_stat", ["mean", "std", "min", "max", "individual realization(s)"]
     )
     def test_ensemble_ops_ds_plot(self, plot_type, ensemble_stat):
+        """Unit test for the _ensemble_ops_ds_plot method."""
         ds_in = generate_dataset(data_var="temperature", extra_dims={"realization": 3})
         plot_settings = {"plot_type": plot_type, "ensemble_stat": ensemble_stat}
         plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
