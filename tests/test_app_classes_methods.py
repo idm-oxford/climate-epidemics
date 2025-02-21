@@ -328,3 +328,179 @@ class TestPlotter:
             .sel(realization=1, model="a", scenario="y")
             .climepi.yearly_average(),
         )
+
+    def test_sel_data_var_ds_plot(self):
+        """Unit test for the _sel_data_var_ds_plot method."""
+        ds_in = generate_dataset(data_var=["temperature", "precipitation"])
+        plot_settings = {"data_var": "precipitation"}
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        plotter._ds_plot = ds_in
+        plotter._sel_data_var_ds_plot()
+        xrt.assert_identical(
+            plotter._ds_plot,
+            ds_in[["precipitation", "time_bnds", "lat_bnds", "lon_bnds"]],
+        )
+
+    @pytest.mark.parametrize("plot_type", ["time series", "map", "fake type"])
+    @pytest.mark.parametrize("spatial_scope_base", ["single", "list", "grid"])
+    def test_spatial_index_ds_plot(self, plot_type, spatial_scope_base):
+        """Unit test for the _spatial_index_ds_plot method."""
+        ds_in = generate_dataset(data_var="temperature")
+        if spatial_scope_base == "single":
+            ds_in = ds_in.isel(lat=0, lon=0)
+        elif spatial_scope_base == "list":
+            ds_in = ds_in.climepi.sel_geo(["Lords", "SCG"])
+        plot_settings = {
+            "plot_type": plot_type,
+            "location_selection": "Lords",  # only used for time series+list
+            "location_string": "Gabba",  # only used for time series+grid
+        }
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        plotter._ds_plot = ds_in
+        if plot_type == "fake type" and spatial_scope_base == "grid":
+            with pytest.raises(ValueError, match="Unsupported"):
+                plotter._spatial_index_ds_plot()
+            return
+        plotter._spatial_index_ds_plot()
+        if plot_type in ["time series", "fake type"] and spatial_scope_base == "single":
+            xrt.assert_identical(plotter._ds_plot, ds_in)
+        elif plot_type in ["time series", "fake type"] and spatial_scope_base == "list":
+            xrt.assert_identical(plotter._ds_plot, ds_in.sel(location="Lords"))
+        elif plot_type == "time series" and spatial_scope_base == "grid":
+            xrt.assert_identical(plotter._ds_plot, ds_in.climepi.sel_geo("Gabba"))
+        elif plot_type == "map":
+            xrt.assert_identical(plotter._ds_plot, ds_in)
+        else:
+            raise ValueError(
+                "Unexpected combination of plot_type and spatial_scope_base provided "
+                f"to test: {plot_type}, {spatial_scope_base}"
+            )
+
+    @pytest.mark.parametrize("temporal_scope", ["yearly", "difference between years"])
+    @pytest.mark.parametrize("year_range", [[2000, 2001], [2000, 2002], [2000, 2003]])
+    def test_temporal_index_ds_plot(self, temporal_scope, year_range):
+        """Unit test for the _temporal_index_ds_plot method."""
+        ds_in = generate_dataset(data_var="temperature", frequency="yearly")
+        assert list(ds_in.time.dt.year.values) == [2000, 2001, 2002]
+        plot_settings = {"temporal_scope": temporal_scope, "year_range": year_range}
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        plotter._ds_plot = ds_in
+        if temporal_scope == "difference between years" and year_range == [
+            2000,
+            2003,
+        ]:
+            with pytest.raises(ValueError, match="Only years in the dataset"):
+                plotter._temporal_index_ds_plot()
+            return
+        plotter._temporal_index_ds_plot()
+        if year_range == [2000, 2001]:
+            xrt.assert_identical(plotter._ds_plot, ds_in.isel(time=[0, 1]))
+        elif temporal_scope == "yearly" and year_range in [[2000, 2002], [2000, 2003]]:
+            xrt.assert_identical(plotter._ds_plot, ds_in)
+        elif temporal_scope == "difference between years" and year_range == [
+            2000,
+            2002,
+        ]:
+            xrt.assert_identical(plotter._ds_plot, ds_in.isel(time=[0, 2]))
+        else:
+            raise ValueError(
+                "Unexpected combination of temporal_scope and year_range provided to "
+                f"test: {temporal_scope}, {year_range}"
+            )
+
+    @pytest.mark.parametrize("dim", ["realization", "model", "scenario"])
+    @pytest.mark.parametrize("scope_base", ["single", "multiple"])
+    @pytest.mark.parametrize("sel_plot", ["single", "all"])
+    def test_ensemble_model_scenario_index_ds_plot(self, dim, scope_base, sel_plot):
+        """
+        Test _ensemble_index_ds_plot, _model_index_ds_plot, and _scenario_index_ds_plot.
+
+        The three methods are tested together because they are very similar.
+        """
+        ds_in = generate_dataset(
+            data_var="temperature", extra_dims={dim: ["a", "b", "c"]}
+        )
+        if scope_base == "single":
+            ds_in = ds_in.isel(**{dim: 0})
+        plot_settings = {
+            "model": "a",
+            "scenario": "b",
+            "realization": "c",
+        }
+        if sel_plot == "all":
+            plot_settings.update({dim: "all"})
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        plotter._ds_plot = ds_in
+        if dim == "realization":
+            plotter._ensemble_index_ds_plot()
+        elif dim == "model":
+            plotter._model_index_ds_plot()
+        elif dim == "scenario":
+            plotter._scenario_index_ds_plot()
+        else:
+            raise ValueError(f"Unexpected dimension provided to test: {dim}")
+        if scope_base == "single" or sel_plot == "all":
+            xrt.assert_identical(plotter._ds_plot, ds_in)
+        elif dim == "realization" and sel_plot == "single":
+            xrt.assert_identical(plotter._ds_plot, ds_in.sel(realization="c"))
+        elif dim == "model" and sel_plot == "single":
+            xrt.assert_identical(plotter._ds_plot, ds_in.sel(model="a"))
+        elif dim == "scenario" and sel_plot == "single":
+            xrt.assert_identical(plotter._ds_plot, ds_in.sel(scenario="b"))
+        else:
+            raise ValueError(
+                "Unexpected combination of dimension, scope_base, and sel_plot "
+                f"provided to test: {dim}, {scope_base}, {sel_plot}"
+            )
+
+    @pytest.mark.parametrize("temporal_scope", ["yearly", "difference between years"])
+    @pytest.mark.parametrize("temporal_scope_base", ["monthly", "yearly"])
+    def test_temporal_ops_ds_plot(self, temporal_scope, temporal_scope_base):
+        """Unit test for the _temporal_ops_ds_plot method."""
+        ds_in = generate_dataset(data_var="temperature", frequency=temporal_scope_base)
+        if temporal_scope == "difference between years":
+            ds_in = ds_in.isel(time=ds_in.time.dt.year.isin([2000, 2001]))
+        plot_settings = {"temporal_scope": temporal_scope, "year_range": [2000, 2001]}
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        plotter._ds_plot = ds_in
+        plotter._temporal_ops_ds_plot()
+        if temporal_scope == "yearly" and temporal_scope_base == "monthly":
+            xrt.assert_identical(plotter._ds_plot, ds_in.climepi.yearly_average())
+        elif temporal_scope == "yearly" and temporal_scope_base == "yearly":
+            xrt.assert_identical(plotter._ds_plot, ds_in)
+        elif temporal_scope == "difference between years":
+            assert "time" not in plotter._ds_plot
+            assert "time_bnds" not in plotter._ds_plot
+            ds_yearly = ds_in.climepi.yearly_average()
+            npt.assert_equal(
+                plotter._ds_plot["temperature"].values,
+                ds_yearly.isel(time=1)["temperature"].values
+                - ds_yearly.isel(time=0)["temperature"].values,
+            )
+        else:
+            raise ValueError(
+                "Unexpected combination of temporal_scope and temporal_scope_base "
+                f"provided to test: {temporal_scope}, {temporal_scope_base}"
+            )
+
+    @pytest.mark.parametrize("plot_type", ["time series", "map"])
+    @pytest.mark.parametrize(
+        "ensemble_stat", ["mean", "std", "min", "max", "individual realization(s)"]
+    )
+    def test_ensemble_ops_ds_plot(self, plot_type, ensemble_stat):
+        ds_in = generate_dataset(data_var="temperature", extra_dims={"realization": 3})
+        plot_settings = {"plot_type": plot_type, "ensemble_stat": ensemble_stat}
+        plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
+        plotter._ds_plot = ds_in
+        plotter._ensemble_ops_ds_plot()
+        if plot_type == "time series" or ensemble_stat == "individual realization(s)":
+            xrt.assert_identical(plotter._ds_plot, ds_in)
+        elif plot_type == "map":
+            xrt.assert_identical(
+                plotter._ds_plot, ds_in.climepi.ensemble_stats().sel(stat=ensemble_stat)
+            )
+        else:
+            raise ValueError(
+                "Unexpected combination of plot_type and ensemble_stat provided to "
+                f"test: {plot_type}, {ensemble_stat}"
+            )
