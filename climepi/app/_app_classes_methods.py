@@ -242,7 +242,7 @@ class _Plotter:
             if temporal_scope_base != "yearly":
                 ds_plot = ds_plot.climepi.yearly_average()
             if "time_bnds" in ds_plot:
-                ds_plot = ds_plot.drop("time_bnds")
+                ds_plot = ds_plot.drop_vars("time_bnds")
             year_range = self._plot_settings["year_range"]
             ds_plot = ds_plot.sel(time=str(year_range[1])).squeeze(
                 "time", drop=True
