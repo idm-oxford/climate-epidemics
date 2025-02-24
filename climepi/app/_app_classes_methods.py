@@ -369,7 +369,7 @@ class _PlotController(param.Parameterized):
             data_years[-1],
         )
         data_year_diffs = np.diff(data_years)
-        if np.all(data_year_diffs == data_year_diffs[0]):
+        if data_year_diffs.size > 0 and np.all(data_year_diffs == data_year_diffs[0]):
             self.param.year_range.step = data_year_diffs[0]
         else:
             self.param.year_range.step = 1
@@ -381,6 +381,10 @@ class _PlotController(param.Parameterized):
             self.param.scenario.precedence = 1
         elif scope_dict_base["scenario"] == "single":
             self.param.scenario.precedence = -1
+        else:
+            raise ValueError(
+                f"Unrecognised scenario scope: {scope_dict_base['scenario']}"
+            )
         # Model choices
         if scope_dict_base["model"] == "multiple":
             model_choices = ["all", *ds_base.model.values.tolist()]
@@ -389,6 +393,8 @@ class _PlotController(param.Parameterized):
             self.param.model.precedence = 1
         elif scope_dict_base["model"] == "single":
             self.param.model.precedence = -1
+        else:
+            raise ValueError(f"Unrecognised model scope: {scope_dict_base['model']}")
         # Realization choices
         if scope_dict_base["ensemble"] == "multiple":
             realization_choices = ["all", *ds_base.realization.values.tolist()]
@@ -397,13 +403,15 @@ class _PlotController(param.Parameterized):
             self.param.realization.precedence = 1
         elif scope_dict_base["ensemble"] == "single":
             self.param.realization.precedence = -1
+        else:
+            raise ValueError(
+                f"Unrecognised ensemble scope: {scope_dict_base['ensemble']}"
+            )
         # Ensemble stat choices
         ensemble_stat_choices = [
             "mean",
             "std",
             "var",
-            "min",
-            "max",
             "lower",
             "upper",
             "individual realization(s)",
