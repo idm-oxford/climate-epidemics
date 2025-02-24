@@ -8,6 +8,7 @@ import holoviews as hv
 import numpy as np
 import numpy.testing as npt
 import panel as pn
+import param
 import pytest
 import xarray.testing as xrt
 from holoviews.element.comparison import Comparison as hvt
@@ -505,3 +506,286 @@ class TestPlotter:
                 "Unexpected combination of plot_type and ensemble_stat provided to "
                 f"test: {plot_type}, {ensemble_stat}"
             )
+
+
+class TestPlotController:
+    """Unit tests for the _PlotController class."""
+
+    @pytest.mark.parametrize("ds_provided", [True, False])
+    def test_init(self, ds_provided):
+        """Unit test for the __init__ method."""
+        if ds_provided:
+            ds_in = generate_dataset(data_var="temperature", frequency="monthly")
+            plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
+        else:
+            plot_controller = app_classes_methods._PlotController()
+        for attr, value in [
+            ("plot_type", "time series" if ds_provided else None),
+            ("data_var", "temperature" if ds_provided else None),
+            ("location_string", "[Type location]"),
+            ("location_selection", None),
+            ("temporal_scope", "yearly" if ds_provided else None),
+            ("year_range", (2000, 2001) if ds_provided else None),
+            ("scenario", None),
+            ("model", None),
+            ("realization", None),
+            ("ensemble_stat", "mean" if ds_provided else None),
+            ("plot_initiator", False),
+            ("plot_generated", False),
+            ("plot_status", "Plot not yet generated"),
+            ("view_refresher", False),
+            ("_ds_base", ds_in if ds_provided else None),
+            (
+                "_scope_dict_base",
+                app_classes_methods._get_scope_dict(ds_in) if ds_provided else None,
+            ),
+        ]:
+            assert getattr(plot_controller, attr) == value, (
+                f"Unexpected value for {attr}: expected {value}, "
+                f"got {getattr(plot_controller, attr)}"
+            )
+        assert len(plot_controller.view) == 0
+        assert len(plot_controller.controls) == (1 if ds_provided else 0)
+
+    @pytest.mark.parametrize("ds_option", ["provide", "replace", "remove"])
+    def test_initialize(self, ds_option):
+        """Unit test for the initialize method."""
+        if ds_option in ["replace", "remove"]:
+            ds_old = generate_dataset(data_var="temperature", frequency="monthly")
+            plot_controller = app_classes_methods._PlotController(ds_in=ds_old)
+            plot_controller.location_string = "SCG"
+            plot_controller._update_view()
+            assert len(plot_controller.view) == 1
+        elif ds_option == "provide":
+            plot_controller = app_classes_methods._PlotController()
+        else:
+            raise ValueError(f"Unexpected ds_option: {ds_option} provided to test.")
+        if ds_option in ["provide", "replace"]:
+            ds_new = generate_dataset(data_var="precipitation", frequency="daily")
+            plot_controller.initialize(ds_new)
+            assert plot_controller._ds_base is ds_new
+            assert (
+                plot_controller._scope_dict_base
+                == app_classes_methods._get_scope_dict(ds_new)
+            )
+            assert plot_controller.data_var == "precipitation"
+            assert plot_controller.year_range == (  # daily dataset has only one year
+                2000,
+                2000,
+            )
+            assert plot_controller.location_string == "[Type location]"
+            assert len(plot_controller.controls) == 1
+            assert plot_controller.controls[0].widgets is not None
+            assert len(plot_controller.view) == 0
+        elif ds_option == "remove":
+            plot_controller.initialize()
+            assert plot_controller._ds_base is None
+            assert plot_controller._scope_dict_base is None
+            assert len(plot_controller.controls) == 0
+            assert len(plot_controller.view) == 0
+        else:
+            raise ValueError(f"Unexpected ds_option: {ds_option} provided to test.")
+
+    @pytest.mark.parametrize(
+        "temporal_scope_base,spatial_scope_base,scenario_scope_base,model_scope_base,ensemble_scope_base",
+        [
+            ("daily", "list", "single", "single", "single"),
+            ("monthly", "grid", "multiple", "multiple", "multiple"),
+            ("yearly", "list", "single", "single", "multiple"),
+            ("fake option", "list", "single", "single", "single"),
+            ("daily", "list", "fake option", "single", "single"),
+            ("daily", "list", "single", "fake option", "single"),
+            ("daily", "list", "single", "single", "fake option"),
+        ],
+    )
+    def test_initialize_params(
+        self,
+        temporal_scope_base,
+        spatial_scope_base,
+        scenario_scope_base,
+        model_scope_base,
+        ensemble_scope_base,
+    ):
+        """Unit test for the _initialize_params method."""
+        ds_in = generate_dataset(
+            data_var=["precipitation", "temperature"],
+            frequency=temporal_scope_base
+            if temporal_scope_base != "fake option"
+            else "daily",
+            extra_dims={
+                "scenario": 2 if scenario_scope_base == "multiple" else 1,
+                "model": 2 if model_scope_base == "multiple" else 1,
+                "realization": 3 if ensemble_scope_base == "multiple" else 1,
+            },
+        )
+        if temporal_scope_base == "yearly":
+            ds_in = ds_in.isel(time=ds_in.time.dt.year.isin([2000, 2002]))
+        if spatial_scope_base == "list":
+            ds_in = ds_in.climepi.sel_geo(["Lords", "SCG"])
+
+        scope_dict = app_classes_methods._get_scope_dict(ds_in)
+
+        if temporal_scope_base == "fake option":
+            scope_dict["temporal"] = "fake option"
+        if scenario_scope_base == "fake option":
+            scope_dict["scenario"] = "fake option"
+        if model_scope_base == "fake option":
+            scope_dict["model"] = "fake option"
+        if ensemble_scope_base == "fake option":
+            scope_dict["ensemble"] = "fake option"
+
+        plot_controller = app_classes_methods._PlotController()
+        plot_controller._ds_base = ds_in
+        plot_controller._scope_dict_base = scope_dict
+
+        if "fake option" in [
+            temporal_scope_base,
+            scenario_scope_base,
+            model_scope_base,
+            ensemble_scope_base,
+        ]:
+            with pytest.raises(ValueError, match="Unrecognised"):
+                plot_controller._initialize_params()
+            return
+
+        plot_controller._initialize_params()
+
+        for attr, value in [
+            ("plot_type", "time series"),
+            ("data_var", "precipitation"),
+            ("location_string", "[Type location]"),
+            ("location_selection", "all" if spatial_scope_base == "list" else None),
+            ("temporal_scope", "yearly"),
+            ("scenario", "all" if scenario_scope_base == "multiple" else None),
+            ("model", "all" if model_scope_base == "multiple" else None),
+            ("realization", "all" if ensemble_scope_base == "multiple" else None),
+            ("ensemble_stat", "mean"),
+        ]:
+            assert getattr(plot_controller, attr) == value, (
+                f"Unexpected value for {attr}: expected {value}, "
+                f"got {getattr(plot_controller, attr)}"
+            )
+        if temporal_scope_base == "yearly":
+            assert set(ds_in.time.dt.year.values) == {2000, 2002}
+            assert plot_controller.year_range == (2000, 2002)
+            assert plot_controller.param.year_range.step == 2
+            assert plot_controller.param.temporal_scope.objects == ["yearly"]
+        elif temporal_scope_base == "monthly":
+            assert set(ds_in.time.dt.year.values) == {2000, 2001}
+            assert plot_controller.year_range == (2000, 2001)
+            assert plot_controller.param.year_range.step == 1
+            assert plot_controller.param.temporal_scope.objects == ["yearly", "monthly"]
+        elif temporal_scope_base == "daily":
+            assert set(ds_in.time.dt.year.values) == {2000}
+            assert plot_controller.year_range == (2000, 2000)
+            assert plot_controller.param.year_range.step == 1
+            assert plot_controller.param.temporal_scope.objects == [
+                "yearly",
+                "monthly",
+                "daily",
+            ]
+        else:
+            raise ValueError(
+                f"Unexpected temporal_scope_base: {temporal_scope_base} provided."
+            )
+        if spatial_scope_base == "list":
+            assert plot_controller.param.location_selection.objects == [
+                "all",
+                "Lords",
+                "SCG",
+            ]
+            assert plot_controller.param.location_selection.precedence == 1
+            assert plot_controller.param.location_string.precedence == -1
+        elif spatial_scope_base == "grid":
+            assert plot_controller.param.location_selection.precedence == -1
+            assert plot_controller.param.location_string.precedence == 1
+        else:
+            raise ValueError(
+                f"Unexpected spatial_scope_base: {spatial_scope_base} provided."
+            )
+        assert plot_controller.param.ensemble_stat.precedence == -1
+
+    def test_update_view(self):
+        """
+        Unit test for the _update_view method.
+
+        The method is triggered through the "plot_initiator" event parameter.
+        """
+        ds_in = generate_dataset(data_var="temperature").climepi.sel_geo("SCG")
+        plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
+        plot_controller.view.append("some_view")
+
+        view_refresher_trigger_count = 0
+
+        @param.depends("plot_controller.view_refresher")
+        def _update_view_refresher_triggers():
+            nonlocal view_refresher_trigger_count
+            view_refresher_trigger_count += 1
+
+        plot_controller.param.trigger("plot_initiator")
+
+        assert len(plot_controller.view) == 1
+        assert plot_controller.plot_generated
+        assert plot_controller.plot_status == "Plot generated"
+        assert view_refresher_trigger_count == 2  # refreshed at start/end of generation
+
+        # Check that the view is not updated if the plot has already been generated
+        plot_controller.param.trigger("plot_initiator")
+        assert view_refresher_trigger_count == 2
+
+        # Check error handling
+        plot_controller.initialize()
+        with patch(
+            "climepi.app._app_classes_methods._get_view_func",
+            side_effect=ValueError("Some error"),
+        ):
+            with pytest.raises(ValueError, match="Some error"):
+                plot_controller.param.trigger("plot_initiator")
+            assert len(plot_controller.view) == 0
+            assert not plot_controller.plot_generated
+            assert plot_controller.plot_status == "Plot generation failed: Some error"
+
+    def test_update_variable_param_choices(self):
+        """
+        Unit test for the _update_variable_param_choices method.
+
+        The method is triggered indirectly by changing the 'plot_type' parameter.
+        """
+        ds_in = generate_dataset(data_var="temperature", frequency="monthly")
+        plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
+
+        assert plot_controller.param.temporal_scope.objects == ["yearly", "monthly"]
+        assert plot_controller.temporal_scope == "yearly"
+        assert plot_controller.plot_type == "time series"
+
+        plot_controller.plot_type = "map"  # triggers _update_variable_param_choices
+        assert plot_controller.param.temporal_scope.objects == [
+            "yearly",
+            "monthly",
+            "difference between years",
+        ]
+
+        plot_controller.temporal_scope = "difference between years"
+        plot_controller.plot_type = "variance decomposition"
+        assert plot_controller.param.temporal_scope.objects == ["yearly", "monthly"]
+        assert plot_controller.temporal_scope == "yearly"
+
+    def test_update_precedence(self):
+        """
+        Unit test for the _update_precedence method.
+
+        The method is triggered indirectly by changing the 'plot_type' parameter.
+        """
+        ds_in = generate_dataset(data_var="temperature", frequency="monthly")
+        plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
+
+        assert plot_controller.plot_type == "time series"
+        assert plot_controller.param.location_string.precedence == 1
+        assert plot_controller.param.location_selection.precedence == -1
+        assert plot_controller.param.ensemble_stat.precedence == -1
+
+        plot_controller.plot_type = "map"  # triggers _update_precedence
+
+        assert plot_controller.param.location_string.precedence == -1
+        assert plot_controller.param.location_selection.precedence == -1
+        assert plot_controller.param.ensemble_stat.precedence == 1
