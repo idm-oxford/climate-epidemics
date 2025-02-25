@@ -828,3 +828,185 @@ class TestPlotController:
         plot_controller.data_var = "precipitation"  # triggers _revert_plot_status
         assert not plot_controller.plot_generated
         assert plot_controller.plot_status == "Plot not yet generated"
+
+
+class TestController:
+    """Unit tests for the Controller class."""
+
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.climdata.EXAMPLES",
+        {"data1": {"doc": "data1_doc"}, "data2": {"doc": "data2_doc"}},
+    )
+    @patch.dict(
+        "climepi.app._app_classes_methods.epimod.EXAMPLES",
+        {"model1": {"doc": "model1_doc"}, "model2": {"doc": "model2_doc"}},
+    )
+    def test_init(self, mock_get_example_model):
+        """Unit test for the __init__ method."""
+
+        def _mock_get_example_model(example_name):
+            return epimod.SuitabilityModel(temperature_range=(1, 2))
+
+        mock_get_example_model.side_effect = _mock_get_example_model
+
+        controller = app_classes_methods.Controller(
+            clim_dataset_example_base_dir="some/dir",
+            clim_dataset_example_names=["data1", "data2"],
+            epi_model_example_names=["model1", "model2"],
+            enable_custom_epi_model=True,
+        )
+        for attr, value in [
+            ("clim_dataset_name", "data1"),
+            ("clim_dataset_doc", "data1_doc"),
+            ("clim_data_load_initiator", False),
+            ("clim_data_loaded", False),
+            ("clim_data_status", "Data not loaded"),
+            ("epi_model_option", "Example model"),
+            ("epi_example_name", "model1"),
+            ("epi_example_doc", "model1_doc"),
+            ("epi_temperature_range", (15, 30)),
+            ("epi_output_choice", "Suitable portion of each year"),
+            ("suitability_threshold", 0),
+            ("epi_model_run_initiator", False),
+            ("epi_model_ran", False),
+            ("epi_model_status", "Model has not been run"),
+            ("_clim_dataset_example_base_dir", "some/dir"),
+            ("_ds_clim", None),
+            ("_ds_epi", None),
+        ]:
+            assert getattr(controller, attr) == value, (
+                f"Unexpected value for {attr}: expected {value}, "
+                f"got {getattr(controller, attr)}"
+            )
+        assert controller._ds_epi_path.parents[1] == pathlib.Path(tempfile.gettempdir())
+        assert controller._ds_epi_path.name == "ds_epi.nc"
+        assert controller._epi_model.temperature_range == (1, 2)
+        assert controller.param.epi_model_option.precedence == 1
+        assert controller.param.suitability_threshold.precedence == -1
+        assert isinstance(
+            controller.clim_plot_controller, app_classes_methods._PlotController
+        )
+        assert controller.clim_plot_controller._ds_base is None
+        assert isinstance(
+            controller.epi_plot_controller, app_classes_methods._PlotController
+        )
+        assert controller.epi_plot_controller._ds_base is None
+        assert isinstance(controller.data_controls, pn.Param)
+
+    def test_clim_plot_controls(self):
+        """
+        Unit test for the clim_plot_controls method.
+
+        Focuses on whether the controls are updated when expected when passed to a
+        Panel app.
+        """
+        controller = app_classes_methods.Controller()
+        controller.clim_plot_controller.controls = "some controls"
+        # Create a panel object as would be done in the app
+        controls_panel = pn.panel(controller.clim_plot_controls)
+        assert controls_panel._pane.object == "some controls"
+        # Updating any parameter in controller should update the controls panel
+        controller.clim_plot_controller.controls = "new controls"
+        assert controls_panel._pane.object == "some controls"
+        controller.clim_data_loaded = True
+        assert controls_panel._pane.object == "new controls"
+
+    def test_clim_plot_view(self):
+        """
+        Unit test for the clim_plot_view method.
+
+        Focuses on whether the view is updated when expected when passed to a Panel app.
+        """
+        controller = app_classes_methods.Controller()
+        controller.clim_plot_controller.view = "some view"
+        # Create a panel object as would be done in the app
+        view_panel = pn.panel(controller.clim_plot_view)
+        assert view_panel._pane.object == "some view"
+        # Updating clim_plot_controller.view should only update the view panel when the
+        # view_refresher event is triggered
+        controller.clim_plot_controller.view = "new view"
+        assert view_panel._pane.object == "some view"
+        controller.clim_plot_controller.param.trigger("view_refresher")
+        assert view_panel._pane.object == "new view"
+
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.epimod.EXAMPLES",
+        {"model1": {}, "model2": {}, "model3": {}},
+    )
+    def test_epi_model_plot_view(self, mock_get_example_model):
+        """
+        Unit test for the epi_model_plot_view method.
+
+        Tests that the view is updated when expected when passed to a Panel app.
+        """
+        model1 = epimod.SuitabilityModel(temperature_range=(1, 2))
+        model2 = epimod.SuitabilityModel(temperature_range=(3, 4))
+        model3 = "not a supported model"
+
+        def _mock_get_example_model(example_name):
+            if example_name == "model1":
+                return model1
+            if example_name == "model2":
+                return model2
+            if example_name == "model3":
+                return model3
+            raise ValueError(f"Unexpected example_name: {example_name}")
+
+        mock_get_example_model.side_effect = _mock_get_example_model
+
+        controller = app_classes_methods.Controller(
+            epi_model_example_names=["model1", "model2", "model3"]
+        )
+        # Create a panel object as would be done in the app
+        view_panel = pn.panel(controller.epi_model_plot_view)
+        hvt.assertEqual(view_panel._pane[0].object, model1.plot_suitability_region())
+        # Updating epi_model_name should update the view panel by triggering
+        # _get_epi_model
+        controller.epi_example_name = "model2"
+        hvt.assertEqual(view_panel._pane[0].object, model2.plot_suitability_region())
+        # Check case where epi_model.plot_suitability_region raises an error
+        controller.epi_output_choice = "Suitability values"
+        controller.epi_example_name = "model3"
+        assert (
+            view_panel._pane[0].object
+            == "Error generating plot: 'str' object has no attribute "
+            "'plot_suitability_region'"
+        )
+
+    def test_epi_plot_controls(self):
+        """
+        Unit test for the epi_plot_controls method.
+
+        Focuses on whether the controls are updated when expected when passed to a
+        Panel app.
+        """
+        controller = app_classes_methods.Controller()
+        controller.epi_plot_controller.controls = "some controls"
+        # Create a panel object as would be done in the app
+        controls_panel = pn.panel(controller.epi_plot_controls)
+        assert controls_panel._pane.object == "some controls"
+        # Updating any parameter in controller should update the controls panel
+        controller.epi_plot_controller.controls = "new controls"
+        assert controls_panel._pane.object == "some controls"
+        controller.epi_model_ran = True
+        assert controls_panel._pane.object == "new controls"
+
+    def test_epi_plot_view(self):
+        """
+        Unit test for the epi_plot_view method.
+
+        Focuses on whether the view is updated when expected when passed to a Panel app.
+        """
+        controller = app_classes_methods.Controller()
+        controller.epi_plot_controller.view = "some view"
+        # Create a panel object as would be done in the app
+        view_panel = pn.panel(controller.epi_plot_view)
+        assert view_panel._pane.object == "some view"
+        # Updating epi_plot_controller.view should only update the view panel (as used
+        # in the app) when the view_refresher event is triggered
+        controller.epi_plot_controller.view = "new view"
+        assert view_panel._pane.object == "some view"
+        controller.epi_plot_controller.param.trigger("view_refresher")
+        assert view_panel._pane.object == "new view"
