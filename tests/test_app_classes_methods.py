@@ -711,20 +711,40 @@ class TestPlotController:
 
         The method is triggered through the "plot_initiator" event parameter.
         """
-        ds_in = generate_dataset(data_var="temperature").climepi.sel_geo("SCG")
+        ds_in = generate_dataset(
+            data_var="temperature", frequency="monthly"
+        ).climepi.sel_geo("SCG")
         plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
         plot_controller.view.append("some_view")
 
         view_refresher_trigger_count = 0
 
-        @param.depends("plot_controller.view_refresher")
-        def _update_view_refresher_triggers():
+        @param.depends(plot_controller.param.view_refresher, watch=True)
+        def _update_view_refresher_triggers(view_refresher):
             nonlocal view_refresher_trigger_count
             view_refresher_trigger_count += 1
 
         plot_controller.param.trigger("plot_initiator")
 
         assert len(plot_controller.view) == 1
+        hvt.assertEqual(
+            plot_controller.view[0][1].object,
+            app_classes_methods._get_view_func(
+                ds_in=ds_in,
+                plot_settings={
+                    "plot_type": "time series",
+                    "data_var": "temperature",
+                    "temporal_scope": "yearly",
+                    "year_range": [2000, 2001],
+                    "location_selection": "not used",
+                    "location_string": "not used",
+                    "realization": "not used",
+                    "ensemble_stat": "not used",
+                    "model": "not used",
+                    "scenario": "not used",
+                },
+            )[1].object,
+        )
         assert plot_controller.plot_generated
         assert plot_controller.plot_status == "Plot generated"
         assert view_refresher_trigger_count == 2  # refreshed at start/end of generation
@@ -789,3 +809,22 @@ class TestPlotController:
         assert plot_controller.param.location_string.precedence == -1
         assert plot_controller.param.location_selection.precedence == -1
         assert plot_controller.param.ensemble_stat.precedence == 1
+
+    def test_revert_plot_status(self):
+        """
+        Unit test for the _revert_plot_status method.
+
+        The method is triggered indirectly by changing the 'data_var' parameter.
+        """
+        ds_in = generate_dataset(
+            data_var=["temperature", "precipitation"]
+        ).climepi.sel_geo("Gabba")
+        plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
+        plot_controller.param.trigger("plot_initiator")
+
+        assert plot_controller.plot_generated
+        assert plot_controller.plot_status == "Plot generated"
+
+        plot_controller.data_var = "precipitation"  # triggers _revert_plot_status
+        assert not plot_controller.plot_generated
+        assert plot_controller.plot_status == "Plot not yet generated"
