@@ -290,6 +290,7 @@ class _PlotController(param.Parameterized):
         self.view.clear()
         self.param.trigger("view_refresher")
         self.controls.clear()
+        self._revert_plot_status()
         self._ds_base = ds_in
         if ds_in is None:
             self._scope_dict_base = None
@@ -531,9 +532,9 @@ class Controller(param.Parameterized):
             "Suitability values",
         ],
         default="Suitable portion of each year",
-        precedence=-1,
+        precedence=1,
     )
-    suitabilty_threshold = param.Number(
+    suitability_threshold = param.Number(
         default=0, bounds=(0, 1), step=0.01, precedence=-1
     )
     epi_model_run_initiator = param.Event(default=False, precedence=1)
@@ -589,7 +590,7 @@ class Controller(param.Parameterized):
             "epi_example_doc": {"widget_type": pn.widgets.StaticText, "name": ""},
             "epi_temperature_range": {"name": "Temperature range of suitability (°C)"},
             "epi_output_choice": {"name": "Return"},
-            "suitabilty_threshold": {"name": "Suitability threshold"},
+            "suitability_threshold": {"name": "Suitability threshold"},
             "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
             "epi_model_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -671,15 +672,8 @@ class Controller(param.Parameterized):
         except Exception as exc:
             self.epi_model_status = f"Error getting epidemiological model: {exc}"
             raise
-        finally:
-            self._epi_model = epi_model
-            # Options specific to suitability models
-            if isinstance(epi_model, epimod.SuitabilityModel):
-                self.param.epi_output_choice.precedence = 1
-                self._update_suitability_threshold()
-            else:
-                self.epi_output_choice = "Suitability values"
-                self.param.epi_output_choice.precedence = -1
+        self._epi_model = epi_model
+        self._update_suitability_threshold()
 
     @param.depends("epi_model_run_initiator", watch=True)
     def _run_epi_model(self):
@@ -703,7 +697,7 @@ class Controller(param.Parameterized):
                 self._ds_clim,
                 self._epi_model,
                 return_yearly_portion_suitable=return_yearly_portion_suitable,
-                suitability_threshold=self.suitabilty_threshold,
+                suitability_threshold=self.suitability_threshold,
                 save_path=self._ds_epi_path,
             )
             self._ds_epi = ds_epi
@@ -726,7 +720,7 @@ class Controller(param.Parameterized):
         "epi_example_name",
         "epi_temperature_range",
         "epi_output_choice",
-        "suitabilty_threshold",
+        "suitability_threshold",
         watch=True,
     )
     def _revert_epi_model_run_status(self):
@@ -766,7 +760,7 @@ class Controller(param.Parameterized):
     def _update_suitability_threshold(self):
         # Update the suitability threshold parameter.
         if self.epi_output_choice == "Suitability values":
-            self.param.suitabilty_threshold.precedence = -1
+            self.param.suitability_threshold.precedence = -1
         elif self.epi_output_choice == "Suitable portion of each year":
             if self._epi_model.temperature_range is not None or (
                 self._epi_model.suitability_table is not None
@@ -777,15 +771,14 @@ class Controller(param.Parameterized):
                     bool,
                 )
             ):
-                self.suitabilty_threshold = 0
-                self.param.suitabilty_threshold.precedence = -1
+                self.suitability_threshold = 0
+                self.param.suitability_threshold.precedence = -1
             else:
-                self.param.suitabilty_threshold.bounds = (
+                self.param.suitability_threshold.bounds = (
                     0,
                     self._epi_model.get_max_suitability(),
                 )
-                self.param.suitabilty_threshold.precedence = 1
-
+                self.param.suitability_threshold.precedence = 1
         else:
             raise ValueError("Unrecognised epidemiological model output choice.")
 
