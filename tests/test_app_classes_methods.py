@@ -5,11 +5,13 @@ import tempfile
 from unittest.mock import patch
 
 import holoviews as hv
+import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
 import numpy.testing as npt
 import panel as pn
 import param
 import pytest
+import xarray as xr
 import xarray.testing as xrt
 from holoviews.element.comparison import Comparison as hvt
 
@@ -1010,3 +1012,312 @@ class TestController:
         assert view_panel._pane.object == "some view"
         controller.epi_plot_controller.param.trigger("view_refresher")
         assert view_panel._pane.object == "new view"
+
+    @patch(
+        "climepi.app._app_classes_methods.climdata.get_example_dataset",
+        autospec=True,
+    )
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.climdata.EXAMPLES",
+        {"data1": {}, "data2": {}, "data3": {}},
+    )
+    @patch.dict("climepi.app._app_classes_methods.epimod.EXAMPLES", {"model": {}})
+    def test_load_clim_data(self, mock_get_example_model, mock_get_example_dataset):
+        """
+        Unit test for the _load_clim_data method.
+
+        The method is triggered via the "clim_data_load_initiator" event parameter.
+        """
+        # Mock methods
+        ds1 = generate_dataset(
+            data_var="temperature", frequency="monthly", extra_dims={"realization": 2}
+        ).climepi.sel_geo("SCG")
+        ds2 = generate_dataset(
+            data_var="precipitation", frequency="daily", extra_dims={"realization": 2}
+        ).climepi.sel_geo("Lords")
+
+        def _mock_get_example_dataset(clim_dataset_name, base_dir=None):
+            assert str(base_dir) == "some/dir"
+            if clim_dataset_name == "data1":
+                return ds1
+            if clim_dataset_name == "data2":
+                return ds2
+            raise ValueError("Dataset not available")
+
+        mock_get_example_dataset.side_effect = _mock_get_example_dataset
+
+        epi_model = epimod.SuitabilityModel(temperature_range=(1, 2))
+        mock_get_example_model.return_value = epi_model
+
+        # Create controller
+
+        controller = app_classes_methods.Controller(
+            clim_dataset_example_base_dir="some/dir",
+            clim_dataset_example_names=["data1", "data2", "data3"],
+            epi_model_example_names=["model"],
+        )
+
+        # Test loading the first dataset
+
+        assert controller.clim_dataset_name == "data1"  # should be default
+        assert not controller.clim_data_loaded
+        assert controller.clim_data_status == "Data not loaded"
+        controller.param.trigger("clim_data_load_initiator")
+
+        assert controller.clim_data_loaded
+        assert controller.clim_data_status == "Data loaded"
+        xrt.assert_identical(controller._ds_clim, ds1)
+        xrt.assert_identical(controller.clim_plot_controller._ds_base, ds1)
+        assert controller.clim_plot_controller.plot_status == "Plot not yet generated"
+
+        # Run an epi model and generate some plots to test loading a different dataset
+        # resets things as expected
+
+        controller.param.trigger("epi_model_run_initiator")
+        assert controller.epi_plot_controller._ds_base is not None
+        controller.clim_plot_controller.param.trigger("plot_initiator")
+        controller.epi_plot_controller.param.trigger("plot_initiator")
+        assert controller.clim_plot_controller.plot_generated
+        assert controller.epi_plot_controller.plot_generated
+
+        # Test loading a different dataset
+
+        controller.clim_dataset_name = "data2"
+        assert not controller.clim_data_loaded
+        assert controller.clim_data_status == "Data not loaded"
+
+        controller.param.trigger("clim_data_load_initiator")
+
+        assert controller.clim_data_loaded
+        assert controller.clim_data_status == "Data loaded"
+        xrt.assert_identical(controller._ds_clim, ds2)
+        xrt.assert_identical(controller.clim_plot_controller._ds_base, ds2)
+        assert controller.epi_plot_controller._ds_base is None
+        assert not controller.clim_plot_controller.plot_generated
+        assert not controller.epi_plot_controller.plot_generated
+
+        # Check error handling
+        controller.clim_dataset_name = "data3"
+        with pytest.raises(ValueError, match="Dataset not available"):
+            controller.param.trigger("clim_data_load_initiator")
+        assert not controller.clim_data_loaded
+        assert controller.clim_data_status == "Data load failed: Dataset not available"
+
+        # Run cleanup on temp file
+        controller.cleanup_temp_file()
+
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.epimod.EXAMPLES",
+        {"model1": {}, "model2": {}, "model3": {}},
+    )
+    def test_get_epi_model(self, mock_get_example_model):
+        """
+        Unit test for the _get_epi_model method.
+
+        The method is triggered via changing any of the "epi_model_option",
+        "epi_example_name", or "epi_temperature_range" parameters.
+        """
+        temperature_range1 = (1, 2)
+        suitability_table2 = xr.Dataset(
+            {"suitability": ("temperature", [0.1, 0.2])},
+            coords={"temperature": [15, 30]},
+        )
+
+        def _mock_get_example_model(example_name):
+            if example_name == "model1":
+                return epimod.SuitabilityModel(temperature_range=temperature_range1)
+            if example_name == "model2":
+                return epimod.SuitabilityModel(suitability_table=suitability_table2)
+            raise ValueError("Some error")
+
+        mock_get_example_model.side_effect = _mock_get_example_model
+
+        controller = app_classes_methods.Controller(
+            epi_model_example_names=["model1", "model2", "model3"],
+            enable_custom_epi_model=True,
+        )
+
+        # model1 should be used by default
+        assert controller.epi_model_option == "Example model"
+        assert controller.epi_example_name == "model1"
+        assert controller.param.epi_example_name.precedence == 1
+        assert controller.param.epi_temperature_range.precedence == -1
+        assert controller._epi_model.temperature_range == temperature_range1
+        assert controller._epi_model.suitability_table is None
+        assert controller.param.suitability_threshold.precedence == -1
+
+        # Change to model2
+        controller.epi_example_name = "model2"
+
+        assert controller._epi_model.temperature_range is None
+        xrt.assert_equal(controller._epi_model.suitability_table, suitability_table2)
+        assert controller.param.suitability_threshold.precedence == 1
+        assert controller.param.suitability_threshold.bounds == (0, 0.2)
+
+        # Change to model that raises an error
+        with pytest.raises(ValueError, match="Some error"):
+            controller.epi_example_name = "model3"
+        assert (
+            controller.epi_model_status
+            == "Error getting epidemiological model: Some error"
+        )
+        assert controller._epi_model is None
+
+        # Change to a custom model
+        controller.epi_model_option = "Custom temperature-dependent suitability model"
+        # controller.epi_temperature_range = (10, 20)
+        assert controller.epi_temperature_range == (15, 30)
+        assert controller.param.epi_example_name.precedence == -1
+        assert controller.param.epi_temperature_range.precedence == 1
+        assert controller._epi_model.temperature_range == (15, 30)
+        assert controller._epi_model.suitability_table is None
+        assert controller.param.suitability_threshold.precedence == -1
+
+        # Change to another custom model
+        controller.epi_temperature_range = (10, 20)
+        assert controller._epi_model.temperature_range == (10, 20)
+
+        # Provide an unsupported epi_model_option value
+        controller.param.epi_model_option.objects.append("Some unsupported option")
+        with pytest.raises(ValueError, match="Model option does not seem to be valid"):
+            controller.epi_model_option = "Some unsupported option"
+        assert controller.epi_model_status == "Model option does not seem to be valid"
+
+    @patch(
+        "climepi.app._app_classes_methods.climdata.get_example_dataset",
+        autospec=True,
+    )
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.climdata.EXAMPLES",
+        {"data": {}},
+    )
+    @patch.dict(
+        "climepi.app._app_classes_methods.epimod.EXAMPLES",
+        {"model1": {}, "model2": {}, "model3": {}},
+    )
+    def test_run_epi_model(self, mock_get_example_model, mock_get_example_dataset):
+        """
+        Unit test for the _load_clim_data method.
+
+        The method is triggered via the "epi_model_run_initiator" event parameter.
+        """
+        ds = generate_dataset(
+            data_var="temperature", frequency="monthly", extra_dims={"realization": 2}
+        ).climepi.sel_geo("SCG")
+        mock_get_example_dataset.return_value = ds
+
+        epi_model1 = epimod.SuitabilityModel(temperature_range=(0, 0.5))
+        epi_model2 = epimod.SuitabilityModel(
+            suitability_table=xr.Dataset(
+                {"suitability": ("temperature", [0.1, 0.9, 0.3])},
+                coords={"temperature": [0.25, 0.5, 0.75]},
+            )
+        )
+        epi_model3 = "Not a supported model"
+
+        def _mock_get_example_model(example_name):
+            if example_name == "model1":
+                return epi_model1
+            if example_name == "model2":
+                return epi_model2
+            if example_name == "model3":
+                return epi_model3
+            raise ValueError(f"Unexpected example_name: {example_name}")
+
+        mock_get_example_model.side_effect = _mock_get_example_model
+
+        controller = app_classes_methods.Controller(
+            clim_dataset_example_names=["data"],
+            epi_model_example_names=["model1", "model2", "model3"],
+        )
+
+        # First try without climate data loaded
+        controller.param.trigger("epi_model_run_initiator")
+        assert not controller.epi_model_ran
+        assert controller.epi_model_status == "Need to load climate data"
+        assert controller._ds_epi is None
+        assert controller.epi_plot_controller._ds_base is None
+
+        # Load climate data
+        controller.param.trigger("clim_data_load_initiator")
+        assert controller.clim_data_loaded
+
+        # Check that triggering with epi_model_ran = True does not run the model (this
+        # is mainly to prevent re-running but for simplicity of testing we just check
+        # that it isn't run at all if not actually run before)
+        controller.epi_model_ran = True
+        controller.param.trigger("epi_model_run_initiator")
+        assert controller._ds_epi is None
+        assert controller.epi_plot_controller._ds_base is None
+
+        # Run model1, returning raw suitability values
+        controller.epi_model_ran = False
+        assert controller.epi_example_name == "model1"
+        controller.epi_output_choice = "Suitability values"
+        controller.param.trigger("epi_model_run_initiator")
+        assert controller.epi_model_ran
+        assert controller.epi_model_status == "Model run complete"
+        xrt.assert_identical(
+            controller._ds_epi, controller.epi_plot_controller._ds_base
+        )
+        xrt.assert_allclose(
+            controller._ds_epi,
+            epi_model1.run(ds, return_yearly_portion_suitable=False),
+        )
+
+        # Run model2, returning yearly portion suitable
+        controller.epi_example_name = "model2"
+        controller.epi_output_choice = "Suitable portion of each year"
+        controller.suitability_threshold = 0.5
+        assert not controller.epi_model_ran
+        assert controller.epi_model_status == "Model has not been run"
+        controller.param.trigger("epi_model_run_initiator")
+        assert controller.epi_model_ran
+        assert controller.epi_model_status == "Model run complete"
+        xrt.assert_allclose(
+            controller._ds_epi,
+            epi_model2.run(
+                ds, return_yearly_portion_suitable=True, suitability_threshold=0.5
+            ),
+        )
+        xrt.assert_identical(
+            controller._ds_epi, controller.epi_plot_controller._ds_base
+        )
+
+        # Check error handling
+        controller.epi_output_choice = "Suitability values"
+        controller.epi_example_name = "model3"
+        with pytest.raises(AttributeError, match="'str' object has no attribute 'run'"):
+            controller.param.trigger("epi_model_run_initiator")
+        assert not controller.epi_model_ran
+        assert (
+            controller.epi_model_status
+            == "Model run failed: 'str' object has no attribute 'run'"
+        )
+
+        controller.epi_example_name = "model1"  # check a valid model can be run again
+        controller.epi_output_choice = "Suitable portion of each year"
+        controller.param.trigger("epi_model_run_initiator")
+        assert controller.epi_model_ran
+        assert controller.epi_model_status == "Model run complete"
+        xrt.assert_allclose(
+            controller._ds_epi,
+            epi_model1.run(
+                ds, return_yearly_portion_suitable=True, suitability_threshold=0
+            ),
+        )
+
+        controller.epi_model_ran = False
+        controller._epi_model = None  # mimic case where model not obtained properly
+        controller.param.trigger("epi_model_run_initiator")
+        assert not controller.epi_model_ran
+        assert (
+            controller.epi_model_status
+            == "Need to select a valid epidemiological model"
+        )
+
+        # Run cleanup on temp file
+        controller.cleanup_temp_file()
