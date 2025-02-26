@@ -1184,9 +1184,15 @@ class TestController:
 
         # Provide an unsupported epi_model_option value
         controller.param.epi_model_option.objects.append("Some unsupported option")
-        with pytest.raises(ValueError, match="Model option does not seem to be valid"):
+        with pytest.raises(
+            ValueError,
+            match="Unrecognised epidemiological model option: Some unsupported option",
+        ):
             controller.epi_model_option = "Some unsupported option"
-        assert controller.epi_model_status == "Model option does not seem to be valid"
+        assert (
+            controller.epi_model_status
+            == "Unrecognised epidemiological model option: Some unsupported option"
+        )
 
     @patch(
         "climepi.app._app_classes_methods.climdata.get_example_dataset",
@@ -1344,3 +1350,231 @@ class TestController:
         controller.clim_dataset_name = "data2"
         assert not controller.clim_data_loaded
         assert controller.clim_data_status == "Data not loaded"
+        # Check that reselecting the current dataset does not revert the status
+        controller.clim_data_loaded = True
+        controller.clim_data_status = "Data loaded"
+        controller.clim_dataset_name = "data2"
+        assert controller.clim_data_loaded
+        assert controller.clim_data_status == "Data loaded"
+
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.climdata.EXAMPLES",
+        {"data1": {}, "data2": {}},
+    )
+    @patch.dict(
+        "climepi.app._app_classes_methods.epimod.EXAMPLES",
+        {"model1": {}, "model2": {}},
+    )
+    def test_revert_epi_model_run_status(self, _):
+        """
+        Unit test for the _revert_epi_model_run_status method.
+
+        The method is triggered by changing the 'clim_dataset_name', 'epi_model_option',
+        'epi_example_name', 'epi_temperature_range', 'epi_output_choice', or
+        'suitability_threshold' parameters.
+        """
+        controller = app_classes_methods.Controller(
+            clim_dataset_example_names=["data1", "data2"],
+            epi_model_example_names=["model1", "model2"],
+        )
+        assert controller.clim_dataset_name == "data1"
+        assert controller.epi_model_option == "Example model"
+        assert controller.epi_example_name == "model1"
+        assert controller.epi_temperature_range == (15, 30)
+        assert controller.epi_output_choice == "Suitable portion of each year"
+        assert controller.suitability_threshold == 0
+        assert not controller.epi_model_ran
+        assert controller.epi_model_status == "Model has not been run"
+        for attr, new_value in [
+            ("clim_dataset_name", "data2"),
+            ("epi_example_name", "model2"),
+            ("epi_model_option", "Custom temperature-dependent suitability model"),
+            ("epi_temperature_range", (10, 20)),
+            ("epi_output_choice", "Suitability values"),
+            ("suitability_threshold", 0.5),
+        ]:
+            controller.epi_model_ran = True
+            controller.epi_model_status = "Model run complete"
+            setattr(controller, attr, new_value)
+            assert not controller.epi_model_ran
+            assert controller.epi_model_status == "Model has not been run"
+
+    @patch.dict(
+        "climepi.app._app_classes_methods.climdata.EXAMPLES",
+        {"data1": {"doc": "doc1"}, "data2": {"doc": "doc2"}, "data3": {}},
+    )
+    def test_update_clim_dataset_doc(self):
+        """
+        Unit test for the _update_clim_dataset_doc method.
+
+        The method is triggered by changing the 'clim_dataset_name' parameter.
+        """
+        controller = app_classes_methods.Controller(
+            clim_dataset_example_names=["data1", "data2"]
+        )
+        assert controller.clim_dataset_doc == "doc1"
+        controller.clim_dataset_name = "data2"
+        assert controller.clim_dataset_doc == "doc2"
+        # Dataset without doc string
+        controller.clim_dataset_name = "data3"
+        assert controller.clim_dataset_doc == ""
+
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.epimod.EXAMPLES",
+        {"model1": {"doc": "doc1"}, "model2": {}},
+    )
+    def test_update_epi_model_doc(self, _):
+        """
+        Unit test for the _update_epi_model_doc method.
+
+        The method is triggered by changing the 'epi_example_name' and
+        'epi_model_option' parameters.
+        """
+        controller = app_classes_methods.Controller(
+            epi_model_example_names=["model1", "model2"]
+        )
+        assert controller.epi_example_doc == "doc1"
+        assert controller.param.epi_example_doc.precedence == 1
+        controller.epi_example_name = "model2"
+        assert controller.epi_example_doc == ""
+        assert controller.param.epi_example_doc.precedence == 1
+        controller.epi_model_option = "Custom temperature-dependent suitability model"
+        assert controller.param.epi_example_doc.precedence == -1
+        # Test changing epi_example_name when an example model is not actually being
+        # used (maybe unnecessary as this shouldn't actually be possible in the app)
+        controller.epi_example_name = "model1"
+        assert controller.epi_example_doc == ""
+        assert controller.param.epi_example_doc.precedence == -1
+        controller.epi_model_option = "Example model"
+        assert controller.epi_example_doc == "doc1"
+        assert controller.param.epi_example_doc.precedence == 1
+
+    def test_update_epi_example_model_temperature_range_precedence(self):
+        """
+        Unit test for the _update_epi_example_model_temperature_range_precedence method.
+
+        The method is triggered by changing the 'epi_model_option' parameter.
+        """
+        controller = app_classes_methods.Controller()
+        assert controller.epi_model_option == "Example model"
+        assert controller.param.epi_example_name.precedence == 1
+        assert controller.param.epi_temperature_range.precedence == -1
+        controller.epi_model_option = "Custom temperature-dependent suitability model"
+        assert controller.param.epi_example_name.precedence == -1
+        assert controller.param.epi_temperature_range.precedence == 1
+        controller.epi_model_option = "Example model"
+        assert controller.param.epi_example_name.precedence == 1
+        assert controller.param.epi_temperature_range.precedence == -1
+        controller.param.epi_model_option.objects.append("Some unsupported option")
+        with pytest.raises(
+            ValueError,
+            match="Unrecognised epidemiological model option: Some unsupported option",
+        ):
+            with patch.object(controller, "_get_epi_model", autospec=True):
+                # Prevent _get_epi_model actually raising this error first
+                controller.epi_model_option = "Some unsupported option"
+        assert controller.param.epi_example_name.precedence == 1
+        assert controller.param.epi_temperature_range.precedence == -1
+
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.epimod.EXAMPLES",
+        {"model1": {}, "model2": {}, "model3": {}},
+    )
+    def test_update_suitability_threshold(self, mock_get_example_model):
+        """
+        Unit test for the _update_suitability_threshold method.
+
+        The method is triggered by changing the 'epi_output_choice' parameter.
+        """
+        # Note suitability is binary for models 1 and 3, so threshold precedence should
+        # only be positive for model 2
+        epi_model1 = epimod.SuitabilityModel(temperature_range=(0, 0.5))
+        epi_model2 = epimod.SuitabilityModel(
+            suitability_table=xr.Dataset(
+                {"suitability": ("temperature", [0.1, 0.9, 0.3])},
+                coords={"temperature": [0.25, 0.5, 0.75]},
+            )
+        )
+        epi_model3 = epimod.SuitabilityModel(
+            suitability_table=xr.Dataset(
+                {"suitability": ("temperature", [False, True, False])},
+                coords={"temperature": [0.25, 0.5, 0.75]},
+            )
+        )
+
+        def _mock_get_example_model(example_name):
+            if example_name == "model1":
+                return epi_model1
+            if example_name == "model2":
+                return epi_model2
+            if example_name == "model3":
+                return epi_model3
+            raise ValueError(f"Unexpected example_name: {example_name}")
+
+        mock_get_example_model.side_effect = _mock_get_example_model
+
+        controller = app_classes_methods.Controller(
+            epi_model_example_names=["model1", "model2", "model3"]
+        )
+        assert controller.epi_example_name == "model1"
+        assert controller.epi_output_choice == "Suitable portion of each year"
+        assert controller.suitability_threshold == 0
+        assert controller.param.suitability_threshold.precedence == -1
+
+        controller.epi_example_name = "model2"
+        assert controller.suitability_threshold == 0
+        assert controller.param.suitability_threshold.precedence == 1
+        assert controller.param.suitability_threshold.bounds == (0, 0.9)
+
+        controller.epi_output_choice = "Suitability values"
+        assert controller.param.suitability_threshold.precedence == -1
+        controller.epi_output_choice = "Suitable portion of each year"
+        assert controller.param.suitability_threshold.precedence == 1
+
+        controller.epi_example_name = "model3"
+        assert controller.param.suitability_threshold.precedence == -1
+
+    @patch(
+        "climepi.app._app_classes_methods.climdata.get_example_dataset",
+        autospec=True,
+    )
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    @patch.dict(
+        "climepi.app._app_classes_methods.climdata.EXAMPLES",
+        {"data": {}},
+    )
+    @patch.dict(
+        "climepi.app._app_classes_methods.epimod.EXAMPLES",
+        {"model": {}},
+    )
+    def test_cleanup_temp_file(self, mock_get_example_model, mock_get_example_dataset):
+        """Unit test for the cleanup_temp_file method."""
+        ds = generate_dataset(
+            data_var="temperature", frequency="monthly", extra_dims={"realization": 2}
+        ).climepi.sel_geo("SCG")
+        mock_get_example_dataset.return_value = ds
+
+        epi_model = epimod.SuitabilityModel(temperature_range=(0, 0.5))
+        mock_get_example_model.return_value = epi_model
+
+        controller = app_classes_methods.Controller(
+            clim_dataset_example_names=["data"], epi_model_example_names=["model"]
+        )
+
+        # Load climate data and run epi model to create temp file
+        controller.param.trigger("clim_data_load_initiator")
+        controller.param.trigger("epi_model_run_initiator")
+
+        # Generate plots using dataset from temp file to ensure this doesn't interfere
+        # with cleanup
+        controller.epi_plot_controller.param.trigger("plot_initiator")
+        assert isinstance(controller.epi_plot_view()[0][1].object, hv.Overlay)
+
+        assert controller._ds_epi is not None
+        assert controller._ds_epi_path.exists()
+        controller.cleanup_temp_file()
+        assert not controller._ds_epi_path.exists()
+        assert not controller._ds_epi_path.parent.exists()
