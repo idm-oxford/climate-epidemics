@@ -249,9 +249,14 @@ class TestPlotter:
 
         plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
         if plot_type == "unsupported_type":
-            with pytest.raises(ValueError, match="Unsupported"):
-                plotter.generate_plot()
-            return
+            # Check error handling for unsupported plot type (patch _get_ds_plot to
+            # avoid that method raising an error first)
+            with patch.object(plotter, "_get_ds_plot", autospec=True):
+                with pytest.raises(
+                    ValueError, match="Unsupported plot type: unsupported_type"
+                ):
+                    plotter.generate_plot()
+                return
         plotter.generate_plot()
         if plot_type == "map":
             view_panel = plotter.view[1][0]
@@ -592,12 +597,14 @@ class TestPlotController:
             raise ValueError(f"Unexpected ds_option: {ds_option} provided to test.")
 
     @pytest.mark.parametrize(
-        "temporal_scope_base,spatial_scope_base,scenario_scope_base,model_scope_base,ensemble_scope_base",
+        "temporal_scope_base,spatial_scope_base,scenario_scope_base,"
+        "model_scope_base,ensemble_scope_base",
         [
             ("daily", "list", "single", "single", "single"),
             ("monthly", "grid", "multiple", "multiple", "multiple"),
             ("yearly", "list", "single", "single", "multiple"),
             ("fake option", "list", "single", "single", "single"),
+            ("daily", "fake option", "single", "single", "single"),
             ("daily", "list", "fake option", "single", "single"),
             ("daily", "list", "single", "fake option", "single"),
             ("daily", "list", "single", "single", "fake option"),
@@ -632,6 +639,8 @@ class TestPlotController:
 
         if temporal_scope_base == "fake option":
             scope_dict["temporal"] = "fake option"
+        if spatial_scope_base == "fake option":
+            scope_dict["spatial"] = "fake option"
         if scenario_scope_base == "fake option":
             scope_dict["scenario"] = "fake option"
         if model_scope_base == "fake option":
@@ -645,6 +654,7 @@ class TestPlotController:
 
         if "fake option" in [
             temporal_scope_base,
+            spatial_scope_base,
             scenario_scope_base,
             model_scope_base,
             ensemble_scope_base,
@@ -1084,6 +1094,17 @@ class TestController:
         assert controller.clim_plot_controller.plot_generated
         assert controller.epi_plot_controller.plot_generated
 
+        # Test triggering the clim_data_load_initiator event again does not reload the
+        # data
+        with patch(
+            "climepi.app._app_classes_methods._load_clim_data_func",
+            side_effect=ValueError,
+        ):
+            controller.param.trigger("clim_data_load_initiator")
+        assert controller.clim_data_loaded
+        assert controller.clim_data_status == "Data loaded"
+        xrt.assert_identical(controller._ds_clim, ds1)
+
         # Test loading a different dataset
 
         controller.clim_dataset_name = "data2"
@@ -1468,13 +1489,15 @@ class TestController:
         assert controller.param.epi_example_name.precedence == 1
         assert controller.param.epi_temperature_range.precedence == -1
         controller.param.epi_model_option.objects.append("Some unsupported option")
+        with pytest.raises(ValueError):
+            # Error actually first raised by _get_epi_model when trying an unsupported
+            # option
+            controller.epi_model_option = "Some unsupported option"
         with pytest.raises(
             ValueError,
             match="Unrecognised epidemiological model option: Some unsupported option",
         ):
-            with patch.object(controller, "_get_epi_model", autospec=True):
-                # Prevent _get_epi_model actually raising this error first
-                controller.epi_model_option = "Some unsupported option"
+            controller._update_epi_example_model_temperature_range_precedence()
         assert controller.param.epi_example_name.precedence == 1
         assert controller.param.epi_temperature_range.precedence == -1
 
@@ -1536,6 +1559,12 @@ class TestController:
 
         controller.epi_example_name = "model3"
         assert controller.param.suitability_threshold.precedence == -1
+
+        controller.param.epi_output_choice.objects.append("Some unsupported option")
+        with pytest.raises(
+            ValueError, match="Unrecognised epidemiological model output choice"
+        ):
+            controller.epi_output_choice = "Some unsupported option"
 
     @patch(
         "climepi.app._app_classes_methods.climdata.get_example_dataset",
