@@ -4,6 +4,7 @@ import pathlib
 import tempfile
 from unittest.mock import patch
 
+import dask
 import holoviews as hv
 import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
@@ -21,6 +22,8 @@ from climepi import epimod
 from climepi.testing.fixtures import generate_dataset
 
 original_plot_map = climepi.ClimEpiDatasetAccessor.plot_map
+
+dask.config.set(scheduler="synchronous")  # enforce synchronous scheduler
 
 
 def _plot_map(self, *args, **kwargs):
@@ -1321,3 +1324,10 @@ class TestController:
 
         # Run cleanup on temp file
         controller.cleanup_temp_file()
+
+    @patch.dict(
+        "climepi.app._app_classes_methods.climdata.EXAMPLES",
+        {"data1": {}, "data2": {}},
+    )
+    def test_revert_clim_data_load_status(self):
+        pass
