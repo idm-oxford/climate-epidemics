@@ -27,13 +27,13 @@ jobs:
     - name: Test with pytest
       run: pixi run test
     - name: Upload coverage to Codecov
-      if: ${{ matrix.os == 'ubuntu-latest' }}
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        flags: ${{ matrix.os }}
     - name: Upload test results to Codecov
       if: ${{ !cancelled()}}
       uses: codecov/test-results-action@v1
       with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: ${{ matrix.os }}
+        token: ${{ secrets.CODECOV_TOKEN }}
+        flags: ${{ matrix.os }}
