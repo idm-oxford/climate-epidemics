@@ -644,8 +644,6 @@ class Controller(param.Parameterized):
             self.clim_data_status = "Data loaded"
             self.clim_data_loaded = True
             self.epi_plot_controller.initialize()
-            self.epi_model_status = "Model has not been run"
-            self.epi_model_ran = False
         except Exception as exc:
             self.clim_data_status = f"Data load failed: {exc}"
             raise
@@ -701,7 +699,7 @@ class Controller(param.Parameterized):
                 save_path=self._ds_epi_path,
             )
             self._ds_epi = ds_epi
-            self.epi_plot_controller.initialize(ds_epi.copy())
+            self.epi_plot_controller.initialize(ds_epi)
             self.epi_model_status = "Model run complete"
             self.epi_model_ran = True
         except Exception as exc:
