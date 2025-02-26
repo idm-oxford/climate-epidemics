@@ -1330,4 +1330,17 @@ class TestController:
         {"data1": {}, "data2": {}},
     )
     def test_revert_clim_data_load_status(self):
-        pass
+        """
+        Unit test for the _revert_clim_data_load_status method.
+
+        The method is triggered by changing the 'clim_dataset_name' parameter.
+        """
+        controller = app_classes_methods.Controller(
+            clim_dataset_example_names=["data1", "data2"]
+        )
+        assert controller.clim_dataset_name == "data1"
+        controller.clim_data_loaded = True
+        controller.clim_data_status = "Data loaded"
+        controller.clim_dataset_name = "data2"
+        assert not controller.clim_data_loaded
+        assert controller.clim_data_status == "Data not loaded"
