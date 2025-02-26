@@ -661,7 +661,9 @@ class Controller(param.Parameterized):
             example_name = None
             temperature_range = self.epi_temperature_range
         else:
-            self.epi_model_status = "Model option does not seem to be valid"
+            self.epi_model_status = (
+                f"Unrecognised epidemiological model option: {self.epi_model_option}"
+            )
             raise ValueError(self.epi_model_status)
         try:
             epi_model = _get_epi_model_func(
@@ -760,6 +762,7 @@ class Controller(param.Parameterized):
         if self.epi_output_choice == "Suitability values":
             self.param.suitability_threshold.precedence = -1
         elif self.epi_output_choice == "Suitable portion of each year":
+            self.suitability_threshold = 0
             if self._epi_model.temperature_range is not None or (
                 self._epi_model.suitability_table is not None
                 and np.issubdtype(
@@ -769,7 +772,6 @@ class Controller(param.Parameterized):
                     bool,
                 )
             ):
-                self.suitability_threshold = 0
                 self.param.suitability_threshold.precedence = -1
             else:
                 self.param.suitability_threshold.bounds = (
