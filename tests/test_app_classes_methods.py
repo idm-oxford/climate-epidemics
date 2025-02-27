@@ -21,9 +21,9 @@ import climepi.app._app_classes_methods as app_classes_methods
 from climepi import epimod
 from climepi.testing.fixtures import generate_dataset
 
-original_plot_map = climepi.ClimEpiDatasetAccessor.plot_map
-
 dask.config.set(scheduler="synchronous")  # enforce synchronous scheduler
+
+original_plot_map = climepi.ClimEpiDatasetAccessor.plot_map
 
 
 def _plot_map(self, *args, **kwargs):
