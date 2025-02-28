@@ -53,7 +53,7 @@ dev = [
   "ruff",
   "pytest",
   "pytest-cov",
-  "pytest-timeout",
+  "pytest-playwright",
   "mkdocs",
   "sphinx-book-theme",
   "sphinx-autosummary-accessors",
@@ -90,10 +90,10 @@ tag_prefix = "v"
 parentdir_prefix = "climepi-"
 
 [tool.pytest.ini_options]
-addopts = "--import-mode=importlib --cov=climepi --cov-config=pyproject.toml --cov-report=xml --junitxml=testreport.junit.xml --timeout=100"
+addopts = "--import-mode=importlib --cov=climepi --cov-config=pyproject.toml --cov-report=xml --junitxml=testreport.junit.xml"
 
 [tool.coverage.run]
-omit = ["climepi/_version.py"]
+omit = ["climepi/_version.py", "climepi/app/__main__.py"]
 
 [tool.ruff]
 exclude = ["climepi/_version.py"]
