@@ -75,6 +75,7 @@ def test_run_app(mock_get_example_dataset, _, capsys, port, page):
 
     page.goto(f"http://localhost:{port}/climepi_app")
     page.get_by_role("button", name="Load data").wait_for()
+    time.sleep(0.1)
     captured = capsys.readouterr()
     assert "Session created" in captured.out
     expect(page).to_have_title("climepi app")
