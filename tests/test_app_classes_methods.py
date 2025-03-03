@@ -23,12 +23,19 @@ from climepi.testing.fixtures import generate_dataset
 
 dask.config.set(scheduler="synchronous")  # enforce synchronous scheduler
 
+
+@pytest.fixture(autouse=True)
+def cache_cleanup():
+    """Clean up the cache after each test."""
+    pn.state.clear_caches()
+
+
 original_plot_map = climepi.ClimEpiDatasetAccessor.plot_map
 
 
 def _plot_map(self, *args, **kwargs):
     """
-    Run dataset.climepi.plot_map method but insisting rasterize=False.
+    Run dataset.climepi.plot_map method but imposing rasterize=False.
 
     This is needed because the default rasterize=True option seems to cause an error
     when in debug mode.

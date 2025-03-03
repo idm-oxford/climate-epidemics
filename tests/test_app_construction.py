@@ -40,6 +40,12 @@ def server_cleanup():
         pn.state.reset()
 
 
+@pytest.fixture(autouse=True)
+def cache_cleanup():
+    """Clean up the cache after each test."""
+    pn.state.clear_caches()
+
+
 @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
 @patch("climepi.app._app_classes_methods.climdata.get_example_dataset", autospec=True)
 @patch("climepi.app._app_classes_methods.climdata.EXAMPLE_NAMES", ["data"])
@@ -75,7 +81,6 @@ def test_run_app(mock_get_example_dataset, _, capsys, port, page):
 
     page.goto(f"http://localhost:{port}/climepi_app")
     page.get_by_role("button", name="Load data").wait_for()
-    time.sleep(0.1)
     captured = capsys.readouterr()
     assert "Session created" in captured.out
     expect(page).to_have_title("climepi app")
