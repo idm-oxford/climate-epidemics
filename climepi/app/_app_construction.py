@@ -154,12 +154,9 @@ def _session(
         session_id: controller,
     }
 
-    # Ensure temp files are cleaned up both when a session is closed
+    # Ensure temp files are cleaned up when a session is closed
 
-    def _cleanup_session(session_context):
-        _session_destroyed(session_id=session_context.id)
-
-    pn.state.on_session_destroyed(_cleanup_session)
+    pn.state.on_session_destroyed(_session_destroyed)
 
     return template
 
@@ -201,7 +198,7 @@ def _layout(
     return template, controller
 
 
-def _session_destroyed(session_id):
+def _cleanup_session(session_id):
     # Clean up the session
     controller = pn.state.cache["controllers"].pop(session_id)
     controller.cleanup_temp_file()
@@ -209,13 +206,17 @@ def _session_destroyed(session_id):
     logger.info("Session cleaned up successfully (deleted temporary file(s))")
 
 
+def _session_destroyed(session_context):
+    _cleanup_session(session_id=session_context.id)
+
+
 def _shutdown():
     logger = get_logger(name="stop")
     logger.info("Cleaning up sessions")
     session_ids = list(pn.state.cache.get("controllers", {}).keys())
     for session_id in session_ids:
-        _session_destroyed(session_id=session_id)
-    client = pn.state.cache.get("dask_client", None)
+        _cleanup_session(session_id=session_id)
+    client = pn.state.cache.pop("dask_client", None)
     if client is not None:
         logger.info("Closing Dask client")
         client.cancel(client.futures, force=True)
