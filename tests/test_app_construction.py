@@ -267,6 +267,28 @@ def test_set_shutdown(mock_shutdown, mock_signal):
 
     server.stop.side_effect = _original_stop
 
+    mock_original_sigint = MagicMock()
+    mock_original_sigterm = MagicMock()
+
+    def _getsignal(signalnum):
+        if signalnum == mock_signal.SIGINT:
+            return mock_original_sigint
+        if signalnum == mock_signal.SIGTERM:
+            return mock_original_sigterm
+        raise ValueError(f"Unexpected argument {signalnum} passed to signal.getsignal")
+
+    mock_signal.getsignal.side_effect = _getsignal
+
+    def _signal(signalnum, handler):
+        if signalnum == mock_signal.SIGINT:
+            mock_signal.SIGINT = handler
+        elif signalnum == mock_signal.SIGTERM:
+            mock_signal.SIGTERM = handler
+        else:
+            raise ValueError(f"Unexpected argument {signalnum} passed to signal.signal")
+
+    mock_signal.signal.side_effect = _signal
+
     app_construction._set_shutdown(server)
     assert server.is_alive()
     out = server.stop()
@@ -278,4 +300,9 @@ def test_set_shutdown(mock_shutdown, mock_signal):
     assert out2 == "stopped"
     mock_shutdown.assert_called_once()
 
-    assert mock_signal.signal.call_count == 2
+    mock_signal.SIGINT("some signum", "some frame")
+    mock_original_sigint.assert_called_once_with("some signum", "some frame")
+    assert mock_shutdown.call_count == 2
+    mock_signal.SIGTERM("another signum", "another frame")
+    mock_original_sigterm.assert_called_once_with("another signum", "another frame")
+    assert mock_shutdown.call_count == 3
