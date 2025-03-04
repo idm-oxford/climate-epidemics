@@ -64,7 +64,7 @@ def cache_cleanup():
 )
 def test_run_app(mock_get_example_dataset, _, capsys, port, page):
     """
-    Unit test for the run_app method.
+    Test the run_app method.
 
     Uses the Playwright library to test the app.
     """
@@ -90,10 +90,10 @@ def test_run_app(mock_get_example_dataset, _, capsys, port, page):
     page.get_by_text("Data loaded").wait_for()
     mock_get_example_dataset.assert_called_once_with("data", base_dir=None)
 
-    assert pn.state.cache["controllers"] != {}
+    assert len(pn.state.cache["controllers"]) == 1
     server.stop()
     time.sleep(0.1)
-    assert pn.state.cache["controllers"] == {}
+    assert "controllers" not in pn.state.cache
     captured = capsys.readouterr()
     assert "Cleaning up sessions" in captured.out
     assert "Session cleaned up successfully (deleted temporary file(s))" in captured.out
@@ -157,6 +157,16 @@ def test_run_app_opts(
         assert "Closing Dask client" not in captured.out
 
 
+def test_get_logger(capsys):
+    """Unit test for the get_logger method."""
+    logger = app_construction.get_logger("test")
+    logger.info("Test message")
+    captured = capsys.readouterr()
+    assert "INFO | test | Test message" in captured.out
+    cached_logger = app_construction.get_logger("test")
+    assert cached_logger is logger
+
+
 @patch("climepi.app._app_construction._layout", autospec=True)
 @patch("climepi.app._app_construction.pn", autospec=True)
 def test_session(mock_panel, mock_layout):
@@ -175,10 +185,97 @@ def test_session(mock_panel, mock_layout):
     )
 
 
+@patch("climepi.app._app_construction.Client", autospec=True)
+def test_setup_dask(mock_client, capsys):
+    """Unit test for the _setup_dask method."""
+    app_construction._setup_dask(dask_distributed=False)
+    mock_client.assert_not_called()
+    assert "dask_client" not in pn.state.cache
+    assert "Using the Dask single-machine scheduler" in capsys.readouterr().out
+
+    app_construction._setup_dask(dask_distributed=True)
+    mock_client.assert_called_once_with("tcp://127.0.0.1:64719")
+    assert pn.state.cache["dask_client"] == mock_client.return_value
+    assert "Client connected to Dask local cluster" in capsys.readouterr().out
+
+    mock_client.side_effect = OSError()
+    with pytest.raises(OSError, match="Error connecting to Dask local cluster"):
+        app_construction._setup_dask(dask_distributed=True)
+
+
 @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
-def test_layout(_, capsys):
+def test_layout(_):
     """Unit test for the _layout method."""
     template, controller = app_construction._layout()
     assert isinstance(template, pn.template.BootstrapTemplate)
     assert isinstance(controller, app_classes_methods.Controller)
     assert template.sidebar[0] == controller.data_controls
+
+
+def test_cleanup_session(capsys):
+    """Unit test for the _cleanup_session method."""
+    mock_controller = MagicMock()
+    pn.state.cache["controllers"] = {"an_id": mock_controller}
+    app_construction._cleanup_session("an_id")
+    mock_controller.cleanup_temp_file.assert_called_once()
+    captured = capsys.readouterr()
+    assert "Session cleaned up successfully (deleted temporary file(s))" in captured.out
+
+
+def test_session_destroyed(capsys):
+    """Unit test for the _session_destroyed method."""
+    mock_controller = MagicMock()
+    pn.state.cache["controllers"] = {"an_id": mock_controller}
+    session_context = MagicMock()
+    session_context.id = "an_id"
+    app_construction._session_destroyed(session_context)
+    mock_controller.cleanup_temp_file.assert_called_once()
+    captured = capsys.readouterr()
+    assert "Session cleaned up successfully (deleted temporary file(s))" in captured.out
+
+
+def test_shutdown(capsys):
+    """Unit test for the _shutdown method."""
+    mock_controller1 = MagicMock()
+    mock_controller2 = MagicMock()
+    pn.state.cache["controllers"] = {"id1": mock_controller1, "id2": mock_controller2}
+    mock_client = MagicMock()
+    mock_client.return_value.futures = "some futures"
+    pn.state.cache["dask_client"] = mock_client
+    app_construction._shutdown()
+    mock_controller1.cleanup_temp_file.assert_called_once()
+    mock_controller2.cleanup_temp_file.assert_called_once()
+    mock_client.cancel.assert_called_once_with(mock_client.futures, force=True)
+    mock_client.close.assert_called_once()
+    captured = capsys.readouterr()
+    assert captured.out.count("Session cleaned up successfully") == 2
+    assert "Closing Dask client" in captured.out
+    assert "Stopping app" in captured.out
+    assert pn.state.cache == {}
+
+
+@patch("climepi.app._app_construction.signal", autospec=True)
+@patch("climepi.app._app_construction._shutdown", autospec=True)
+def test_set_shutdown(mock_shutdown, mock_signal):
+    """Unit test for the _set_shutdown method."""
+    server = MagicMock()
+    server.is_alive.return_value = True
+
+    def _original_stop():
+        server.is_alive.return_value = False
+        return "stopped"
+
+    server.stop.side_effect = _original_stop
+
+    app_construction._set_shutdown(server)
+    assert server.is_alive()
+    out = server.stop()
+    assert out == "stopped"
+    assert not server.is_alive()
+    mock_shutdown.assert_called_once()
+
+    out2 = server.stop()
+    assert out2 == "stopped"
+    mock_shutdown.assert_called_once()
+
+    assert mock_signal.signal.call_count == 2
