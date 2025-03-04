@@ -25,4 +25,4 @@ def _start_cluster():
 
 
 if __name__ == "__main__":
-    _start_cluster()
+    _start_cluster()  # pragma: no cover
