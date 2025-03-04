@@ -216,6 +216,7 @@ def _shutdown():
     session_ids = list(pn.state.cache.get("controllers", {}).keys())
     for session_id in session_ids:
         _cleanup_session(session_id=session_id)
+    pn.state.cache.pop("controllers", None)
     client = pn.state.cache.pop("dask_client", None)
     if client is not None:
         logger.info("Closing Dask client")
@@ -230,7 +231,7 @@ def _set_shutdown(server):
     def _stop():
         if server.is_alive():
             _shutdown()
-        original_stop()
+        return original_stop()
 
     server.stop = _stop
 
