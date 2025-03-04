@@ -385,8 +385,6 @@ def test_open_temp_data(mock_open_mfdataset):
         frequency="daily",
         has_bounds=False,
     ).isel(lon=0, lat=0, drop=True)
-    for var in data_vars:
-        ds_in[var].values = np.random.rand(*ds_in[var].shape)
 
     def mock_open_mfdataset_side_effect(paths, **kwargs):
         ds_list = []

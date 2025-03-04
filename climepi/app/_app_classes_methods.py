@@ -135,9 +135,11 @@ class _Plotter:
         elif plot_type == "time series":
             p1 = ds_plot.climepi.plot_uncertainty_interval_decomposition()
             p2 = ds_plot.rename(
-                scenario="example scenario",
-                model="example model",
-                realization="example realization",
+                {
+                    key: f"example {key}"
+                    for key in ["realization", "model", "scenario"]
+                    if key in ds_plot
+                }
             ).climepi.plot_time_series(label="Example trajectory")
             plot = (p1 * p2).opts(legend_position="top_left")
         elif plot_type == "variance decomposition":
@@ -145,7 +147,7 @@ class _Plotter:
             p2 = ds_plot.climepi.plot_variance_decomposition(fraction=True)
             plot = (p1 + p2).cols(1).opts(shared_axes=False)
         else:
-            raise ValueError("Unsupported plot options")
+            raise ValueError(f"Unsupported plot type: {plot_type}")
         view = pn.panel(
             plot,
             center=True,
@@ -240,7 +242,7 @@ class _Plotter:
             if temporal_scope_base != "yearly":
                 ds_plot = ds_plot.climepi.yearly_average()
             if "time_bnds" in ds_plot:
-                ds_plot = ds_plot.drop("time_bnds")
+                ds_plot = ds_plot.drop_vars("time_bnds")
             year_range = self._plot_settings["year_range"]
             ds_plot = ds_plot.sel(time=str(year_range[1])).squeeze(
                 "time", drop=True
@@ -288,6 +290,7 @@ class _PlotController(param.Parameterized):
         self.view.clear()
         self.param.trigger("view_refresher")
         self.controls.clear()
+        self._revert_plot_status()
         self._ds_base = ds_in
         if ds_in is None:
             self._scope_dict_base = None
@@ -367,7 +370,7 @@ class _PlotController(param.Parameterized):
             data_years[-1],
         )
         data_year_diffs = np.diff(data_years)
-        if np.all(data_year_diffs == data_year_diffs[0]):
+        if data_year_diffs.size > 0 and np.all(data_year_diffs == data_year_diffs[0]):
             self.param.year_range.step = data_year_diffs[0]
         else:
             self.param.year_range.step = 1
@@ -379,6 +382,10 @@ class _PlotController(param.Parameterized):
             self.param.scenario.precedence = 1
         elif scope_dict_base["scenario"] == "single":
             self.param.scenario.precedence = -1
+        else:
+            raise ValueError(
+                f"Unrecognised scenario scope: {scope_dict_base['scenario']}"
+            )
         # Model choices
         if scope_dict_base["model"] == "multiple":
             model_choices = ["all", *ds_base.model.values.tolist()]
@@ -387,6 +394,8 @@ class _PlotController(param.Parameterized):
             self.param.model.precedence = 1
         elif scope_dict_base["model"] == "single":
             self.param.model.precedence = -1
+        else:
+            raise ValueError(f"Unrecognised model scope: {scope_dict_base['model']}")
         # Realization choices
         if scope_dict_base["ensemble"] == "multiple":
             realization_choices = ["all", *ds_base.realization.values.tolist()]
@@ -395,13 +404,15 @@ class _PlotController(param.Parameterized):
             self.param.realization.precedence = 1
         elif scope_dict_base["ensemble"] == "single":
             self.param.realization.precedence = -1
+        else:
+            raise ValueError(
+                f"Unrecognised ensemble scope: {scope_dict_base['ensemble']}"
+            )
         # Ensemble stat choices
         ensemble_stat_choices = [
             "mean",
             "std",
             "var",
-            "min",
-            "max",
             "lower",
             "upper",
             "individual realization(s)",
@@ -521,9 +532,9 @@ class Controller(param.Parameterized):
             "Suitability values",
         ],
         default="Suitable portion of each year",
-        precedence=-1,
+        precedence=1,
     )
-    suitabilty_threshold = param.Number(
+    suitability_threshold = param.Number(
         default=0, bounds=(0, 1), step=0.01, precedence=-1
     )
     epi_model_run_initiator = param.Event(default=False, precedence=1)
@@ -579,7 +590,7 @@ class Controller(param.Parameterized):
             "epi_example_doc": {"widget_type": pn.widgets.StaticText, "name": ""},
             "epi_temperature_range": {"name": "Temperature range of suitability (°C)"},
             "epi_output_choice": {"name": "Return"},
-            "suitabilty_threshold": {"name": "Suitability threshold"},
+            "suitability_threshold": {"name": "Suitability threshold"},
             "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
             "epi_model_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -633,8 +644,6 @@ class Controller(param.Parameterized):
             self.clim_data_status = "Data loaded"
             self.clim_data_loaded = True
             self.epi_plot_controller.initialize()
-            self.epi_model_status = "Model has not been run"
-            self.epi_model_ran = False
         except Exception as exc:
             self.clim_data_status = f"Data load failed: {exc}"
             raise
@@ -652,7 +661,9 @@ class Controller(param.Parameterized):
             example_name = None
             temperature_range = self.epi_temperature_range
         else:
-            self.epi_model_status = "Model option does not seem to be valid"
+            self.epi_model_status = (
+                f"Unrecognised epidemiological model option: {self.epi_model_option}"
+            )
             raise ValueError(self.epi_model_status)
         try:
             epi_model = _get_epi_model_func(
@@ -661,15 +672,8 @@ class Controller(param.Parameterized):
         except Exception as exc:
             self.epi_model_status = f"Error getting epidemiological model: {exc}"
             raise
-        finally:
-            self._epi_model = epi_model
-            # Options specific to suitability models
-            if isinstance(epi_model, epimod.SuitabilityModel):
-                self.param.epi_output_choice.precedence = 1
-                self._update_suitability_threshold()
-            else:
-                self.epi_output_choice = "Suitability values"
-                self.param.epi_output_choice.precedence = -1
+        self._epi_model = epi_model
+        self._update_suitability_threshold()
 
     @param.depends("epi_model_run_initiator", watch=True)
     def _run_epi_model(self):
@@ -693,11 +697,11 @@ class Controller(param.Parameterized):
                 self._ds_clim,
                 self._epi_model,
                 return_yearly_portion_suitable=return_yearly_portion_suitable,
-                suitability_threshold=self.suitabilty_threshold,
+                suitability_threshold=self.suitability_threshold,
                 save_path=self._ds_epi_path,
             )
             self._ds_epi = ds_epi
-            self.epi_plot_controller.initialize(ds_epi.copy())
+            self.epi_plot_controller.initialize(ds_epi)
             self.epi_model_status = "Model run complete"
             self.epi_model_ran = True
         except Exception as exc:
@@ -716,7 +720,7 @@ class Controller(param.Parameterized):
         "epi_example_name",
         "epi_temperature_range",
         "epi_output_choice",
-        "suitabilty_threshold",
+        "suitability_threshold",
         watch=True,
     )
     def _revert_epi_model_run_status(self):
@@ -756,8 +760,9 @@ class Controller(param.Parameterized):
     def _update_suitability_threshold(self):
         # Update the suitability threshold parameter.
         if self.epi_output_choice == "Suitability values":
-            self.param.suitabilty_threshold.precedence = -1
+            self.param.suitability_threshold.precedence = -1
         elif self.epi_output_choice == "Suitable portion of each year":
+            self.suitability_threshold = 0
             if self._epi_model.temperature_range is not None or (
                 self._epi_model.suitability_table is not None
                 and np.issubdtype(
@@ -767,15 +772,13 @@ class Controller(param.Parameterized):
                     bool,
                 )
             ):
-                self.suitabilty_threshold = 0
-                self.param.suitabilty_threshold.precedence = -1
+                self.param.suitability_threshold.precedence = -1
             else:
-                self.param.suitabilty_threshold.bounds = (
+                self.param.suitability_threshold.bounds = (
                     0,
                     self._epi_model.get_max_suitability(),
                 )
-                self.param.suitabilty_threshold.precedence = 1
-
+                self.param.suitability_threshold.precedence = 1
         else:
             raise ValueError("Unrecognised epidemiological model output choice.")
 
