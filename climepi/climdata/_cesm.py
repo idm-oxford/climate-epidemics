@@ -1,7 +1,5 @@
 """Module for accessing and downloading CESM LENS2 data."""
 
-import pathlib
-
 import dask.diagnostics
 import fsspec
 import intake
@@ -11,6 +9,7 @@ import xarray as xr
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import center_times
 from climepi.climdata._data_getter_class import ClimateDataGetter
+from climepi.climdata._examples import _get_data_version
 
 
 class CESMDataGetter(ClimateDataGetter):
@@ -248,24 +247,23 @@ class ARISEDataGetter(CESMDataGetter):
             _ds[_data_var] = _ds[_data_var].expand_dims(member_id=[_member_id])
             return _ds
 
+        version = _get_data_version()
         ds_list = []
 
         for scenario in scenarios:
             if scenario == "ssp245":
-                catalog_path = str(
-                    pathlib.Path(__file__).parent
-                    / "_catalogs"
-                    / "cesm2-waccm-ssp245.json"
+                catalog_url = (
+                    "https://github.com/idm-oxford/climate-epidemics/raw/"
+                    f"{version}/data/examples/cesm2-waccm-ssp245.json"
                 )
             elif scenario == "sai15":
-                catalog_path = str(
-                    pathlib.Path(__file__).parent
-                    / "_catalogs"
-                    / "cesm2-arise-sai-1.5.json"
+                catalog_url = (
+                    "https://github.com/idm-oxford/climate-epidemics/raw/"
+                    f"{version}/data/examples/cesm2-arise-sai-1.5.json"
                 )
             else:
                 raise ValueError(f"Scenario {scenario} is not supported)")
-            catalog = intake.open_esm_datastore(catalog_path)
+            catalog = intake.open_esm_datastore(catalog_url)
             catalog_subset = catalog.search(
                 variable=["TREFHT", "PRECT"],
                 frequency=catalog_frequency,
