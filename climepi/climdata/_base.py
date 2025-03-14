@@ -1,6 +1,6 @@
 """Module defining get_climate_data and get_climate_data_file_names functions."""
 
-from climepi.climdata._cesm import CESMDataGetter
+from climepi.climdata._cesm import ARISEDataGetter, LENS2DataGetter
 from climepi.climdata._isimip import ISIMIPDataGetter
 
 
@@ -18,18 +18,19 @@ def get_climate_data(
     """
     Retrieve and download climate projection data from a remote server.
 
-    Currently available data sources are CESM2 LENS (data_source='lens2') and ISIMIP
-    (data_source='isimip'). CESM2 LENS data are taken from an AWS server
-    (https://registry.opendata.aws/ncar-cesm2-lens/), and terms of use can be found at
-    https://www.ucar.edu/terms-of-use/data. ISIMIP data are taken from the ISIMIP
-    repository (https://data.isimip.org/), and terms of use can be found at
+    Currently available data sources are CESM2 LENS (data_source='lens2'), CESM2 ARISE
+    (data_source='arise'), and ISIMIP (data_source='isimip'). CESM2 LENS 2 and ARISE
+    data are taken from AWS servers (https://registry.opendata.aws/ncar-cesm2-lens/
+    and https://registry.opendata.aws/ncar-cesm2-arise/), and terms of use can be
+    found at https://www.ucar.edu/terms-of-use/data. ISIMIP data are taken from the
+    ISIMIP repository (https://data.isimip.org/), and terms of use can be found at
     https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
 
     Parameters
     ----------
     data_source : str
         Data source to retrieve data from. Currently supported sources are 'lens2' (for
-        CESM2 LENS data) and 'isimip' (for ISIMIP data).
+        CESM2 LENS data), 'arise' (CESM2 ARISE data) and 'isimip' (for ISIMIP data).
     frequency : str, optional
         Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
         'yearly' (default is 'monthly').
@@ -125,8 +126,8 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
     Parameters
     ----------
     data_source : str, optional
-        Data source. Currently supported sources are 'lens2' (for CESM2 LENS data) and
-        'isimip' (for ISIMIP data).
+        Data source. Currently supported sources are 'lens2' (for CESM2 LENS data),
+        'arise' (CESM2 ARISE data) and 'isimip' (for ISIMIP data).
     frequency : str, optional
         Frequency of the data. Should be one of 'daily', 'monthly' or 'yearly' (default
         is 'monthly').
@@ -147,7 +148,9 @@ def _get_data_getter(
     data_source, *args, subset_check_interval=None, max_subset_wait_time=None, **kwargs
 ):
     if data_source == "lens2":
-        data_getter = CESMDataGetter(*args, **kwargs)
+        data_getter = LENS2DataGetter(*args, **kwargs)
+    elif data_source == "arise":
+        data_getter = ARISEDataGetter(*args, arise=True, **kwargs)
     elif data_source == "isimip":
         data_getter = ISIMIPDataGetter(
             *args,
