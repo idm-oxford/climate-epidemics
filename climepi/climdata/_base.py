@@ -150,7 +150,7 @@ def _get_data_getter(
     if data_source == "lens2":
         data_getter = LENS2DataGetter(*args, **kwargs)
     elif data_source == "arise":
-        data_getter = ARISEDataGetter(*args, arise=True, **kwargs)
+        data_getter = ARISEDataGetter(*args, **kwargs)
     elif data_source == "isimip":
         data_getter = ISIMIPDataGetter(
             *args,
