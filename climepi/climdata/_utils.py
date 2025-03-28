@@ -1,3 +1,5 @@
+"""Utility functions for the climdata subpackage."""
+
 import pooch
 
 from climepi._version import get_versions
