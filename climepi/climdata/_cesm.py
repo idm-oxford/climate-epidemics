@@ -9,7 +9,7 @@ import xarray as xr
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import center_times
 from climepi.climdata._data_getter_class import ClimateDataGetter
-from climepi.climdata._examples import _get_data_version
+from climepi.climdata._utils import _get_data_version
 
 
 class CESMDataGetter(ClimateDataGetter):
