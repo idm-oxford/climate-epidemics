@@ -254,12 +254,12 @@ class ARISEDataGetter(CESMDataGetter):
             if scenario == "ssp245":
                 catalog_url = (
                     "https://github.com/idm-oxford/climate-epidemics/raw/"
-                    f"{version}/data/examples/cesm2-waccm-ssp245.json"
+                    f"{version}/data/catalogs/cesm2-waccm-ssp245.json"
                 )
             elif scenario == "sai15":
                 catalog_url = (
                     "https://github.com/idm-oxford/climate-epidemics/raw/"
-                    f"{version}/data/examples/cesm2-arise-sai-1.5.json"
+                    f"{version}/data/catalogs/cesm2-arise-sai-1.5.json"
                 )
             else:
                 raise ValueError(f"Scenario {scenario} is not supported)")
