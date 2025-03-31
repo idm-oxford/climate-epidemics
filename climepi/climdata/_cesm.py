@@ -118,7 +118,7 @@ class CESMDataGetter(ClimateDataGetter):
         ds_processed["precipitation"] = (ds_processed["PRECT"]) * (1000 * 60 * 60 * 24)
         ds_processed["precipitation"].attrs.update(long_name="Precipitation")
         ds_processed["precipitation"].attrs.update(units="mm/day")
-        ds_processed = ds_processed.drop_vars(["TREFHT", "PRECC", "PRECL"])
+        ds_processed = ds_processed.drop_vars(["TREFHT", "PRECT"])
         # Use capital letters for variable long names (for consistent plotting).
         ds_processed["time"].attrs.update(long_name="Time")
         ds_processed["lon"].attrs.update(long_name="Longitude")
