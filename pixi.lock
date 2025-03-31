@@ -3254,8 +3254,31 @@ packages:
   timestamp: 1734858972635
 - pypi: .
   name: climepi
-  version: 0.4.1+21.g6db39d8.dirty
-  sha256: 7e989d753df2a8a624cf6189a2b6bacc1f0cc97869482f04331050ce87975e34
+  version: 0.4.1+22.g0fd86f4.dirty
+  sha256: 33b95d6530daf49f69b5e9d3f5d6f80e5092ca112792d2d6f1766532f8dfe7c0
+  requires_dist:
+  - bottleneck
+  - dask>=2024.11.2
+  - datashader
+  - flox
+  - fsspec
+  - geopy
+  - geoviews
+  - hvplot
+  - intake
+  - intake-esm
+  - nc-time-axis
+  - numpy
+  - pandas
+  - panel
+  - bokeh<3.7.0
+  - param
+  - pooch
+  - requests
+  - s3fs>=2021.4
+  - urllib3
+  - xarray!=2024.10.0
+  - xcdat
   requires_python: '>=3.10'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/cloudpickle-3.1.1-pyhd8ed1ab_0.conda
@@ -3375,6 +3398,7 @@ packages:
   - python_abi 3.12.* *_cp312
   - tomli
   license: Apache-2.0
+  license_family: APACHE
   purls:
   - pkg:pypi/coverage?source=hash-mapping
   size: 370860
@@ -3388,6 +3412,7 @@ packages:
   - python_abi 3.12.* *_cp312
   - tomli
   license: Apache-2.0
+  license_family: APACHE
   purls:
   - pkg:pypi/coverage?source=hash-mapping
   size: 369852
@@ -3402,6 +3427,7 @@ packages:
   - python_abi 3.13.* *_cp313
   - tomli
   license: Apache-2.0
+  license_family: APACHE
   purls:
   - pkg:pypi/coverage?source=compressed-mapping
   size: 379556
@@ -3417,6 +3443,7 @@ packages:
   - vc >=14.2,<15
   - vc14_runtime >=14.29.30139
   license: Apache-2.0
+  license_family: APACHE
   purls:
   - pkg:pypi/coverage?source=hash-mapping
   size: 404719
@@ -4019,6 +4046,7 @@ packages:
   depends:
   - python >=3.9
   license: BSD-3-Clause
+  license_family: BSD
   purls:
   - pkg:pypi/fsspec?source=hash-mapping
   size: 142500
@@ -6189,6 +6217,7 @@ packages:
   - __glibc >=2.17,<3.0.a0
   - libgcc >=13
   license: MIT
+  license_family: MIT
   purls: []
   size: 57433
   timestamp: 1743434498161
@@ -6198,6 +6227,7 @@ packages:
   depends:
   - __osx >=10.13
   license: MIT
+  license_family: MIT
   purls: []
   size: 51216
   timestamp: 1743434595269
@@ -6207,6 +6237,7 @@ packages:
   depends:
   - __osx >=11.0
   license: MIT
+  license_family: MIT
   purls: []
   size: 39839
   timestamp: 1743434670405
@@ -6218,6 +6249,7 @@ packages:
   - vc >=14.2,<15
   - vc14_runtime >=14.29.30139
   license: MIT
+  license_family: MIT
   purls: []
   size: 44978
   timestamp: 1743435053850
@@ -9472,6 +9504,7 @@ packages:
   constrains:
   - holoviews >=1.18.0
   license: BSD-3-Clause
+  license_family: BSD
   purls:
   - pkg:pypi/panel?source=hash-mapping
   size: 21909267
@@ -11120,6 +11153,7 @@ packages:
   - fsspec 2025.3.1
   - python >=3.9
   license: BSD-3-Clause
+  license_family: BSD
   purls:
   - pkg:pypi/s3fs?source=hash-mapping
   size: 33690

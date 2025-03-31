@@ -14,33 +14,34 @@ classifiers = [
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
   "Operating System :: OS Independent",
 ]
+dependencies = [
+  "bottleneck",
+  "dask>=2024.11.2",
+  "datashader",
+  "flox",
+  "fsspec",
+  "geopy",
+  "geoviews",
+  "hvplot",
+  "intake",
+  "intake-esm",
+  "nc-time-axis",
+  "numpy",
+  "pandas",
+  "panel",
+  "bokeh<3.7.0",
+  "param",
+  "pooch",
+  "requests",
+  "s3fs>=2021.4",
+  "urllib3",
+  "xarray!=2024.10.0",
+  "xcdat",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/idm-oxford/climate-epidemics"
 "Bug Tracker" = "https://github.com/idm-oxford/climate-epidemics/issues"
-
-[dependencies]
-bottleneck = "*"
-dask = ">=2024.11.2" # non-GIL-blocking quantile method from here
-datashader = "*" #explicit import appears to be needed with hvplot v0.11.1
-flox = "*"
-fsspec = "*"
-geopy = "*"
-geoviews = "*"
-hvplot = "*"
-intake = "*"
-intake-esm = "*"
-nc-time-axis = "*"
-numpy = "*"
-pandas = "*"
-panel = "*"
-bokeh = "<3.7.0" #app plots don't seem to update correctly with 3.7.0 - NEED TO CHECK
-param = "*"
-pooch = "*"
-requests = "*"
-s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS server
-urllib3 = "*"
-xarray = "!=2024.10.0" #bug in polyfit/polyval https://github.com/pydata/xarray/issues/9690
 
 [tool.pixi.workspace]
 channels = ["conda-forge", "microsoft"]
@@ -69,7 +70,6 @@ requests = "*"
 s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS server
 urllib3 = "*"
 xarray = "!=2024.10.0" #bug in polyfit/polyval https://github.com/pydata/xarray/issues/9690
-# extra conda-only dependencies
 xcdat = "*"
 
 [tool.pixi.pypi-dependencies]
