@@ -585,7 +585,7 @@ class Controller(param.Parameterized):
         self.clim_example_name = self.param.clim_example_name.default
         if enable_custom_clim_dataset:
             self.param.clim_data_option.precedence = 1
-        self._update_clim_example_doc()
+        self._update_clim_example_name_doc()
         self.param.epi_example_name.objects = (
             epi_model_example_names or epimod.EXAMPLE_NAMES
         )
@@ -759,15 +759,21 @@ class Controller(param.Parameterized):
         self.epi_model_ran = False
 
     @param.depends("clim_data_option", "clim_example_name", watch=True)
-    def _update_clim_example_doc(self):
-        # Details of the climate dataset.
+    def _update_clim_example_name_doc(self):
+        # Name and details of the climate dataset.
         if self.clim_data_option == "Example dataset":
+            self.param.clim_example_name.precedence = 1
             self.clim_example_doc = climdata.EXAMPLES[self.clim_example_name].get(
                 "doc", ""
             )
             self.param.clim_example_doc.precedence = 1
-        else:
+        elif self.clim_data_option == "Custom dataset":
+            self.param.clim_example_name.precedence = -1
             self.param.clim_example_doc.precedence = -1
+        else:
+            raise ValueError(
+                f"Unrecognised climate data option: {self.clim_data_option}"
+            )
 
     @param.depends("epi_model_option", "epi_example_name", watch=True)
     def _update_epi_example_doc(self):
