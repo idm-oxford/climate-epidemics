@@ -14,30 +14,6 @@ classifiers = [
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
   "Operating System :: OS Independent",
 ]
-dependencies = [
-  "bottleneck",
-  "dask>=2024.11.2",
-  "datashader",
-  "flox",
-  "fsspec",
-  "geopy",
-  "geoviews",
-  "hvplot",
-  "intake",
-  "intake-esm",
-  "nc-time-axis",
-  "numpy",
-  "pandas",
-  "panel",
-  "bokeh<3.7.0",
-  "param",
-  "pooch",
-  "requests",
-  "s3fs>=2021.4",
-  "urllib3",
-  "xarray!=2024.10.0",
-  "xcdat",
-]
 
 [project.urls]
 "Homepage" = "https://github.com/idm-oxford/climate-epidemics"
@@ -48,7 +24,6 @@ channels = ["conda-forge", "microsoft"]
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 
 [tool.pixi.dependencies]
-# copied deps from above (to ensure conda versions are used)
 bottleneck = "*"
 dask = ">=2024.11.2" # non-GIL-blocking quantile method from here
 datashader = "*" #explicit import appears to be needed with hvplot v0.11.1

@@ -3252,31 +3252,8 @@ packages:
   timestamp: 1734858972635
 - pypi: .
   name: climepi
-  version: 0.4.1+22.g0fd86f4.dirty
-  sha256: 33b95d6530daf49f69b5e9d3f5d6f80e5092ca112792d2d6f1766532f8dfe7c0
-  requires_dist:
-  - bottleneck
-  - dask>=2024.11.2
-  - datashader
-  - flox
-  - fsspec
-  - geopy
-  - geoviews
-  - hvplot
-  - intake
-  - intake-esm
-  - nc-time-axis
-  - numpy
-  - pandas
-  - panel
-  - bokeh<3.7.0
-  - param
-  - pooch
-  - requests
-  - s3fs>=2021.4
-  - urllib3
-  - xarray!=2024.10.0
-  - xcdat
+  version: 0.4.1+24.gd80a5a0.dirty
+  sha256: abbc5d08559db6a0ff651900cc06dcae7231f49c54d57893be68baaf57ef8cf4
   requires_python: '>=3.10'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/cloudpickle-3.1.1-pyhd8ed1ab_0.conda
