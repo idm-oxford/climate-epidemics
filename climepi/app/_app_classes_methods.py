@@ -34,6 +34,10 @@ def _load_clim_data_func(
         ds_clim = xr.open_mfdataset(
             f"{custom_clim_data_dir}/*.nc", data_vars="minimal", chunks={}
         )
+        if "time_bnds" in ds_clim:
+            # Load time_bnds if present (otherwise issues in _compute_to_file_reopen as
+            # encoding is not set).
+            ds_clim.time_bnds.load()
     else:
         raise ValueError(f"Unrecognised climate data option: {clim_data_option}")
     return ds_clim
