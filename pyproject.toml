@@ -38,7 +38,6 @@ nc-time-axis = "*"
 numpy = "*"
 pandas = "*"
 panel = "*"
-bokeh = "<3.7.0" #app plots don't seem to update correctly with 3.7.0 - NEED TO CHECK
 param = "*"
 pooch = "*"
 requests = "*"
