@@ -33,17 +33,15 @@ class CESMDataGetter(ClimateDataGetter):
         )
 
     def _subset_remote_data(self):
-        # Subset the remotely opened dataset to the requested years, realizations and
-        # location(s), and store the subsetted dataset in the _ds attribute.
+        # Subset the remotely opened dataset to the requested years and location(s), and
+        # store the subsetted dataset in the _ds attribute.
         years = self._subset["years"]
-        realizations = self._subset["realizations"]
         locations = self._subset["locations"]
         lon = self._subset["lon"]
         lat = self._subset["lat"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         ds_subset = self._ds.copy()
-        ds_subset = ds_subset.isel(member_id=realizations)
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
         if locations is not None:
             # Use the climepi package to find the nearest grid points to the provided
@@ -189,6 +187,14 @@ class LENS2DataGetter(CESMDataGetter):
         )
         ds_in = xr.concat([ds_cmip6_in, ds_smbb_in], dim="member_id")
         self._ds = ds_in
+
+    def _subset_remote_data(self):
+        # Add realization subsetting to the parent method
+        realizations = self._subset["realizations"]
+        ds_subset = self._ds.copy()
+        ds_subset = ds_subset.isel(member_id=realizations)
+        self._ds = ds_subset
+        super()._subset_remote_data()
 
     def _process_data(self):
         ds_processed = self._ds.copy()
