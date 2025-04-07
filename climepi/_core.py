@@ -467,7 +467,7 @@ class ClimEpiDatasetAccessor:
         # Flatten observations from different realizations
         ds_raw_stacked = ds_raw.stack(dim={"realization_time": ("realization", "time")})
         ds_raw_flattened = (
-            ds_raw.swap_dims(realization_time="flattened_time")
+            ds_raw_stacked.swap_dims(realization_time="flattened_time")
             .drop_vars(["realization", "time"])
             .rename(flattened_time="time")
             .assign_coords(
