@@ -111,6 +111,8 @@ class CESMDataGetter(ClimateDataGetter):
         ds_processed = ds_processed.reset_coords("time_bnds")
         if "nbnd" in ds_processed.dims:
             ds_processed = ds_processed.rename_dims({"nbnd": "bnds"})
+        # Center time coordinates (if necessary)
+        ds_processed = center_times(ds_processed)
         # Convert temperature from Kelvin to Celsius.
         ds_processed["temperature"] = ds_processed["TREFHT"] - 273.15
         ds_processed["temperature"].attrs.update(long_name="Temperature")
