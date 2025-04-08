@@ -7,7 +7,7 @@ import numpy as np
 import xarray as xr
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
-from climepi._xcdat import center_times
+from climepi._xcdat import BoundsAccessor, center_times  # noqa
 from climepi.climdata._data_getter_class import ClimateDataGetter
 from climepi.climdata._utils import _get_data_version
 
@@ -249,7 +249,11 @@ class ARISEDataGetter(CESMDataGetter):
             _member_id = _ds.attrs["case"].split(".")[-1]
             assert _member_id in member_ids, f"Unexpected member_id {_member_id}"
             _data_var = [v for v in _ds.data_vars if v in ["TREFHT", "PRECT"]][0]
-            _ds = _ds[[_data_var, "time_bnds"]]
+            if frequency == "daily":
+                # time_bnds supplied with daily data seem to be incorrect
+                _ds = _ds[[_data_var]]
+            else:
+                _ds = _ds[[_data_var, "time_bnds"]]
             _ds[_data_var] = _ds[_data_var].expand_dims(member_id=[_member_id])
             return _ds
 
@@ -293,10 +297,17 @@ class ARISEDataGetter(CESMDataGetter):
                 backend_kwargs={"consolidated": False},
                 data_vars="minimal",
             )
-            ds_curr = center_times(ds_curr)  # before subset to not exceed last year
+            # Re-add time_bnds if necessary before centering
+            ds_curr = ds_curr.bounds.add_missing_bounds(axes=["T"])
+            # Times seem to be at right of bounds for monthly data, so center before
+            # subsetting to not cut last value
+            ds_curr = center_times(ds_curr)
+            # Subset to available years now before merging (some sims were run for
+            # longer)
             ds_curr = ds_curr.sel(
                 time=slice(str(available_years[0]), str(available_years[-1]))
             )
+            # Add scenario dimension over which to concatenate
             ds_curr[["TREFHT", "PRECT"]] = ds_curr[["TREFHT", "PRECT"]].expand_dims(
                 {"scenario": [scenario]}
             )
