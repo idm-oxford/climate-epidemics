@@ -109,7 +109,7 @@ class CESMDataGetter(ClimateDataGetter):
         # Make time bounds a data variable instead of a coordinate if necessary, and
         # format in order to match the conventions of xcdat.
         ds_processed = ds_processed.reset_coords("time_bnds")
-        if "bnds" in ds_processed.dims:
+        if "nbnd" in ds_processed.dims:
             ds_processed = ds_processed.rename_dims({"nbnd": "bnds"})
         # Convert temperature from Kelvin to Celsius.
         ds_processed["temperature"] = ds_processed["TREFHT"] - 273.15
