@@ -104,10 +104,13 @@ class CESMDataGetter(ClimateDataGetter):
         ds_processed[["TREFHT", "PRECT"]] = ds_processed[
             ["TREFHT", "PRECT"]
         ].expand_dims({"model": self.available_models})
+        # Add time bounds to the dataset (if not already present)
+        ds_processed = ds_processed.bounds.add_missing_bounds(axes=["T"])
         # Make time bounds a data variable instead of a coordinate if necessary, and
         # format in order to match the conventions of xcdat.
         ds_processed = ds_processed.reset_coords("time_bnds")
-        ds_processed = ds_processed.rename_dims({"nbnd": "bnds"})
+        if "bnds" in ds_processed.dims:
+            ds_processed = ds_processed.rename_dims({"nbnd": "bnds"})
         # Convert temperature from Kelvin to Celsius.
         ds_processed["temperature"] = ds_processed["TREFHT"] - 273.15
         ds_processed["temperature"].attrs.update(long_name="Temperature")
@@ -252,8 +255,14 @@ class ARISEDataGetter(CESMDataGetter):
             if frequency == "daily":
                 # time_bnds supplied with daily data seem to be incorrect
                 _ds = _ds[[_data_var]]
-            else:
+            elif frequency == "monthly":
+                # monthly data seem to have time at the right of the bounds (which may
+                # lead to cutting the last value when subsetting)
                 _ds = _ds[[_data_var, "time_bnds"]]
+                _ds = center_times(_ds)
+            # Subset to available years now before merging (some sims were run for
+            # longer)
+            _ds = _ds.sel(time=slice(str(available_years[0]), str(available_years[-1])))
             _ds[_data_var] = _ds[_data_var].expand_dims(member_id=[_member_id])
             return _ds
 
@@ -296,16 +305,6 @@ class ARISEDataGetter(CESMDataGetter):
                 preprocess=_preprocess,
                 backend_kwargs={"consolidated": False},
                 data_vars="minimal",
-            )
-            # Re-add time_bnds if necessary before centering
-            ds_curr = ds_curr.bounds.add_missing_bounds(axes=["T"])
-            # Times seem to be at right of bounds for monthly data, so center before
-            # subsetting to not cut last value
-            ds_curr = center_times(ds_curr)
-            # Subset to available years now before merging (some sims were run for
-            # longer)
-            ds_curr = ds_curr.sel(
-                time=slice(str(available_years[0]), str(available_years[-1]))
             )
             # Add scenario dimension over which to concatenate
             ds_curr[["TREFHT", "PRECT"]] = ds_curr[["TREFHT", "PRECT"]].expand_dims(
