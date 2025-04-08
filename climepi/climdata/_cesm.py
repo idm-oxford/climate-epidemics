@@ -260,9 +260,6 @@ class ARISEDataGetter(CESMDataGetter):
                 # lead to cutting the last value when subsetting)
                 _ds = _ds[[_data_var, "time_bnds"]]
                 _ds = center_times(_ds)
-            # Subset to available years now before merging (some sims were run for
-            # longer)
-            _ds = _ds.sel(time=slice(str(available_years[0]), str(available_years[-1])))
             _ds[_data_var] = _ds[_data_var].expand_dims(member_id=[_member_id])
             return _ds
 
@@ -305,6 +302,11 @@ class ARISEDataGetter(CESMDataGetter):
                 preprocess=_preprocess,
                 backend_kwargs={"consolidated": False},
                 data_vars="minimal",
+            )
+            # Subset to available years (sims were run for different years within/
+            # between scenarios)
+            ds_curr = ds_curr.sel(
+                time=slice(str(available_years[0]), str(available_years[-1]))
             )
             # Add scenario dimension over which to concatenate
             ds_curr[["TREFHT", "PRECT"]] = ds_curr[["TREFHT", "PRECT"]].expand_dims(
