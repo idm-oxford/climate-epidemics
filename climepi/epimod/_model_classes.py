@@ -68,8 +68,8 @@ class SuitabilityModel(EpiModel):
     suitability_table : xarray.Dataset, optional
         A dataset containing suitability values defined for different temperature
         values or temperature/precipitation combinations. The dataset should have a
-        single data variable called "suitability" with dimension(s) "temperature" and,
-        optionally, "precipitation". Temperatures should be in degrees Celsius and
+        single data variable (with any desired name) with dimension(s) "temperature"
+        and, optionally, "precipitation". Temperatures should be in degrees Celsius and
         precipitation values in mm/day. If suitability only depends on temperature,
         linear interpolation is used to calculate suitability values away from grid
         points. If suitability only depends on both tempperature and precipitation,
@@ -302,3 +302,49 @@ class SuitabilityModel(EpiModel):
             suitability_func, temp_inds, precip_inds, dask="parallelized"
         )
         return da_suitability
+
+
+class UncertainSuitabilityModel(SuitabilityModel):
+    """
+    Class for suitability models with a set of equally likely suitability tables.
+
+    Parameters
+    ----------
+    suitability_table : xarray.Dataset
+        A dataset containing suitability values defined for different temperature
+        values or temperature/precipitation combinations. Should be as for the
+        suitability_table parameter of the SuitabilityModel class, except with an
+        additional dimension named "sample" indexing the different possible suitability
+        tables.
+
+    """
+
+    def __init__(self, suitability_table=None):
+        super().__init__(suitability_table=suitability_table)
+
+    def get_summary_model(
+        self, summary_stat=None, percentiles=None, suitability_threshold=None
+    ):
+        """
+        Get a summary suitability model.
+
+        Applies a summary statistic over the equally likely suitability tables and/or
+        calculates a binary suitability model based on a threshold value.
+
+        Parameters
+        ----------
+        summary_stat : str, optional
+            The summary statistic to compute. Can be "mean", "median", or "percentiles".
+            Default is None. If None, no summary statistic is computed.
+        percentiles : list of floats, optional
+            The percentiles to compute if summary_stat is "percentiles". Default is None.
+        suitability_threshold : float, optional
+            The threshold value to compute a binary suitability model. Default is None.
+            If None, no binary suitability model is computed.
+
+        Returns
+        -------
+        SuitabilityModel or UncertainSuitabilityModel
+            The summary suitability model.
+        """
+        raise NotImplementedError()
