@@ -39,6 +39,7 @@ pandas = "*"
 panel = "*"
 param = "*"
 pooch = "*"
+pymc = "*"
 requests = "*"
 s3fs = "*"             # needed when using intake-esm to access CESM data on AWS server
 urllib3 = "*"
