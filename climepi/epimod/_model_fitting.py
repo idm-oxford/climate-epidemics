@@ -1,4 +1,4 @@
-from pymc import Model, Normal, sample
+from pymc import Gamma, Model, TruncatedNormal, Uniform, sample
 
 from climepi.epimod._model_classes import UncertainSuitabilityModel
 
@@ -9,10 +9,10 @@ class ParameterizedSuitabilityModel(UncertainSuitabilityModel):
 
     Represents models in which a suitability metric (e.g., the basic reproduction
     number) is defined as a function of parameters, which in turn may depend on
-    climate variables. Provides methods for inferring the dependence of variables on
-    parameters from climate data.
+    climate variables. Provides methods for inferring the dependence of parameters on
+    climate variables from laboratory data.
 
-    Subclass of SuitabilityModel
+    Subclass of UncertainSuitabilityModel
     """
 
     def __init__(
@@ -23,7 +23,6 @@ class ParameterizedSuitabilityModel(UncertainSuitabilityModel):
         suitability_var_name=None,
         suitability_var_long_name=None,
     ):
-        self.temperature_range = None
         self.suitability_table = None
         self._parameters = parameters
         self._data = data
@@ -42,6 +41,10 @@ class ParameterizedSuitabilityModel(UncertainSuitabilityModel):
             The data to fit the model to. If not provided, the data argument passed
             during initialization will be used (assuming it is provided). If provided,
             this will override the data passed during initialization.
+
+        Returns
+        -------
+        None
         """
         if data is not None:
             self._data = data
@@ -94,7 +97,11 @@ class ParameterizedSuitabilityModel(UncertainSuitabilityModel):
 
 
 def fit_parameter_dependence(
-    climate_var_data=None, response_var_data=None, curve_type=None, draws=None
+    climate_var_data=None,
+    response_var_data=None,
+    curve_type=None,
+    priors=None,
+    samples=None,
 ):
     """
     Fit the dependence of a parameter on a climate variable.
@@ -109,11 +116,59 @@ def fit_parameter_dependence(
         the climate variable data.
     curve_type : str
         The type of curve to fit. Options are 'quadratic' and 'briere'.
+    priors : dict, optional
+        Dictionary of priors for the parameters of the model. The keys should be the
+        parameter names and the values should be the corresponding prior distributions.
+    samples : int, optional
+        Number of samples to draw from the posterior distribution. If not provided, the
+        default for the pymc.sample function will be used.
 
     Returns
     -------
     dict
         A dictionary containing the fitted parameters.
     """
-    # Placeholder for actual implementation
-    raise NotImplementedError("This function is not yet implemented.")
+    priors = {
+        **{
+            "steepness": Gamma("steepness", alpha=1, beta=1),
+            "climate_var_min": Uniform("climate_var_min", lower=0, upper=24),
+            "climate_var_max": Uniform("climate_var_max", lower=25, upper=50),
+            "noise_variance": Uniform("noise_variance", lower=0, upper=50),
+        },
+        **(priors if priors is not None else {}),
+    }
+    with Model() as model:
+        steepness = priors[steepness]
+        climate_var_min = priors[climate_var_min]
+        climate_var_max = priors[climate_var_max]
+        noise_variance = priors[noise_variance]
+
+        mu = (
+            steepness
+            * (climate_var_data - climate_var_min)
+            * (climate_var_data - climate_var_max)
+        )
+
+        if curve_type == "quadratic":
+            mu = (
+                steepness
+                * (climate_var_data - climate_var_min)
+                * (climate_var_max - climate_var_data)
+            )
+        elif curve_type == "briere":
+            mu = (
+                steepness
+                * climate_var_data
+                * (climate_var_data - climate_var_min)
+                * (climate_var_max - climate_var_data) ** 0.5
+            )
+        likelihood = TruncatedNormal(
+            "likelihood",
+            mu=mu,
+            sigma=noise_variance**0.5,
+            lower=0,
+            observed=response_var_data,
+        )
+
+        # Sample from the posterior distribution
+        idata = sample()
