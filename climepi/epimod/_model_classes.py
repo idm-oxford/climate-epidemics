@@ -1,4 +1,5 @@
-"""Base module of the epimod subpackage.
+"""
+Base module of the epimod subpackage.
 
 Provides a base epidemiological model class and a subclass for temperature- and/or
 rainfall-dependent suitability models.
@@ -322,9 +323,7 @@ class UncertainSuitabilityModel(SuitabilityModel):
     def __init__(self, suitability_table=None):
         super().__init__(suitability_table=suitability_table)
 
-    def get_summary_model(
-        self, summary_stat=None, quantile=None, suitability_threshold=None
-    ):
+    def reduce(self, stat=None, quantile=None, suitability_threshold=None):
         """
         Get a summary suitability model.
 
@@ -335,16 +334,15 @@ class UncertainSuitabilityModel(SuitabilityModel):
 
         Parameters
         ----------
+        stat : str, optional
+            The summary statistic to compute. Can be "mean", "median", or "quantile".
+            Default is None. If None, no summary statistic is computed.
+        quantile : float or array-like of floats, optional
+            The quantile(s) to compute if stat is "quantile". Default is None.
         suitability_threshold : float, optional
             The threshold value (strictly) above which climate conditions are considered
             suitable in a binary suitability model. Default is None. If None, a binary
             suitability model is not computed.
-        summary_stat : str, optional
-            The summary statistic to compute. Can be "mean", "median", or "quantile".
-            Default is None. If None, no summary statistic is computed.
-        quantile : float or array-like of floats, optional
-            The quantile(s) to compute if summary_stat is "quantile". Default is
-            None.
 
         Returns
         -------
@@ -352,23 +350,21 @@ class UncertainSuitabilityModel(SuitabilityModel):
             The summary suitability model.
         """
         suitability_table_new = self.suitability_table.copy()
-        if summary_stat == "mean":
+        if stat == "mean":
             suitability_table_new = suitability_table_new.mean(dim="sample")
-        elif summary_stat == "median":
+        elif stat == "median":
             suitability_table_new = suitability_table_new.median(dim="sample")
-        elif summary_stat == "quantile":
+        elif stat == "quantile":
             if quantile is None:
                 raise ValueError(
-                    "The 'quantile' argument must be provided if summary_stat is "
-                    "'quantile'."
+                    "The 'quantile' argument must be provided if stat is 'quantile'."
                 )
             suitability_table_new = suitability_table_new.quantile(
                 q=quantile, dim="sample"
             )
-        elif summary_stat is not None:
+        elif stat is not None:
             raise ValueError(
-                f"Invalid summary_stat '{summary_stat}'. Must be 'mean', 'median', or "
-                "'quantile'."
+                f"Invalid stat '{stat}'. Must be 'mean', 'median', or 'quantile'."
             )
         if suitability_threshold is not None:
             suitability_var_name = self._suitability_var_name
