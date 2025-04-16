@@ -8,10 +8,15 @@ import geoviews.feature as gf
 import holoviews as hv
 import hvplot.xarray  # noqa # pylint: disable=unused-import
 import numpy as np
+import scipy.interpolate
 import scipy.stats
 import xarray as xr
 from xarray.plot.utils import label_from_attrs
 
+from climepi._ensemble_stats import (
+    _ensemble_stats_direct,
+    _ensemble_stats_fit,
+)
 from climepi._geocoding import geocode
 from climepi._xcdat import (  # noqa
     BoundsAccessor,
@@ -318,7 +323,8 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         uncertainty_level=90,
         method=None,
-        polyfit_degree=3,
+        deg=3,
+        lam=None,
     ):
         """
         Compute a range of ensemble statistics for a data variable.
@@ -333,14 +339,18 @@ class ClimEpiDatasetAccessor:
             is 90.
         method : str, optional
             Whether to compute statistics directly at each time point ("direct") or
-            to estimate them using a polynomial fit to the time series, assuming the
-            variance is constant in time ("polyfit"). By default, the "direct" method is
-            used if multiple realizations are available (i.e., the dataset has a
-            non-singleton "realization" dimension), and the "polyfit" method is used if
-            only a single realization is available.
-        polyfit_degree : int, optional
+            to estimate them using a polynomial ("polyfit") or spline ("splinefit")
+            fit to the time series, assuming the variance is constant in time. By
+            default, the "direct" method is used if multiple realizations are available
+            (i.e., the dataset has a non-singleton "realization" dimension), and the
+            "polyfit" method is used if only a single realization is available.
+        deg : int, optional
             Degree of the polynomial to fit to the time series if using the "polyfit"
-            method (ignored if using the "direct" method). Default is 3.
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
 
         Returns
         -------
@@ -348,6 +358,10 @@ class ClimEpiDatasetAccessor:
             A new dataset containing the computed ensemble statistics for the
             selected data variable(s).
         """
+        # Process the data variable argument
+        data_var_list = self._process_data_var_argument(data_var, as_list=True)
+        # Drop bounds for now (re-add at end)
+        ds_raw = self._obj[data_var_list]
         if method is None:
             method = (
                 "direct"
@@ -355,139 +369,24 @@ class ClimEpiDatasetAccessor:
                 else "polyfit"
             )
         if method == "direct":
-            return self._ensemble_stats_direct(
-                data_var=data_var, uncertainty_level=uncertainty_level
+            ds_stat = _ensemble_stats_direct(
+                ds_raw, uncertainty_level=uncertainty_level
             )
-        if method == "polyfit":
-            return self._ensemble_stats_polyfit(
-                data_var=data_var,
+        if method in ["polyfit", "splinefit"]:
+            ds_stat = _ensemble_stats_fit(
+                ds_raw,
                 uncertainty_level=uncertainty_level,
-                polyfit_degree=polyfit_degree,
+                method=method,
+                deg=deg,
+                lam=lam,
             )
-        raise ValueError(f"Invalid method '{method}'. Must be 'direct' or 'polyfit'.")
-
-    def _ensemble_stats_direct(self, data_var=None, uncertainty_level=90):
-        # Compute ensemble statistics directly at each time point
-        # Process the data variable argument
-        data_var_list = self._process_data_var_argument(data_var, as_list=True)
-        # Drop bounds for now (re-add at end)
-        ds_raw = self._obj[data_var_list]
-        # Add trivial "realization" dimension if necessary
-        if "realization" not in ds_raw.dims:
-            ds_raw = ds_raw.expand_dims(dim="realization")
-        # Compute ensemble statistics
-        ds_mean = ds_raw.mean(dim="realization").expand_dims(
-            dim={"stat": ["mean"]}, axis=-1
-        )
-        ds_std = ds_raw.std(dim="realization").expand_dims(
-            dim={"stat": ["std"]}, axis=-1
-        )
-        ds_var = ds_raw.var(dim="realization").expand_dims(
-            dim={"stat": ["var"]}, axis=-1
-        )
-        ds_quantile = ds_raw.quantile(
-            [0, 0.5 - uncertainty_level / 200, 0.5, 0.5 + uncertainty_level / 200, 1],
-            dim="realization",
-        ).rename({"quantile": "stat"})
-        ds_quantile["stat"] = ["min", "lower", "median", "upper", "max"]
-        ds_stat = xr.concat(
-            [ds_mean, ds_std, ds_var, ds_quantile],
-            dim="stat",
-            coords="minimal",
-        )
+        else:
+            raise ValueError(
+                f"Invalid method '{method}'. "
+                "Valid methods are 'direct', 'polyfit' and 'splinefit'."
+            )
         ds_stat.attrs = self._obj.attrs
         ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var_list)
-        ds_stat = add_bnds_from_other(ds_stat, self._obj)
-        return ds_stat
-
-    def _ensemble_stats_polyfit(
-        self, data_var=None, uncertainty_level=90, polyfit_degree=3
-    ):
-        # Estimate ensemble statistics by fitting a polynomial to each time series
-        # Process the data variable argument
-        data_var_list = self._process_data_var_argument(data_var, as_list=True)
-        # Drop bounds for now (re-add at end)
-        ds_raw = self._obj[data_var_list]
-        # Deal with cases where the dataset includes a realization coordinate
-        if "realization" in ds_raw.dims:
-            if ds_raw.realization.size > 1:
-                return self._ensemble_stats_polyfit_multiple_realizations(
-                    data_var=data_var,
-                    uncertainty_level=uncertainty_level,
-                    polyfit_degree=polyfit_degree,
-                )
-            ds_raw = ds_raw.squeeze("realization", drop=True)
-        if "realization" in ds_raw.coords:
-            ds_raw = ds_raw.drop_vars("realization")
-        # Estimate ensemble mean by fitting a polynomial to each time series.
-        fitted_polys = ds_raw.polyfit(dim="time", deg=polyfit_degree, full=True)
-        poly_coeff_data_var_list = [x + "_polyfit_coefficients" for x in data_var_list]
-        ds_mean = xr.polyval(
-            coord=ds_raw.time,
-            coeffs=fitted_polys[poly_coeff_data_var_list],
-        ).rename(dict(zip(poly_coeff_data_var_list, data_var_list, strict=True)))
-        # Estimate ensemble variance/standard deviation using residuals from polynomial
-        # fits (with an implicit assumption that the variance is constant in time).
-        # Note that the calls to broadcast_like ensure broadcasting along the time
-        # dimension (this should be equivalent to adding coords="minimal" when
-        # concatenating the datasets, but is done explicitly here for clarity).
-        poly_residual_data_var_list = [x + "_polyfit_residuals" for x in data_var_list]
-        ds_var = (fitted_polys[poly_residual_data_var_list] / ds_raw.time.size).rename(
-            dict(zip(poly_residual_data_var_list, data_var_list, strict=True))
-        )
-        ds_std = np.sqrt(ds_var)
-        ds_var = ds_var.broadcast_like(ds_mean)
-        ds_std = ds_std.broadcast_like(ds_mean)
-        # Estimate uncertainty intervals
-        z = scipy.stats.norm.ppf(0.5 + uncertainty_level / 200)
-        ds_lower = ds_mean - z * ds_std
-        ds_upper = ds_mean + z * ds_std
-        # Combine into a single dataset
-        ds_stat = xr.concat(
-            [ds_mean, ds_var, ds_std, ds_lower, ds_upper],
-            dim=xr.Variable("stat", ["mean", "var", "std", "lower", "upper"]),
-            coords="minimal",
-        )
-        ds_stat.attrs = self._obj.attrs
-        ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var_list)
-        ds_stat = add_bnds_from_other(ds_stat, self._obj)
-        return ds_stat
-
-    def _ensemble_stats_polyfit_multiple_realizations(
-        self,
-        data_var=None,
-        uncertainty_level=90,
-        polyfit_degree=3,
-    ):
-        # Wrapper to extend _ensemble_stats_polyfit to multiple realizations.
-        # Process the data variable argument
-        data_var_list = self._process_data_var_argument(data_var, as_list=True)
-        # Drop bounds for now (re-add at end)
-        ds_raw = self._obj[data_var_list]
-        # Flatten observations from different realizations
-        ds_raw_stacked = ds_raw.stack(dim={"realization_time": ("realization", "time")})
-        ds_raw_flattened = (
-            ds_raw_stacked.swap_dims(realization_time="flattened_time")
-            .drop_vars(["realization", "time"])
-            .rename(flattened_time="time")
-            .assign_coords(
-                time=ds_raw_stacked["time"].values,
-            )
-        )
-        ds_stat_flattened = ds_raw_flattened.climepi._ensemble_stats_polyfit(
-            data_var=data_var,
-            uncertainty_level=uncertainty_level,
-            polyfit_degree=polyfit_degree,
-        )
-        # ds_stat_flattened has repeated time coordinates, so need to unstack
-        ds_stat_stacked = (
-            ds_stat_flattened.swap_dims(time="realization_time")
-            .drop_vars("time")
-            .assign_coords(realization_time=ds_raw_stacked["realization_time"])
-        )
-        ds_stat = ds_stat_stacked.unstack("realization_time").isel(
-            realization=0, drop=True
-        )
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
         return ds_stat
 
@@ -496,7 +395,8 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         fraction=False,
         internal_variability_method=None,
-        polyfit_degree=3,
+        deg=3,
+        lam=None,
     ):
         """
         Decompose variance contributions from different climate uncertainty sources.
@@ -514,14 +414,18 @@ class ClimEpiDatasetAccessor:
         internal_variability_method : str, optional
             Whether to characterize internal variability by computing ensemble
             statistics directly at each time point ("direct") or by estimating them
-            using a polynomial fit to the time series, assuming the variance is constant
-            in time ("polyfit"). By default, the "direct" method is used if multiple
-            realizations are available (i.e., the dataset has a non-singleton
-            "realization" dimension), and the "polyfit" method is used if only a single
-            realization is available.
-        polyfit_degree : int, optional
+            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
+            series, assuming the variance is constant in time. By default, the "direct"
+            method is used if multiple realizations are available (i.e., the dataset has
+            a non-singleton "realization" dimension), and the "polyfit" method is used
+            if only a single realization is available.
+        deg : int, optional
             Degree of the polynomial to fit to the time series if using the "polyfit"
-            method (ignored if using the "direct" method). Default is 3.
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
 
         Returns
         -------
@@ -543,13 +447,15 @@ class ClimEpiDatasetAccessor:
                     data_var_list,
                     fraction=fraction,
                     internal_variability_method=internal_variability_method,
-                    polyfit_degree=polyfit_degree,
+                    deg=deg,
+                    lam=lam,
                 )
         # Calculate or estimate ensemble statistics characterizing internal variability
         ds_stat = self.ensemble_stats(
             data_var_list,
             method=internal_variability_method,
-            polyfit_degree=polyfit_degree,
+            deg=deg,
+            lam=lam,
         )[data_var_list]
         # Calculate the internal, model and scenario contributions to the variance
         ds_var_internal = ds_stat.sel(stat="var", drop=True).mean(
@@ -602,7 +508,8 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         uncertainty_level=90,
         internal_variability_method=None,
-        polyfit_degree=3,
+        deg=3,
+        lam=None,
     ):
         """
         Decompose uncertainty interval contributions.
@@ -620,14 +527,18 @@ class ClimEpiDatasetAccessor:
         internal_variability_method : str, optional
             Whether to characterize internal variability by computing ensemble
             statistics directly at each time point ("direct") or by estimating them
-            using a polynomial fit to the time series, assuming the variance is constant
-            in time ("polyfit"). By default, the "direct" method is used if multiple
-            realizations are available (i.e., the dataset has a non-singleton
-            "realization" dimension), and the "polyfit" method is used if only a single
-            realization is available.
-        polyfit_degree : int, optional
+            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
+            series, assuming the variance is constant in time. By default, the "direct"
+            method is used if multiple realizations are available (i.e., the dataset has
+            a non-singleton "realization" dimension), and the "polyfit" method is used
+            if only a single realization is available.
+        deg : int, optional
             Degree of the polynomial to fit to the time series if using the "polyfit"
-            method (ignored if using the "direct" method). Default is 3.
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
 
         Returns
         -------
@@ -649,7 +560,8 @@ class ClimEpiDatasetAccessor:
         ds_stat = ds_raw.climepi.ensemble_stats(
             uncertainty_level=uncertainty_level,
             method=internal_variability_method,
-            polyfit_degree=polyfit_degree,
+            deg=deg,
+            lam=lam,
         )
         ds_baseline = ds_stat.sel(stat="mean", drop=True).mean(
             dim=["scenario", "model"], keep_attrs=True
@@ -657,7 +569,8 @@ class ClimEpiDatasetAccessor:
         ds_var_decomp = ds_raw.climepi.variance_decomposition(
             fraction=False,
             internal_variability_method=internal_variability_method,
-            polyfit_degree=polyfit_degree,
+            deg=deg,
+            lam=lam,
         )
         z = scipy.stats.norm.ppf(0.5 + uncertainty_level / 200)
         # Create a dataset for the uncertainty interval decomposition
@@ -828,7 +741,8 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         fraction=False,
         internal_variability_method=None,
-        polyfit_degree=3,
+        deg=3,
+        lam=None,
         **kwargs,
     ):
         """
@@ -850,14 +764,18 @@ class ClimEpiDatasetAccessor:
         internal_variability_method : str, optional
             Whether to characterize internal variability by computing ensemble
             statistics directly at each time point ("direct") or by estimating them
-            using a polynomial fit to the time series, assuming the variance is constant
-            in time ("polyfit"). By default, the "direct" method is used if multiple
-            realizations are available (i.e., the dataset has a non-singleton
-            "realization" dimension), and the "polyfit" method is used if only a single
-            realization is available.
-        polyfit_degree : int, optional
+            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
+            series, assuming the variance is constant in time. By default, the "direct"
+            method is used if multiple realizations are available (i.e., the dataset has
+            a non-singleton "realization" dimension), and the "polyfit" method is used
+            if only a single realization is available.
+        deg : int, optional
             Degree of the polynomial to fit to the time series if using the "polyfit"
-            method (ignored if using the "direct" method). Default is 3.
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
         **kwargs : dict, optional
             Additional keyword arguments to pass to hvplot.area.
 
@@ -871,7 +789,8 @@ class ClimEpiDatasetAccessor:
             data_var,
             fraction=fraction,
             internal_variability_method=internal_variability_method,
-            polyfit_degree=polyfit_degree,
+            deg=deg,
+            lam=lam,
         )[data_var]
         xlabel = (
             label_from_attrs(da_var_decomp.time).replace("[", "(").replace("]", ")")
@@ -905,7 +824,8 @@ class ClimEpiDatasetAccessor:
         data_var=None,
         uncertainty_level=90,
         internal_variability_method=None,
-        polyfit_degree=3,
+        deg=3,
+        lam=None,
         kwargs_baseline=None,
         **kwargs_area,
     ):
@@ -927,14 +847,18 @@ class ClimEpiDatasetAccessor:
         internal_variability_method : str, optional
             Whether to characterize internal variability by computing ensemble
             statistics directly at each time point ("direct") or by estimating them
-            using a polynomial fit to the time series, assuming the variance is constant
-            in time ("polyfit"). By default, the "direct" method is used if multiple
-            realizations are available (i.e., the dataset has a non-singleton
-            "realization" dimension), and the "polyfit" method is used if only a single
-            realization is available.
-        polyfit_degree : int, optional
+            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
+            series, assuming the variance is constant in time. By default, the "direct"
+            method is used if multiple realizations are available (i.e., the dataset has
+            a non-singleton "realization" dimension), and the "polyfit" method is used
+            if only a single realization is available.
+        deg : int, optional
             Degree of the polynomial to fit to the time series if using the "polyfit"
-            method (ignored if using the "direct" method). Default is 3.
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
         kwargs_baseline : dict, optional
             Additional keyword arguments to pass to hvplot.line for the baseline
             estimate.
@@ -952,7 +876,8 @@ class ClimEpiDatasetAccessor:
             data_var,
             uncertainty_level=uncertainty_level,
             internal_variability_method=internal_variability_method,
-            polyfit_degree=polyfit_degree,
+            deg=deg,
+            lam=lam,
         )[data_var]
         xlabel = label_from_attrs(da_decomp.time).replace("[", "(").replace("]", ")")
         ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
