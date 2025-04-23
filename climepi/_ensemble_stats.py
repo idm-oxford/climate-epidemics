@@ -122,6 +122,9 @@ def _ensemble_mean_var_splinefit(ds_in, lam=None):
         output_dtypes=["float64"],
         dask_gufunc_kwargs={"output_sizes": {"time": ds_in.time.size}},
     )
+    ds_mean = ds_mean.assign_coords(
+        time=ds_in.time,
+    )
     ds_var = ((ds_mean - ds_in) ** 2).mean(dim="time")
     return ds_mean, ds_var
 
