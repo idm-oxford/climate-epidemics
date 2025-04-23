@@ -322,7 +322,7 @@ class ClimEpiDatasetAccessor:
         self,
         data_var=None,
         uncertainty_level=90,
-        method=None,
+        internal_variability_method=None,
         deg=3,
         lam=None,
     ):
@@ -337,7 +337,7 @@ class ClimEpiDatasetAccessor:
         uncertainty_level : float, optional
             Uncertainty level (percentage) for computing ensemble percentiles. Default
             is 90.
-        method : str, optional
+        internal_variability_method : str, optional
             Whether to compute statistics directly at each time point ("direct") or
             to estimate them using a polynomial ("polyfit") or spline ("splinefit")
             fit to the time series, assuming the variance is constant in time. By
@@ -362,27 +362,27 @@ class ClimEpiDatasetAccessor:
         data_var_list = self._process_data_var_argument(data_var, as_list=True)
         # Drop bounds for now (re-add at end)
         ds_raw = self._obj[data_var_list]
-        if method is None:
-            method = (
+        if internal_variability_method is None:
+            internal_variability_method = (
                 "direct"
                 if ("realization" in self._obj.dims and self._obj.realization.size > 1)
                 else "polyfit"
             )
-        if method == "direct":
+        if internal_variability_method == "direct":
             ds_stat = _ensemble_stats_direct(
                 ds_raw, uncertainty_level=uncertainty_level
             )
-        if method in ["polyfit", "splinefit"]:
+        if internal_variability_method in ["polyfit", "splinefit"]:
             ds_stat = _ensemble_stats_fit(
                 ds_raw,
                 uncertainty_level=uncertainty_level,
-                method=method,
+                internal_variability_method=internal_variability_method,
                 deg=deg,
                 lam=lam,
             )
         else:
             raise ValueError(
-                f"Invalid method '{method}'. "
+                f"Invalid internal_variability_method '{internal_variability_method}'. "
                 "Valid methods are 'direct', 'polyfit' and 'splinefit'."
             )
         ds_stat.attrs = self._obj.attrs
@@ -453,7 +453,7 @@ class ClimEpiDatasetAccessor:
         # Calculate or estimate ensemble statistics characterizing internal variability
         ds_stat = self.ensemble_stats(
             data_var_list,
-            method=internal_variability_method,
+            internal_variability_method=internal_variability_method,
             deg=deg,
             lam=lam,
         )[data_var_list]
@@ -559,7 +559,7 @@ class ClimEpiDatasetAccessor:
         # of the variance and z value for approximate uncertainty intervals
         ds_stat = ds_raw.climepi.ensemble_stats(
             uncertainty_level=uncertainty_level,
-            method=internal_variability_method,
+            internal_variability_method=internal_variability_method,
             deg=deg,
             lam=lam,
         )

@@ -30,7 +30,9 @@ def _ensemble_stats_direct(ds_in, uncertainty_level=None):
     return ds_stat
 
 
-def _ensemble_stats_fit(ds_in, uncertainty_level=None, method=None, deg=None, lam=None):
+def _ensemble_stats_fit(
+    ds_in, uncertainty_level=None, internal_variability_method=None, deg=None, lam=None
+):
     # Estimate ensemble statistics by fitting a polynomial to each time series
 
     # Deal with cases where the dataset includes a realization coordinate
@@ -39,19 +41,21 @@ def _ensemble_stats_fit(ds_in, uncertainty_level=None, method=None, deg=None, la
             return _ensemble_stats_fit_multiple_realizations(
                 ds_in,
                 uncertainty_level=uncertainty_level,
-                method=method,
+                internal_variability_method=internal_variability_method,
                 deg=deg,
                 lam=lam,
             )
         ds_in = ds_in.squeeze("realization", drop=True)
     if "realization" in ds_in.coords:
         ds_in = ds_in.drop_vars("realization")
-    if method == "polyfit":
+    if internal_variability_method == "polyfit":
         ds_mean, ds_var = _ensemble_mean_var_polyfit(ds_in, deg=deg)
-    elif method == "splinefit":
+    elif internal_variability_method == "splinefit":
         ds_mean, ds_var = _ensemble_mean_var_splinefit(ds_in, lam=lam)
     else:
-        raise ValueError(f"Unknown method: {method}")
+        raise ValueError(
+            f"Unknown internal_variability_method: {internal_variability_method}"
+        )
     # Calculate standard deviation and broadcast along time dimension
     ds_std = np.sqrt(ds_var)
     ds_var = ds_var.broadcast_like(ds_mean)
@@ -125,7 +129,7 @@ def _ensemble_mean_var_splinefit(ds_in, lam=None):
 def _ensemble_stats_fit_multiple_realizations(
     ds_in,
     uncertainty_level=None,
-    method=None,
+    internal_variability_method=None,
     deg=None,
     lam=None,
 ):
@@ -144,7 +148,7 @@ def _ensemble_stats_fit_multiple_realizations(
     ds_stat_flattened = _ensemble_stats_fit(
         ds_in_flattened,
         uncertainty_level=uncertainty_level,
-        method=method,
+        internal_variability_method=internal_variability_method,
         deg=deg,
         lam=lam,
     )
