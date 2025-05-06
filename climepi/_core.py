@@ -343,7 +343,10 @@ class ClimEpiDatasetAccessor:
             fit to the time series, assuming the variance is constant in time. By
             default, the "direct" method is used if multiple realizations are available
             (i.e., the dataset has a non-singleton "realization" dimension), and the
-            "polyfit" method is used if only a single realization is available.
+            "polyfit" method is used if only a single realization is available. Note
+            that if the "splinefit" method is used and the dataset has a non-singleton
+            "realization" dimension, then the spline fit is applied to the mean of the
+            realizations at each time point.
         deg : int, optional
             Degree of the polynomial to fit to the time series if using the "polyfit"
             method (ignored if using other methods). Default is 3.
@@ -382,8 +385,9 @@ class ClimEpiDatasetAccessor:
             )
         else:
             raise ValueError(
-                f"Invalid internal_variability_method '{internal_variability_method}'. "
-                "Valid methods are 'direct', 'polyfit' and 'splinefit'."
+                "Invalid value for internal_variability_method "
+                f"'{internal_variability_method}'. Valid methods are 'direct', "
+                "'polyfit' and 'splinefit'."
             )
         ds_stat.attrs = self._obj.attrs
         ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var_list)
