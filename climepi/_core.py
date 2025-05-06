@@ -372,7 +372,7 @@ class ClimEpiDatasetAccessor:
             ds_stat = _ensemble_stats_direct(
                 ds_raw, uncertainty_level=uncertainty_level
             )
-        if internal_variability_method in ["polyfit", "splinefit"]:
+        elif internal_variability_method in ["polyfit", "splinefit"]:
             ds_stat = _ensemble_stats_fit(
                 ds_raw,
                 uncertainty_level=uncertainty_level,
