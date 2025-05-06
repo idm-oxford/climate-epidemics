@@ -6,6 +6,7 @@ import numpy.testing as npt
 import pytest
 import xarray as xr
 import xarray.testing as xrt
+from scipy.interpolate import make_smoothing_spline
 from scipy.stats import norm
 
 from climepi._ensemble_stats import (
@@ -204,11 +205,11 @@ class TestEnsembleMeanVarPolyfit:
             if repeat == 0:
                 # Just check for the first repeat that the results match those obtained
                 # by directly applying numpy's polynomial fitting method.
-                polyfit_for_expected_values = np.polynomial.Polynomial.fit(
+                fitted_poly_for_expected_values = np.polynomial.Polynomial.fit(
                     days_from_start, temperature_values_in, 5, full=True
                 )
-                mean_expected = polyfit_for_expected_values[0](days_from_start)
-                var_expected = polyfit_for_expected_values[1][0][0] / len(
+                mean_expected = fitted_poly_for_expected_values[0](days_from_start)
+                var_expected = fitted_poly_for_expected_values[1][0][0] / len(
                     days_from_start
                 )
                 npt.assert_allclose(
@@ -274,3 +275,135 @@ class TestEnsembleMeanVarPolyfit:
                 result[i],
                 expected[i],
             )
+
+
+def test_ensemble_mean_var_polyfit_multiple_realizations():
+    """Test for the _ensemble_mean_var_polyfit_multiple_realizations function."""
+    ds = generate_dataset(
+        data_var="temperature",
+        frequency="monthly",
+        extra_dims={"realization": 4},
+        has_bounds=False,
+    ).isel(lat=0, lon=0, drop=True)
+    time_values = np.arange(ds.time.size)
+    ds["time"] = time_values
+    result = _ensemble_mean_var_polyfit_multiple_realizations(ds, deg=3)
+
+    fitted_poly_for_expected_values = np.polynomial.Polynomial.fit(
+        np.tile(time_values, 4),
+        np.ravel(ds["temperature"].transpose("realization", "time")),
+        3,
+        full=True,
+    )
+    mean_expected = fitted_poly_for_expected_values[0](time_values)
+    var_expected = fitted_poly_for_expected_values[1][0][0] / (4 * len(time_values))
+
+    npt.assert_allclose(
+        result[0]["temperature"].values,
+        mean_expected,
+    )
+    npt.assert_allclose(
+        result[1]["temperature"].values,
+        var_expected,
+    )
+    assert list(result[0].dims) == ["time"]
+    assert not result[1].dims
+
+
+class TestEnsembleMeanVarSplinefit:
+    """Class for testing the _ensemble_mean_var_splinefit function."""
+
+    def test_ensemble_mean_var_splinefit(self):
+        """Main test."""
+        ds = generate_dataset(
+            data_var="temperature",
+            frequency="monthly",
+            has_bounds=False,
+        ).isel(lat=0, lon=0, drop=True)
+        time_values = np.linspace(0, 1, ds.time.size)
+        ds["time"] = time_values
+        result = _ensemble_mean_var_splinefit(ds, lam=0.1)
+
+        mean_expected = make_smoothing_spline(
+            time_values, ds["temperature"].values, lam=0.1
+        )(time_values)
+        var_expected = np.mean((ds["temperature"].values - mean_expected) ** 2)
+
+        npt.assert_allclose(
+            result[0]["temperature"].values,
+            mean_expected,
+        )
+        npt.assert_allclose(
+            result[1]["temperature"].values,
+            var_expected,
+        )
+        assert list(result[0].dims) == ["time"]
+        assert not result[1].dims
+
+    def test_ensemble_mean_var_splinefit_vars_coords(self):
+        """Test with multiple data variables and extra coordinates."""
+        ds = generate_dataset(
+            data_var=["temperature", "precipitation"],
+            frequency="monthly",
+            extra_dims={"ouch": 4},
+            has_bounds=False,
+        )
+        result = _ensemble_mean_var_splinefit(ds)
+        for i in range(2):
+            xrt.assert_allclose(
+                result[i].isel(ouch=2),
+                _ensemble_mean_var_splinefit(
+                    ds.isel(ouch=2),
+                )[i],
+            )
+
+    def test_ensemble_mean_var_spline_multiple_realizations(self):
+        """
+        Test with a dataset containing multiple realizations.
+
+        Most of the functionality in this case is handled by
+        _ensemble_mean_var_splinefit_multiple_realizations, so this test just checks
+        that the results are the same as those obtained calling that function directly.
+        """
+        ds = generate_dataset(
+            data_var="temperature",
+            frequency="monthly",
+            extra_dims={"realization": 4},
+            has_bounds=False,
+        )
+        result = _ensemble_mean_var_splinefit(ds, lam=0.1)
+        expected = _ensemble_mean_var_splinefit_multiple_realizations(ds, lam=0.1)
+        for i in range(2):
+            xrt.assert_allclose(
+                result[i],
+                expected[i],
+            )
+
+
+def test_ensemble_mean_var_splinefit_multiple_realizations():
+    """Test for the _ensemble_mean_var_splinefit_multiple_realizations function."""
+    ds = generate_dataset(
+        data_var="temperature",
+        frequency="monthly",
+        extra_dims={"realization": 4},
+        has_bounds=False,
+    ).isel(lat=0, lon=0, drop=True)
+    time_values = np.linspace(0, 1, ds.time.size)
+    ds["time"] = time_values
+    result = _ensemble_mean_var_splinefit_multiple_realizations(ds)
+
+    mean_expected = make_smoothing_spline(
+        time_values, ds["temperature"].mean(dim="realization").values
+    )(time_values)
+    var_expected = np.mean((ds["temperature"].values - mean_expected) ** 2)
+
+    npt.assert_allclose(
+        result[0]["temperature"].values,
+        mean_expected,
+    )
+    npt.assert_allclose(
+        result[1]["temperature"].values,
+        var_expected,
+    )
+    assert list(result[0].dims) == ["time"]
+    assert not result[1].dims
