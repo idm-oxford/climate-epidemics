@@ -35,19 +35,12 @@ def _ensemble_stats_fit(
 ):
     # Estimate ensemble statistics by fitting a polynomial to each time series
 
-    # Deal with cases where the dataset includes a realization coordinate
-    if "realization" in ds_in.dims:
-        if ds_in.realization.size > 1:
-            return _ensemble_stats_fit_multiple_realizations(
-                ds_in,
-                uncertainty_level=uncertainty_level,
-                internal_variability_method=internal_variability_method,
-                deg=deg,
-                lam=lam,
-            )
+    # Drop trivial "realization" co-ordinate if present
+    if "realization" in ds_in.dims and ds_in.realization.size == 1:
         ds_in = ds_in.squeeze("realization", drop=True)
-    if "realization" in ds_in.coords:
+    elif "realization" in ds_in.coords:
         ds_in = ds_in.drop_vars("realization")
+    # Call appropriate method to estimate ensemble mean and variance
     if internal_variability_method == "polyfit":
         ds_mean, ds_var = _ensemble_mean_var_polyfit(ds_in, deg=deg)
     elif internal_variability_method == "splinefit":
@@ -75,7 +68,9 @@ def _ensemble_stats_fit(
 
 def _ensemble_mean_var_polyfit(ds_in, deg=None):
     # Estimate ensemble mean by fitting a polynomial to each time series.
-
+    # Deal with cases where the dataset includes a realization coordinate
+    if "realization" in ds_in.dims:
+        return _ensemble_mean_var_polyfit_multiple_realizations(ds_in, deg=deg)
     fitted_polys = ds_in.polyfit(dim="time", deg=deg, full=True)
     data_var_list = list(ds_in.data_vars)
     poly_coeff_data_var_list = [x + "_polyfit_coefficients" for x in data_var_list]
@@ -95,9 +90,38 @@ def _ensemble_mean_var_polyfit(ds_in, deg=None):
     return ds_mean, ds_var
 
 
+def _ensemble_mean_var_polyfit_multiple_realizations(ds_in, deg=None):
+    # Wrapper to extend _ensemble_mean_var_polyfit to multiple realizations.
+
+    # Flatten observations from different realizations
+    ds_in_stacked = ds_in.stack(dim={"time_realization": ("time", "realization")})
+    ds_in_flattened = (
+        ds_in_stacked.swap_dims(time_realization="flattened_time")
+        .drop_vars(["time"])
+        .rename(flattened_time="time")
+        .assign_coords(
+            time=ds_in_stacked["time"].values,
+        )
+    )
+    ds_mean_flattened, ds_var = _ensemble_mean_var_polyfit(ds_in_flattened, deg=deg)
+    # ds_mean_flattened has repeated time coordinates, so need to unstack
+    ds_mean_flattened = (
+        ds_mean_flattened.swap_dims(time="time_realization")
+        .drop_vars("time")
+        .assign_coords(time_realization=ds_in_stacked["time_realization"])
+    )
+    ds_mean = ds_mean_flattened.unstack("time_realization").isel(
+        realization=0, drop=True
+    )
+    return ds_mean, ds_var
+
+
 def _ensemble_mean_var_splinefit(ds_in, lam=None):
     # Estimate ensemble mean by fitting a spline to each time series.
 
+    # Deal with cases where the dataset includes a realization coordinate
+    if "realization" in ds_in.dims:
+        return _ensemble_mean_var_splinefit_multiple_realizations(ds_in, lam=lam)
     # Get vector of numeric time values
     time_vec = _ensure_numeric(ds_in.time).values
     # Rescale time vector to [0, 1] for smoothing spline
@@ -129,37 +153,12 @@ def _ensemble_mean_var_splinefit(ds_in, lam=None):
     return ds_mean, ds_var
 
 
-def _ensemble_stats_fit_multiple_realizations(
-    ds_in,
-    uncertainty_level=None,
-    internal_variability_method=None,
-    deg=None,
-    lam=None,
-):
-    # Wrapper to extend _ensemble_stats_fit to multiple realizations.
+def _ensemble_mean_var_splinefit_multiple_realizations(ds_in, lam=None):
+    # Wrapper to extend _ensemble_mean_var_splinefit to multiple realizations.
 
-    # Flatten observations from different realizations
-    ds_in_stacked = ds_in.stack(dim={"realization_time": ("realization", "time")})
-    ds_in_flattened = (
-        ds_in_stacked.swap_dims(realization_time="flattened_time")
-        .drop_vars(["realization", "time"])
-        .rename(flattened_time="time")
-        .assign_coords(
-            time=ds_in_stacked["time"].values,
-        )
-    )
-    ds_stat_flattened = _ensemble_stats_fit(
-        ds_in_flattened,
-        uncertainty_level=uncertainty_level,
-        internal_variability_method=internal_variability_method,
-        deg=deg,
-        lam=lam,
-    )
-    # ds_stat_flattened has repeated time coordinates, so need to unstack
-    ds_stat_stacked = (
-        ds_stat_flattened.swap_dims(time="realization_time")
-        .drop_vars("time")
-        .assign_coords(realization_time=ds_in_stacked["realization_time"])
-    )
-    ds_stat = ds_stat_stacked.unstack("realization_time").isel(realization=0, drop=True)
-    return ds_stat
+    # scipy.interpolate.make_smoothing_spline doesn't work with non-monotonic time
+    # co-ordinates, so fit spline to mean of realizations (but compute variance
+    # using all realizations).
+    ds_mean, _ = _ensemble_mean_var_splinefit(ds_in.mean(dim="realization"), lam=lam)
+    ds_var = ((ds_mean - ds_in) ** 2).mean(dim=["time", "realization"])
+    return ds_mean, ds_var
