@@ -87,7 +87,9 @@ class TestEnsembleStatsDirect:
 class TestEnsembleStatsFit:
     """Class for testing the _ensemble_stats_fit function."""
 
-    @pytest.mark.parametrize("internal_variability_method", ["polyfit", "splinefit"])
+    @pytest.mark.parametrize(
+        "internal_variability_method", ["polyfit", "splinefit", "fakemethod"]
+    )
     def test_ensemble_stats_fit(self, internal_variability_method):
         """
         Test the _ensemble_stats_fit function.
@@ -101,6 +103,16 @@ class TestEnsembleStatsFit:
             extra_dims={"ouch": 4},
             has_bounds=False,
         )
+
+        if internal_variability_method == "fakemethod":
+            with pytest.raises(ValueError, match="Unknown internal_variability_method"):
+                _ensemble_stats_fit(
+                    ds,
+                    uncertainty_level=90,
+                    internal_variability_method=internal_variability_method,
+                )
+            return
+
         result = _ensemble_stats_fit(
             ds,
             uncertainty_level=90,
