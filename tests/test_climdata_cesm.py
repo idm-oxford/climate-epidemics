@@ -84,8 +84,8 @@ def test_find_remote_data(frequency):
 )
 def test_subset_remote_data(year_mode, location_mode):
     """Test the _subset_remote_data method of the CESMDataGetter class."""
-    time_lb = xr.cftime_range(start="2001-01-01", periods=36, freq="MS")
-    time_rb = xr.cftime_range(start="2001-02-01", periods=36, freq="MS")
+    time_lb = xr.date_range(start="2001-01-01", periods=36, freq="MS", use_cftime=True)
+    time_rb = xr.date_range(start="2001-02-01", periods=36, freq="MS", use_cftime=True)
     time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "nbnd"))
     time = time_bnds.mean(dim="nbnd")
     ds_all = xr.Dataset(
@@ -185,11 +185,11 @@ def test_open_temp_data():
 
     Checks that chunking is preserved when the temporary dataset is opened.
     """
-    time_lb = xr.cftime_range(
-        start="2001-01-01", periods=12, freq="MS", calendar="noleap"
+    time_lb = xr.date_range(
+        start="2001-01-01", periods=12, freq="MS", calendar="noleap", use_cftime=True
     )
-    time_rb = xr.cftime_range(
-        start="2001-02-01", periods=12, freq="MS", calendar="noleap"
+    time_rb = xr.date_range(
+        start="2001-02-01", periods=12, freq="MS", calendar="noleap", use_cftime=True
     )
     time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "nbnd"))
     time = time_bnds.mean(dim="nbnd")
@@ -231,11 +231,11 @@ def test_open_temp_data():
 @pytest.mark.parametrize("frequency", ["monthly", "yearly"])
 def test_process_data(frequency):
     """Test the _process_data method of the CESMDataGetter class."""
-    time_lb = xr.cftime_range(
-        start="2001-01-01", periods=36, freq="MS", calendar="noleap"
+    time_lb = xr.date_range(
+        start="2001-01-01", periods=36, freq="MS", calendar="noleap", use_cftime=True
     )
-    time_rb = xr.cftime_range(
-        start="2001-02-01", periods=36, freq="MS", calendar="noleap"
+    time_rb = xr.date_range(
+        start="2001-02-01", periods=36, freq="MS", calendar="noleap", use_cftime=True
     )
     time_bnds_in = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "nbnd"))
     time_in = time_bnds_in.mean(dim="nbnd").assign_attrs(bounds="time_bnds")

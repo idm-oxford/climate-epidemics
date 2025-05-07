@@ -150,8 +150,12 @@ class TestTemporalGroupAverage:
         Focuses on the centering of the time values (which is added to the underlying
         xcdat temporal.group_average method).
         """
-        time_lb = xr.cftime_range(start="2001-01-01", periods=365, freq="D")
-        time_rb = xr.cftime_range(start="2001-01-02", periods=365, freq="D")
+        time_lb = xr.date_range(
+            start="2001-01-01", periods=365, freq="D", use_cftime=True
+        )
+        time_rb = xr.date_range(
+            start="2001-01-02", periods=365, freq="D", use_cftime=True
+        )
         time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "bnds"))
         time = time_bnds.mean(dim="bnds")
         temperature_values_in = np.arange(365)
@@ -171,7 +175,9 @@ class TestTemporalGroupAverage:
             # Note no centering is performed when the time-averaged data has a single
             # time value
             temperature_values_expected = np.array([np.mean(temperature_values_in)])
-            time_index_expected = xr.cftime_range(start="2001-01-01", periods=1)
+            time_index_expected = xr.date_range(
+                start="2001-01-01", periods=1, use_cftime=True
+            )
         elif frequency == "monthly":
             temperature_values_expected = np.array(
                 [
@@ -191,11 +197,17 @@ class TestTemporalGroupAverage:
                         ("time", "bnds"),
                         np.array(
                             [
-                                xr.cftime_range(
-                                    start="2001-01-01", periods=12, freq="MS"
+                                xr.date_range(
+                                    start="2001-01-01",
+                                    periods=12,
+                                    freq="MS",
+                                    use_cftime=True,
                                 ),
-                                xr.cftime_range(
-                                    start="2001-02-01", periods=12, freq="MS"
+                                xr.date_range(
+                                    start="2001-02-01",
+                                    periods=12,
+                                    freq="MS",
+                                    use_cftime=True,
                                 ),
                             ]
                         ).T,
@@ -282,24 +294,34 @@ class TestYearlyPortionSuitable:
     def test_yearly_portion_suitable(self, frequency):
         """Main test."""
         if frequency == "daily":
-            time_lb = xr.cftime_range(
+            time_lb = xr.date_range(
                 start="2001-01-01",
                 periods=730,
                 freq="D",
                 calendar="noleap",
+                use_cftime=True,
             )
-            time_rb = xr.cftime_range(
+            time_rb = xr.date_range(
                 start="2001-01-02",
                 periods=730,
                 freq="D",
                 calendar="noleap",
+                use_cftime=True,
             )
         elif frequency == "monthly":
-            time_lb = xr.cftime_range(start="2001-01-01", periods=24, freq="MS")
-            time_rb = xr.cftime_range(start="2001-02-01", periods=24, freq="MS")
+            time_lb = xr.date_range(
+                start="2001-01-01", periods=24, freq="MS", use_cftime=True
+            )
+            time_rb = xr.date_range(
+                start="2001-02-01", periods=24, freq="MS", use_cftime=True
+            )
         elif frequency == "yearly":
-            time_lb = xr.cftime_range(start="2001-01-01", periods=2, freq="YS")
-            time_rb = xr.cftime_range(start="2002-01-01", periods=2, freq="YS")
+            time_lb = xr.date_range(
+                start="2001-01-01", periods=2, freq="YS", use_cftime=True
+            )
+            time_rb = xr.date_range(
+                start="2002-01-01", periods=2, freq="YS", use_cftime=True
+            )
         else:
             raise ValueError(f"Invalid frequency: {frequency}")
         time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "bnds"))
