@@ -4,7 +4,6 @@ Unit tests for the _core module of the climepi package.
 The ClimEpiDatasetAccessor class is tested in this module.
 """
 
-import cftime
 import geoviews
 import hvplot.xarray  # noqa
 import numpy as np
@@ -15,7 +14,7 @@ import xarray.testing as xrt
 from holoviews.element.comparison import Comparison as hvt
 from scipy.stats import norm
 
-from climepi import ClimEpiDatasetAccessor, epimod
+from climepi import ClimEpiDatasetAccessor, _ensemble_stats, epimod
 from climepi.testing.fixtures import generate_dataset
 
 
@@ -151,8 +150,12 @@ class TestTemporalGroupAverage:
         Focuses on the centering of the time values (which is added to the underlying
         xcdat temporal.group_average method).
         """
-        time_lb = xr.cftime_range(start="2001-01-01", periods=365, freq="D")
-        time_rb = xr.cftime_range(start="2001-01-02", periods=365, freq="D")
+        time_lb = xr.date_range(
+            start="2001-01-01", periods=365, freq="D", use_cftime=True
+        )
+        time_rb = xr.date_range(
+            start="2001-01-02", periods=365, freq="D", use_cftime=True
+        )
         time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "bnds"))
         time = time_bnds.mean(dim="bnds")
         temperature_values_in = np.arange(365)
@@ -172,7 +175,9 @@ class TestTemporalGroupAverage:
             # Note no centering is performed when the time-averaged data has a single
             # time value
             temperature_values_expected = np.array([np.mean(temperature_values_in)])
-            time_index_expected = xr.cftime_range(start="2001-01-01", periods=1)
+            time_index_expected = xr.date_range(
+                start="2001-01-01", periods=1, use_cftime=True
+            )
         elif frequency == "monthly":
             temperature_values_expected = np.array(
                 [
@@ -192,11 +197,17 @@ class TestTemporalGroupAverage:
                         ("time", "bnds"),
                         np.array(
                             [
-                                xr.cftime_range(
-                                    start="2001-01-01", periods=12, freq="MS"
+                                xr.date_range(
+                                    start="2001-01-01",
+                                    periods=12,
+                                    freq="MS",
+                                    use_cftime=True,
                                 ),
-                                xr.cftime_range(
-                                    start="2001-02-01", periods=12, freq="MS"
+                                xr.date_range(
+                                    start="2001-02-01",
+                                    periods=12,
+                                    freq="MS",
+                                    use_cftime=True,
                                 ),
                             ]
                         ).T,
@@ -283,24 +294,34 @@ class TestYearlyPortionSuitable:
     def test_yearly_portion_suitable(self, frequency):
         """Main test."""
         if frequency == "daily":
-            time_lb = xr.cftime_range(
+            time_lb = xr.date_range(
                 start="2001-01-01",
                 periods=730,
                 freq="D",
                 calendar="noleap",
+                use_cftime=True,
             )
-            time_rb = xr.cftime_range(
+            time_rb = xr.date_range(
                 start="2001-01-02",
                 periods=730,
                 freq="D",
                 calendar="noleap",
+                use_cftime=True,
             )
         elif frequency == "monthly":
-            time_lb = xr.cftime_range(start="2001-01-01", periods=24, freq="MS")
-            time_rb = xr.cftime_range(start="2001-02-01", periods=24, freq="MS")
+            time_lb = xr.date_range(
+                start="2001-01-01", periods=24, freq="MS", use_cftime=True
+            )
+            time_rb = xr.date_range(
+                start="2001-02-01", periods=24, freq="MS", use_cftime=True
+            )
         elif frequency == "yearly":
-            time_lb = xr.cftime_range(start="2001-01-01", periods=2, freq="YS")
-            time_rb = xr.cftime_range(start="2002-01-01", periods=2, freq="YS")
+            time_lb = xr.date_range(
+                start="2001-01-01", periods=2, freq="YS", use_cftime=True
+            )
+            time_rb = xr.date_range(
+                start="2002-01-01", periods=2, freq="YS", use_cftime=True
+            )
         else:
             raise ValueError(f"Invalid frequency: {frequency}")
         time_bnds = xr.DataArray(np.array([time_lb, time_rb]).T, dims=("time", "bnds"))
@@ -403,267 +424,79 @@ class TestYearlyPortionSuitable:
             )
 
 
-class TestEnsembleStats:
-    """Class for testing the ensemble_stats method of ClimEpiDatasetAccessor."""
+@pytest.mark.parametrize("multiple_realizations", [True, False])
+@pytest.mark.parametrize(
+    "internal_variability_method",
+    [None, "direct", "polyfit", "splinefit", "fakemethod"],
+)
+def test_ensemble_stats(multiple_realizations, internal_variability_method):
+    """
+    Test the ensemble_stats method of the ClimEpiDatasetAccessor class.
 
-    def test_ensemble_stats(self):
-        """
-        Main test.
-
-        Since the method requires rechunking of a dask-backed dataset along the
-        realization dimension, test that the method works correctly with both chunked
-        and non-chunked datasets.
-        """
-        ds = generate_dataset(
-            data_var="temperature", extra_dims={"realization": 12, "ouch": 4}
-        )
-        result = ds.climepi.ensemble_stats(uncertainty_level=60)
-        xrt.assert_allclose(
-            result["temperature"].sel(stat="mean", drop=True),
-            ds["temperature"].mean(dim="realization"),
-        )
-        xrt.assert_allclose(
-            result["temperature"].sel(stat="std", drop=True),
-            ds["temperature"].std(dim="realization"),
-        )
-        xrt.assert_allclose(
-            result["temperature"].sel(stat="var", drop=True),
-            ds["temperature"].var(dim="realization"),
-        )
-        xrt.assert_allclose(
-            result["temperature"].sel(stat="median", drop=True),
-            ds["temperature"].median(dim="realization"),
-        )
-        xrt.assert_allclose(
-            result["temperature"].sel(stat="min", drop=True),
-            ds["temperature"].min(dim="realization"),
-        )
-        xrt.assert_allclose(
-            result["temperature"].sel(stat="max", drop=True),
-            ds["temperature"].max(dim="realization"),
-        )
-        xrt.assert_allclose(
-            result["temperature"].sel(stat="lower", drop=True),
-            ds["temperature"].quantile(0.2, dim="realization").drop_vars("quantile"),
-        )
-        xrt.assert_allclose(
-            result["temperature"].sel(stat="upper", drop=True),
-            ds["temperature"].quantile(0.8, dim="realization").drop_vars("quantile"),
-        )
-        xrt.assert_allclose(
-            result[["lon", "lat", "time", "lon_bnds", "lat_bnds", "time_bnds"]],
-            ds[["lon", "lat", "time", "lon_bnds", "lat_bnds", "time_bnds"]],
-        )
-
-    def test_ensemble_stats_varlist(self):
-        """Test with a list of data variables."""
-        data_vars = ["temperature", "precipitation"]
-        ds = generate_dataset(data_var=data_vars, extra_dims={"realization": 3})
-        result = ds.climepi.ensemble_stats()
-        for data_var in data_vars:
-            xrt.assert_allclose(
-                result[data_var],
-                ds[[data_var]].climepi.ensemble_stats()[data_var],
+    Note that most of the functionality of this method is implemented via several
+    subroutines, which are tested separately. This test focuses on checking that the
+    expected subroutines are used.
+    """
+    ds = generate_dataset(
+        data_var=["temperature", "precipitation", "other"],
+        frequency="monthly",
+        extra_dims={"realization": 5, "ouch": 2},
+    )
+    if not multiple_realizations:
+        ds = ds.isel(realization=0)
+    if internal_variability_method == "fakemethod":
+        with pytest.raises(
+            ValueError, match="Invalid value for internal_variability_method"
+        ):
+            ds.climepi.ensemble_stats(
+                ["temperature", "precipitation"],
+                uncertainty_level=85,
+                internal_variability_method=internal_variability_method,
             )
-            xrt.assert_allclose(
-                result[data_var],
-                ds.climepi.ensemble_stats(data_var)[data_var],
-            )
-
-    def test_ensemble_stats_single_realization(self):
-        """
-        Test with a single realization.
-
-        Uses the option to estimate internal variability (enabled by default; only
-        tests that this gives the same result as the estimate_ensemble_stats method,
-        which is tested separately).
-        """
-        ds1 = generate_dataset(data_var="temperature")
-        ds2 = ds1.copy()
-        ds2["temperature"] = ds2["temperature"].expand_dims("realization")
-        ds3 = ds1.copy()
-        ds3["realization"] = "googly"
-        ds3 = ds3.set_coords("realization")
-        result1 = ds1.climepi.ensemble_stats()
-        result2 = ds2.climepi.ensemble_stats()
-        result3 = ds3.climepi.ensemble_stats()
-        expected = ds1.climepi.estimate_ensemble_stats()
-        xrt.assert_allclose(result1, expected)
-        xrt.assert_allclose(result2, expected)
-        xrt.assert_allclose(result3, expected)
-
-    def test_ensemble_stats_single_realization_no_estimation(self):
-        """Test with a single realization without estimating internal variability."""
-        ds1 = generate_dataset(data_var="temperature")
-        ds2 = ds1.copy()
-        ds2["temperature"] = ds2["temperature"].expand_dims("realization")
-        ds3 = ds1.copy()
-        ds3["realization"] = "googly"
-        ds3 = ds3.set_coords("realization")
-        result1 = ds1.climepi.ensemble_stats(estimate_internal_variability=False)
-        result2 = ds2.climepi.ensemble_stats(estimate_internal_variability=False)
-        result3 = ds3.climepi.ensemble_stats(estimate_internal_variability=False)
-        xrt.assert_allclose(result1, result2)
-        xrt.assert_allclose(result1, result3)
-        for stat in ["mean", "median", "min", "max", "lower", "upper"]:
-            xrt.assert_allclose(
-                result1["temperature"].sel(stat=stat, drop=True),
-                ds1["temperature"],
-            )
-        for stat in ["std", "var"]:
-            npt.assert_allclose(
-                result1["temperature"].sel(stat=stat, drop=True).values,
-                0,
-            )
-
-
-class TestEstimateEnsembleStats:
-    """Class for testing the estimate_ensemble_stats method of ClimEpiDatasetAccessor."""
-
-    def test_estimate_ensemble_stats(self):
-        """
-        Main test.
-
-        This test is based on estimating ensemble stats from a temperature time series
-        made up of normally distributed noise added to a polynomial (matching the
-        underlying assumptions of the estimate_ensemble_stats method). This is repeated
-        multiple times to ensure there is no systematic bias in the estimated ensemble
-        statistics.
-        """
-        time = xr.cftime_range(start="2001-01-01", periods=10000, freq="MS")
-        days_from_start = cftime.date2num(time, "days since 2001-01-01")
-        mean_theoretical = (
-            0.0000000000123 * days_from_start**3
-            - 0.00000257 * days_from_start**2
-            - 0.326 * days_from_start
-            - 259.29
+        return
+    result = ds.climepi.ensemble_stats(
+        ["temperature", "precipitation"],
+        uncertainty_level=85,
+        internal_variability_method=internal_variability_method,
+    )
+    if (multiple_realizations and internal_variability_method in [None, "direct"]) or (
+        not multiple_realizations and internal_variability_method == "direct"
+    ):
+        xrt.assert_equal(
+            result[["temperature", "precipitation"]],
+            _ensemble_stats._ensemble_stats_direct(
+                ds[["temperature", "precipitation"]], uncertainty_level=85
+            ),
         )
-        std_theoretical = 0.734
-        repeats = 100
-        mean_result_sum = np.zeros_like(mean_theoretical)
-        std_result_sum = np.zeros_like(mean_theoretical)
-        for repeat in range(repeats):
-            temperature_values_in = np.random.normal(
-                loc=mean_theoretical, scale=std_theoretical
-            )
-            ds = xr.Dataset(
-                {
-                    "temperature": ("time", temperature_values_in),
-                },
-                coords={"time": time},
-            )
-            ds["time"].encoding.update(calendar="standard")
-            result = ds.climepi.estimate_ensemble_stats(
-                uncertainty_level=80, polyfit_degree=5
-            )
-            if repeat == 0:
-                # Just check for the first repeat that the results match those obtained
-                # by directly applying numpy's polynomial fitting method.
-                polyfit_for_expected_values = np.polynomial.Polynomial.fit(
-                    days_from_start, temperature_values_in, 5, full=True
-                )
-                mean_expected = polyfit_for_expected_values[0](days_from_start)
-                var_expected = polyfit_for_expected_values[1][0][0] / len(
-                    days_from_start
-                )
-                std_expected = var_expected**0.5
-                lower_expected = norm.ppf(0.1, loc=mean_expected, scale=std_expected)
-                upper_expected = norm.ppf(0.9, loc=mean_expected, scale=std_expected)
-                npt.assert_allclose(
-                    result["temperature"].sel(stat="mean", drop=True).values,
-                    mean_expected,
-                )
-                npt.assert_allclose(
-                    result["temperature"].sel(stat="std", drop=True).values,
-                    std_expected,
-                )
-                npt.assert_allclose(
-                    result["temperature"].sel(stat="var", drop=True).values,
-                    var_expected,
-                )
-                npt.assert_allclose(
-                    result["temperature"].sel(stat="lower", drop=True).values,
-                    lower_expected,
-                )
-                npt.assert_allclose(
-                    result["temperature"].sel(stat="upper", drop=True).values,
-                    upper_expected,
-                )
-            mean_result_sum += result["temperature"].sel(stat="mean", drop=True).values
-            std_result_sum += result["temperature"].sel(stat="std", drop=True).values
-        mean_result_avg = mean_result_sum / repeats
-        std_result_avg = std_result_sum / repeats
-        var_result_avg = std_result_avg**2
-        lower_result_avg = norm.ppf(0.1, loc=mean_result_avg, scale=std_result_avg)
-        upper_result_avg = norm.ppf(0.9, loc=mean_result_avg, scale=std_result_avg)
-        var_theoretical = std_theoretical**2
-        lower_theoretical = norm.ppf(0.1, loc=mean_theoretical, scale=std_theoretical)
-        upper_theoretical = norm.ppf(0.9, loc=mean_theoretical, scale=std_theoretical)
-        rtol_theoretical_match = 1e-2
-        npt.assert_allclose(
-            mean_result_avg,
-            mean_theoretical,
-            rtol=rtol_theoretical_match,
+    elif (multiple_realizations and internal_variability_method == "polyfit") or (
+        not multiple_realizations and internal_variability_method in [None, "polyfit"]
+    ):
+        xrt.assert_equal(
+            result[["temperature", "precipitation"]],
+            _ensemble_stats._ensemble_stats_fit(
+                ds[["temperature", "precipitation"]],
+                uncertainty_level=85,
+                internal_variability_method="polyfit",
+                deg=3,
+            ),
         )
-        npt.assert_allclose(
-            std_result_avg,
-            std_theoretical,
-            rtol=rtol_theoretical_match,
+    elif internal_variability_method == "splinefit":
+        xrt.assert_equal(
+            result[["temperature", "precipitation"]],
+            _ensemble_stats._ensemble_stats_fit(
+                ds[["temperature", "precipitation"]],
+                uncertainty_level=85,
+                internal_variability_method="splinefit",
+            ),
         )
-        npt.assert_allclose(
-            var_result_avg,
-            var_theoretical,
-            rtol=rtol_theoretical_match,
+    else:
+        raise ValueError(
+            "Unexpected value combination: "
+            f"multiple_realizations={multiple_realizations}, "
+            f"internal_variability_method={internal_variability_method}."
         )
-        npt.assert_allclose(
-            lower_result_avg,
-            lower_theoretical,
-            rtol=rtol_theoretical_match,
-        )
-        npt.assert_allclose(
-            upper_result_avg,
-            upper_theoretical,
-            rtol=rtol_theoretical_match,
-        )
-
-    def test_estimate_ensemble_stats_varlist(self):
-        """Test with a list of data variables."""
-        data_vars = ["temperature", "precipitation"]
-        ds = generate_dataset(data_var=data_vars, frequency="monthly")
-        result = ds.climepi.ensemble_stats()
-        for data_var in data_vars:
-            xrt.assert_allclose(
-                result[data_var],
-                ds[[data_var]].climepi.ensemble_stats()[data_var],
-            )
-            xrt.assert_allclose(
-                result[data_var],
-                ds.climepi.ensemble_stats(data_var)[data_var],
-            )
-
-    def test_estimate_ensemble_stats_contains_realization(self):
-        """
-        Test with a dataset containing a realization dimension.
-
-        Checks the method gives the expected result when the dataset contains a
-        realization dimension with length 1, or a non-dimensional realization
-        coordinate, and raises an error when the realization dimension has length
-        greater than 1.
-        """
-        ds_base = generate_dataset(data_var="temperature", frequency="monthly")
-        ds1 = ds_base.copy()
-        ds1["temperature"] = ds1["temperature"].expand_dims("realization")
-        ds2 = ds_base.copy()
-        ds2["realization"] = "googly"
-        ds2 = ds2.set_coords("realization")
-        result1 = ds1.climepi.ensemble_stats()
-        result2 = ds2.climepi.ensemble_stats()
-        expected = ds_base.climepi.estimate_ensemble_stats()
-        xrt.assert_allclose(result1, expected)
-        xrt.assert_allclose(result2, expected)
-        ds3 = generate_dataset(extra_dims={"realization": 3})
-        with pytest.raises(ValueError):
-            ds3.climepi.estimate_ensemble_stats()
+    assert result["time"].attrs["bounds"] == "time_bnds"
+    xrt.assert_identical(result["time_bnds"], ds["time_bnds"])
 
 
 class TestVarianceDecomposition:
@@ -900,7 +733,7 @@ class TestUncertaintyIntervalDecomposition:
             ds["temperature"] - ds["temperature"].mean(dim="model")
         )
         result = ds.climepi.uncertainty_interval_decomposition(
-            estimate_internal_variability=False
+            internal_variability_method="direct"
         )["temperature"]
         # Test that mean and lower/upper bounds for each component are correct
         lower_expected = ds["temperature"].quantile(0.05, dim="model").values
@@ -937,7 +770,7 @@ class TestUncertaintyIntervalDecomposition:
             ds["temperature"] - ds["temperature"].mean(dim="scenario")
         )
         result = ds.climepi.uncertainty_interval_decomposition(
-            estimate_internal_variability=False
+            internal_variability_method="direct"
         )["temperature"]
         # Test that mean and lower/upper bounds for each component are correct
         lower_expected = ds["temperature"].quantile(0.05, dim="scenario").values
@@ -1133,7 +966,7 @@ class TestPlotUncertaintyIntervalDecomposition:
             extra_dims={"model": 17},
         ).isel(lon=0, lat=0)
         result = ds.climepi.plot_uncertainty_interval_decomposition(
-            estimate_internal_variability=False
+            internal_variability_method="direct"
         )
         assert list(result.data.keys()) == [
             ("Area", "Model_uncertainty"),

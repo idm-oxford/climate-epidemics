@@ -8,10 +8,15 @@ import geoviews.feature as gf
 import holoviews as hv
 import hvplot.xarray  # noqa # pylint: disable=unused-import
 import numpy as np
+import scipy.interpolate
 import scipy.stats
 import xarray as xr
 from xarray.plot.utils import label_from_attrs
 
+from climepi._ensemble_stats import (
+    _ensemble_stats_direct,
+    _ensemble_stats_fit,
+)
 from climepi._geocoding import geocode
 from climepi._xcdat import (  # noqa
     BoundsAccessor,
@@ -317,8 +322,9 @@ class ClimEpiDatasetAccessor:
         self,
         data_var=None,
         uncertainty_level=90,
-        estimate_internal_variability=True,
-        polyfit_degree=3,
+        internal_variability_method=None,
+        deg=3,
+        lam=None,
     ):
         """
         Compute a range of ensemble statistics for a data variable.
@@ -331,13 +337,23 @@ class ClimEpiDatasetAccessor:
         uncertainty_level : float, optional
             Uncertainty level (percentage) for computing ensemble percentiles. Default
             is 90.
-        estimate_internal_variability : bool, optional
-            Whether to estimate internal variability using the estimate_ensemble_stats
-            method if only a single realization is available for each model and scenario
-            (ignored if multiple realizations are available). Default is True.
-        polyfit_degree : int, optional
-            Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 3.
+        internal_variability_method : str, optional
+            Whether to compute statistics directly at each time point ("direct") or
+            to estimate them using a polynomial ("polyfit") or spline ("splinefit")
+            fit to the time series, assuming the variance is constant in time. By
+            default, the "direct" method is used if multiple realizations are available
+            (i.e., the dataset has a non-singleton "realization" dimension), and the
+            "polyfit" method is used if only a single realization is available. Note
+            that if the "splinefit" method is used and the dataset has a non-singleton
+            "realization" dimension, then the spline fit is applied to the mean of the
+            realizations at each time point.
+        deg : int, optional
+            Degree of the polynomial to fit to the time series if using the "polyfit"
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
 
         Returns
         -------
@@ -347,132 +363,32 @@ class ClimEpiDatasetAccessor:
         """
         # Process the data variable argument
         data_var_list = self._process_data_var_argument(data_var, as_list=True)
-        # Deal with cases where only a single realization is available for each model
-        # and scenario
-        if estimate_internal_variability and not (
-            "realization" in self._obj.dims and self._obj.realization.size > 1
-        ):
-            return self.estimate_ensemble_stats(
-                data_var_list,
-                uncertainty_level=uncertainty_level,
-                polyfit_degree=polyfit_degree,
-            )
-        if "realization" not in self._obj[data_var_list].dims:
-            ds_expanded = self._obj.copy()
-            for data_var_curr in data_var_list:
-                ds_expanded[data_var_curr] = ds_expanded[data_var_curr].expand_dims(
-                    dim="realization"
-                )
-            return ds_expanded.climepi.ensemble_stats(
-                data_var_list,
-                uncertainty_level=uncertainty_level,
-                estimate_internal_variability=False,
-            )
-        # Compute ensemble statistics
-        ds_raw = self._obj[data_var_list]  # drops bounds for now (re-add at end)
-        ds_mean = ds_raw.mean(dim="realization").expand_dims(
-            dim={"stat": ["mean"]}, axis=-1
-        )
-        ds_std = ds_raw.std(dim="realization").expand_dims(
-            dim={"stat": ["std"]}, axis=-1
-        )
-        ds_var = ds_raw.var(dim="realization").expand_dims(
-            dim={"stat": ["var"]}, axis=-1
-        )
-        ds_quantile = ds_raw.quantile(
-            [0, 0.5 - uncertainty_level / 200, 0.5, 0.5 + uncertainty_level / 200, 1],
-            dim="realization",
-        ).rename({"quantile": "stat"})
-        ds_quantile["stat"] = ["min", "lower", "median", "upper", "max"]
-        ds_stat = xr.concat(
-            [ds_mean, ds_std, ds_var, ds_quantile],
-            dim="stat",
-            coords="minimal",
-        )
-        ds_stat.attrs = self._obj.attrs
-        ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var_list)
-        ds_stat = add_bnds_from_other(ds_stat, self._obj)
-        return ds_stat
-
-    def estimate_ensemble_stats(
-        self, data_var=None, uncertainty_level=90, polyfit_degree=3
-    ):
-        """
-        Estimate ensemble statistics for a data variable.
-
-        Designed for use when only a single realization is available (for a given model
-        and scenario). Works by fitting a polynomial to time series.
-
-        Parameters
-        ----------
-        data_var : str or list, optional
-            Name(s) of the data variable(s) to estimate the ensemble statistics for.
-            If not provided, all non-bound data variables will be used.
-        uncertainty_level : float, optional
-            Uncertainty level (percentage) for computing ensemble percentiles. Default
-            is 90.
-        polyfit_degree : int, optional
-            Degree of the polynomial to fit to the time series. Default is 3.
-
-        Returns
-        -------
-        xarray.Dataset
-            A new dataset containing the estimated ensemble statistics for the
-            selected data variable(s).
-        """
-        # Process the data variable argument
-        data_var_list = self._process_data_var_argument(data_var, as_list=True)
-        # Deal with cases where the dataset includes a realization coordinate
-        if "realization" in self._obj.dims:
-            if self._obj.realization.size > 1:
-                raise ValueError(
-                    """The estimate_ensemble_stats method is only implemented for
-                    datasets with a single ensemble member. Use the ensemble_stats
-                    method instead.""",
-                )
-            return self._obj.squeeze(
-                "realization", drop=True
-            ).climepi.estimate_ensemble_stats(
-                data_var_list,
-                uncertainty_level=uncertainty_level,
-                polyfit_degree=polyfit_degree,
-            )
-        if "realization" in self._obj.coords:
-            return self._obj.drop_vars("realization").climepi.estimate_ensemble_stats(
-                data_var_list,
-                uncertainty_level=uncertainty_level,
-                polyfit_degree=polyfit_degree,
-            )
-        # Estimate ensemble mean by fitting a polynomial to each time series.
+        # Drop bounds for now (re-add at end)
         ds_raw = self._obj[data_var_list]
-        fitted_polys = ds_raw.polyfit(dim="time", deg=polyfit_degree, full=True)
-        poly_coeff_data_var_list = [x + "_polyfit_coefficients" for x in data_var_list]
-        ds_mean = xr.polyval(
-            coord=ds_raw.time,
-            coeffs=fitted_polys[poly_coeff_data_var_list],
-        ).rename(dict(zip(poly_coeff_data_var_list, data_var_list, strict=True)))
-        # Estimate ensemble variance/standard deviation using residuals from polynomial
-        # fits (with an implicit assumption that the variance is constant in time).
-        # Note that the calls to broadcast_like ensure broadcasting along the time
-        # dimension (this should be equivalent to adding coords="minimal" when
-        # concatenating the datasets, but is done explicitly here for clarity).
-        poly_residual_data_var_list = [x + "_polyfit_residuals" for x in data_var_list]
-        ds_var = (fitted_polys[poly_residual_data_var_list] / ds_raw.time.size).rename(
-            dict(zip(poly_residual_data_var_list, data_var_list, strict=True))
-        )
-        ds_std = np.sqrt(ds_var)
-        ds_var = ds_var.broadcast_like(ds_mean)
-        ds_std = ds_std.broadcast_like(ds_mean)
-        # Estimate uncertainty intervals
-        z = scipy.stats.norm.ppf(0.5 + uncertainty_level / 200)
-        ds_lower = ds_mean - z * ds_std
-        ds_upper = ds_mean + z * ds_std
-        # Combine into a single dataset
-        ds_stat = xr.concat(
-            [ds_mean, ds_var, ds_std, ds_lower, ds_upper],
-            dim=xr.Variable("stat", ["mean", "var", "std", "lower", "upper"]),
-            coords="minimal",
-        )
+        if internal_variability_method is None:
+            internal_variability_method = (
+                "direct"
+                if ("realization" in self._obj.dims and self._obj.realization.size > 1)
+                else "polyfit"
+            )
+        if internal_variability_method == "direct":
+            ds_stat = _ensemble_stats_direct(
+                ds_raw, uncertainty_level=uncertainty_level
+            )
+        elif internal_variability_method in ["polyfit", "splinefit"]:
+            ds_stat = _ensemble_stats_fit(
+                ds_raw,
+                uncertainty_level=uncertainty_level,
+                internal_variability_method=internal_variability_method,
+                deg=deg,
+                lam=lam,
+            )
+        else:
+            raise ValueError(
+                "Invalid value for internal_variability_method "
+                f"'{internal_variability_method}'. Valid methods are 'direct', "
+                "'polyfit' and 'splinefit'."
+            )
         ds_stat.attrs = self._obj.attrs
         ds_stat = add_var_attrs_from_other(ds_stat, self._obj, var=data_var_list)
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
@@ -482,8 +398,9 @@ class ClimEpiDatasetAccessor:
         self,
         data_var=None,
         fraction=False,
-        estimate_internal_variability=True,
-        polyfit_degree=3,
+        internal_variability_method=None,
+        deg=3,
+        lam=None,
     ):
         """
         Decompose variance contributions from different climate uncertainty sources.
@@ -498,13 +415,21 @@ class ClimEpiDatasetAccessor:
         fraction : bool, optional
             Whether to calculate the variance contributions as fractions of the total
             variance at each time, rather than the raw variances. Default is False.
-        estimate_internal_variability : bool, optional
-            Whether to estimate internal variability if only a single realization is
-            available for each model and scenario (ignored if multiple realizations
-            are available). Default is True.
-        polyfit_degree : int, optional
-            Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 3.
+        internal_variability_method : str, optional
+            Whether to characterize internal variability by computing ensemble
+            statistics directly at each time point ("direct") or by estimating them
+            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
+            series, assuming the variance is constant in time. By default, the "direct"
+            method is used if multiple realizations are available (i.e., the dataset has
+            a non-singleton "realization" dimension), and the "polyfit" method is used
+            if only a single realization is available.
+        deg : int, optional
+            Degree of the polynomial to fit to the time series if using the "polyfit"
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
 
         Returns
         -------
@@ -525,14 +450,16 @@ class ClimEpiDatasetAccessor:
                 return ds_expanded.climepi.variance_decomposition(
                     data_var_list,
                     fraction=fraction,
-                    estimate_internal_variability=estimate_internal_variability,
-                    polyfit_degree=polyfit_degree,
+                    internal_variability_method=internal_variability_method,
+                    deg=deg,
+                    lam=lam,
                 )
         # Calculate or estimate ensemble statistics characterizing internal variability
         ds_stat = self.ensemble_stats(
             data_var_list,
-            estimate_internal_variability=estimate_internal_variability,
-            polyfit_degree=polyfit_degree,
+            internal_variability_method=internal_variability_method,
+            deg=deg,
+            lam=lam,
         )[data_var_list]
         # Calculate the internal, model and scenario contributions to the variance
         ds_var_internal = ds_stat.sel(stat="var", drop=True).mean(
@@ -584,8 +511,9 @@ class ClimEpiDatasetAccessor:
         self,
         data_var=None,
         uncertainty_level=90,
-        estimate_internal_variability=True,
-        polyfit_degree=3,
+        internal_variability_method=None,
+        deg=3,
+        lam=None,
     ):
         """
         Decompose uncertainty interval contributions.
@@ -600,12 +528,21 @@ class ClimEpiDatasetAccessor:
             Name(s) of the data variable to decompose.
         uncertainty_level : float, optional
             Uncertainty level for the uncertainty intervals (percentage). Default is 90.
-        estimate_internal_variability : bool, optional
-            Whether to estimate internal variability if only a single ensemble member is
-            available for each model and realization. Default is True.
-        polyfit_degree : int, optional
-            Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 3.
+        internal_variability_method : str, optional
+            Whether to characterize internal variability by computing ensemble
+            statistics directly at each time point ("direct") or by estimating them
+            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
+            series, assuming the variance is constant in time. By default, the "direct"
+            method is used if multiple realizations are available (i.e., the dataset has
+            a non-singleton "realization" dimension), and the "polyfit" method is used
+            if only a single realization is available.
+        deg : int, optional
+            Degree of the polynomial to fit to the time series if using the "polyfit"
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
 
         Returns
         -------
@@ -626,21 +563,23 @@ class ClimEpiDatasetAccessor:
         # of the variance and z value for approximate uncertainty intervals
         ds_stat = ds_raw.climepi.ensemble_stats(
             uncertainty_level=uncertainty_level,
-            estimate_internal_variability=estimate_internal_variability,
-            polyfit_degree=polyfit_degree,
+            internal_variability_method=internal_variability_method,
+            deg=deg,
+            lam=lam,
         )
         ds_baseline = ds_stat.sel(stat="mean", drop=True).mean(
             dim=["scenario", "model"], keep_attrs=True
         )
         ds_var_decomp = ds_raw.climepi.variance_decomposition(
             fraction=False,
-            estimate_internal_variability=estimate_internal_variability,
-            polyfit_degree=polyfit_degree,
+            internal_variability_method=internal_variability_method,
+            deg=deg,
+            lam=lam,
         )
         z = scipy.stats.norm.ppf(0.5 + uncertainty_level / 200)
         # Create a dataset for the uncertainty interval decomposition
         multiple_realizations = ds_raw.realization.size > 1
-        if estimate_internal_variability or multiple_realizations:
+        if multiple_realizations or (internal_variability_method != "direct"):
             # Obtain uncertainty interval contribution from internal variability if there
             # are multiple realizations or if internal variability is to be estimated
             if ds_raw.scenario.size == 1 and ds_raw.model.size == 1:
@@ -662,7 +601,7 @@ class ClimEpiDatasetAccessor:
         if ds_raw.model.size > 1:
             # Model variability if there are multiple models
             if ds_raw.scenario.size == 1 and not (
-                multiple_realizations or estimate_internal_variability
+                multiple_realizations or (internal_variability_method != "direct")
             ):
                 ds_model_lower = (
                     ds_raw.squeeze(["scenario", "realization"], drop=True)
@@ -686,7 +625,7 @@ class ClimEpiDatasetAccessor:
         if ds_raw.scenario.size > 1:
             # Scenario variability if there are multiple scenarios
             if ds_raw.model.size == 1 and not (
-                multiple_realizations or estimate_internal_variability
+                multiple_realizations or (internal_variability_method != "direct")
             ):
                 ds_scenario_lower = (
                     ds_raw.squeeze(["model", "realization"], drop=True)
@@ -805,8 +744,9 @@ class ClimEpiDatasetAccessor:
         self,
         data_var=None,
         fraction=False,
-        estimate_internal_variability=True,
-        polyfit_degree=3,
+        internal_variability_method=None,
+        deg=3,
+        lam=None,
         **kwargs,
     ):
         """
@@ -825,13 +765,21 @@ class ClimEpiDatasetAccessor:
         fraction : bool, optional
             Whether to plot the variance contributions as fractions of the total
             variance at each time, rather than the raw variances. Default is False.
-        estimate_internal_variability : bool, optional
-            Whether to estimate internal variability if only a single realization is
-            available for each model and scenario (ignored if multiple realizations
-            are available). Default is True.
-        polyfit_degree : int, optional
-            Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 3.
+        internal_variability_method : str, optional
+            Whether to characterize internal variability by computing ensemble
+            statistics directly at each time point ("direct") or by estimating them
+            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
+            series, assuming the variance is constant in time. By default, the "direct"
+            method is used if multiple realizations are available (i.e., the dataset has
+            a non-singleton "realization" dimension), and the "polyfit" method is used
+            if only a single realization is available.
+        deg : int, optional
+            Degree of the polynomial to fit to the time series if using the "polyfit"
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
         **kwargs : dict, optional
             Additional keyword arguments to pass to hvplot.area.
 
@@ -844,8 +792,9 @@ class ClimEpiDatasetAccessor:
         da_var_decomp = self.variance_decomposition(
             data_var,
             fraction=fraction,
-            estimate_internal_variability=estimate_internal_variability,
-            polyfit_degree=polyfit_degree,
+            internal_variability_method=internal_variability_method,
+            deg=deg,
+            lam=lam,
         )[data_var]
         xlabel = (
             label_from_attrs(da_var_decomp.time).replace("[", "(").replace("]", ")")
@@ -878,8 +827,9 @@ class ClimEpiDatasetAccessor:
         self,
         data_var=None,
         uncertainty_level=90,
-        estimate_internal_variability=True,
-        polyfit_degree=3,
+        internal_variability_method=None,
+        deg=3,
+        lam=None,
         kwargs_baseline=None,
         **kwargs_area,
     ):
@@ -898,12 +848,21 @@ class ClimEpiDatasetAccessor:
             Name of the data variable to plot.
         uncertainty_level : float, optional
             Uncertainty level for the uncertainty intervals (percentage). Default is 90.
-        estimate_internal_variability : bool, optional
-            Whether to estimate internal variability if only a single ensemble member is
-            available for each model and realization. Default is True.
-        polyfit_degree : int, optional
-            Degree of the polynomial to fit to the time series if estimating internal
-            variability. Default is 3.
+        internal_variability_method : str, optional
+            Whether to characterize internal variability by computing ensemble
+            statistics directly at each time point ("direct") or by estimating them
+            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
+            series, assuming the variance is constant in time. By default, the "direct"
+            method is used if multiple realizations are available (i.e., the dataset has
+            a non-singleton "realization" dimension), and the "polyfit" method is used
+            if only a single realization is available.
+        deg : int, optional
+            Degree of the polynomial to fit to the time series if using the "polyfit"
+            method (ignored if using other methods). Default is 3.
+        lam: float, optional
+            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
+            using the "splinefit" method (ignored if using other methods). Default is
+            None.
         kwargs_baseline : dict, optional
             Additional keyword arguments to pass to hvplot.line for the baseline
             estimate.
@@ -920,8 +879,9 @@ class ClimEpiDatasetAccessor:
         da_decomp = self.uncertainty_interval_decomposition(
             data_var,
             uncertainty_level=uncertainty_level,
-            estimate_internal_variability=estimate_internal_variability,
-            polyfit_degree=polyfit_degree,
+            internal_variability_method=internal_variability_method,
+            deg=deg,
+            lam=lam,
         )[data_var]
         xlabel = label_from_attrs(da_decomp.time).replace("[", "(").replace("]", ")")
         ylabel = (  # Need to drop attrs to avoid issues with some versions of hvplot
@@ -994,9 +954,9 @@ class ClimEpiDatasetAccessor:
                 }
             ).hvplot.area(y="lower", y2="upper", **{**kwargs_model, **{"label": None}})
             plot_obj_list.extend([plot_obj_model_lower, plot_obj_model_upper])
-        if (
-            "realization" in self._obj.dims and self._obj.realization.size > 1
-        ) or estimate_internal_variability:
+        if ("realization" in self._obj.dims and self._obj.realization.size > 1) or (
+            internal_variability_method != "direct"
+        ):
             plot_obj_internal = xr.Dataset(
                 {
                     "lower": da_decomp.sel(level="internal_lower", drop=True),

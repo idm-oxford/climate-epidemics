@@ -290,7 +290,7 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_create, data_subse
             "/", maxsplit=1
         )[-1]
         namelist = [
-            f"{zip_file_name.split(".")[0]}_file_{x}.nc" for x in [1, 2, 3, 4]
+            f"{zip_file_name.split('.')[0]}_file_{x}.nc" for x in [1, 2, 3, 4]
         ] + ["not_a_nc_file.txt"]
         return namelist
 
@@ -439,11 +439,11 @@ def test_process_data(frequency):
     """Test the _process_data method of the ISIMIPDataGetter class."""
     # Set up unprocessed dataset
 
-    time_lb = xr.cftime_range(
-        start="2015-01-01", periods=730, freq="D", calendar="noleap"
+    time_lb = xr.date_range(
+        start="2015-01-01", periods=730, freq="D", calendar="noleap", use_cftime=True
     )
-    time_rb = xr.cftime_range(
-        start="2015-01-02", periods=730, freq="D", calendar="noleap"
+    time_rb = xr.date_range(
+        start="2015-01-02", periods=730, freq="D", calendar="noleap", use_cftime=True
     )
     time_bnds_in = xr.DataArray(  # not in unprocessed dataset
         np.array([time_lb, time_rb]).T,

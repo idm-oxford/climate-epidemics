@@ -41,6 +41,8 @@ param = "*"
 pooch = "*"
 requests = "*"
 s3fs = "*"             # needed when using intake-esm to access CESM data on AWS server
+scipy = ">=1.15.0" # make_splrep introduced in 1.15.0 
+statsmodels = "*"
 urllib3 = "*"
 xarray = "!=2024.10.0" # bug in polyfit/polyval https://github.com/pydata/xarray/issues/9690
 xcdat = "*"
