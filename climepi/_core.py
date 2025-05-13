@@ -394,44 +394,6 @@ class ClimEpiDatasetAccessor:
         ds_stat = add_bnds_from_other(ds_stat, self._obj)
         return ds_stat
 
-    def _ensemble_stats_polyfit_multiple_realizations(
-        self,
-        data_var=None,
-        uncertainty_level=90,
-        polyfit_degree=3,
-    ):
-        # Wrapper to extend _ensemble_stats_polyfit to multiple realizations.
-        # Process the data variable argument
-        data_var_list = self._process_data_var_argument(data_var, as_list=True)
-        # Drop bounds for now (re-add at end)
-        ds_raw = self._obj[data_var_list]
-        # Flatten observations from different realizations
-        ds_raw_stacked = ds_raw.stack(dim={"realization_time": ("realization", "time")})
-        ds_raw_flattened = (
-            ds_raw_stacked.swap_dims(realization_time="flattened_time")
-            .drop_vars(["realization", "time"])
-            .rename(flattened_time="time")
-            .assign_coords(
-                time=ds_raw_stacked["time"].values,
-            )
-        )
-        ds_stat_flattened = ds_raw_flattened.climepi._ensemble_stats_polyfit(
-            data_var=data_var,
-            uncertainty_level=uncertainty_level,
-            polyfit_degree=polyfit_degree,
-        )
-        # ds_stat_flattened has repeated time coordinates, so need to unstack
-        ds_stat_stacked = (
-            ds_stat_flattened.swap_dims(time="realization_time")
-            .drop_vars("time")
-            .assign_coords(realization_time=ds_raw_stacked["realization_time"])
-        )
-        ds_stat = ds_stat_stacked.unstack("realization_time").isel(
-            realization=0, drop=True
-        )
-        ds_stat = add_bnds_from_other(ds_stat, self._obj)
-        return ds_stat
-
     def variance_decomposition(
         self,
         data_var=None,
