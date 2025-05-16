@@ -362,7 +362,7 @@ class GLENSDataGetter(CESMDataGetter):
                     "GLENS.Control.atm.proc.monthly_ave.{data_var}.v1.xml"
                     for data_var in ["TREFHT", "PRECC", "PRECL"]
                 ]
-            if scenario == "rcp85" and frequency == "daily":
+            elif scenario == "rcp85" and frequency == "daily":
                 catalog_urls = [
                     "https://tds.ucar.edu/thredds/catalog/esgcet/495/ucar.cgd.ccsm4."
                     f"GLENS.Control.atm.proc.daily.ave.{data_var}.v1.xml"
