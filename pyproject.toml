@@ -31,6 +31,7 @@ flox = "*"
 fsspec = "*"
 geopy = "*"
 geoviews = "*"
+h5netcdf = ">=1.6.1,<2"
 hvplot = "*"
 intake = "*"
 intake-esm = "*"
@@ -43,11 +44,10 @@ pooch = "*"
 requests = "*"
 s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS server
 scipy = "*"
+siphon = "*"
 urllib3 = "*"
 xarray = "!=2024.10.0" #bug in polyfit/polyval https://github.com/pydata/xarray/issues/9690
 xcdat = "*"
-siphon = ">=0.10.0,<0.11"
-h5netcdf = ">=1.6.1,<2"
 
 [tool.pixi.pypi-dependencies]
 climepi = { path = ".", editable = true }
