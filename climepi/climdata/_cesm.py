@@ -305,7 +305,7 @@ class ARISEDataGetter(CESMDataGetter):
                 preprocess=_preprocess,
                 backend_kwargs={"consolidated": False},
                 data_vars="minimal",
-                chunks="auto",
+                chunks={},
             )
             # Subset to available years (sims were run for different years within/
             # between scenarios)
@@ -422,7 +422,7 @@ class GLENSDataGetter(CESMDataGetter):
                 preprocess=_preprocess,
                 combine="nested",
                 engine="h5netcdf",
-                chunks="auto",
+                chunks={},
             )
             ds_list.append(ds_curr)
         ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal")
