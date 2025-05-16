@@ -4,7 +4,7 @@ import dask.diagnostics
 import fsspec
 import intake
 import numpy as np
-import siphon
+import siphon.catalog
 import xarray as xr
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
@@ -389,7 +389,9 @@ class GLENSDataGetter(CESMDataGetter):
                 dataset_names.extend(
                     [
                         dataset.url_path
-                        for dataset in siphon.TDSCatalog(cat_url).datasets.values()
+                        for dataset in siphon.catalog.TDSCatalog(
+                            cat_url
+                        ).datasets.values()
                     ]
                 )
             datasets = [
