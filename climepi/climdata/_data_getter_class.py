@@ -94,6 +94,8 @@ class ClimateDataGetter:
     save_dir : str or pathlib.Path, optional
         Directory to which downloaded data are saved to and accessed from. If not
         provided, a directory within the OS cache directory is used.
+    api_token : str, optional
+        API token for accessing the data. Only required for some data sources.
     """
 
     data_source = None
@@ -105,7 +107,7 @@ class ClimateDataGetter:
     lon_res = None
     lat_res = None
 
-    def __init__(self, frequency="monthly", subset=None, save_dir=None):
+    def __init__(self, frequency="monthly", subset=None, save_dir=None, api_token=None):
         subset_in = subset or {}
         subset = {
             "years": self.available_years,
@@ -130,6 +132,7 @@ class ClimateDataGetter:
         self._save_dir = pathlib.Path(save_dir)
         self._file_name_da = None
         self._file_names = None
+        self._api_token = api_token
 
     @property
     def file_name_da(self):

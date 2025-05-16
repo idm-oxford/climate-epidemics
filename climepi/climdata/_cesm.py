@@ -4,6 +4,7 @@ import dask.diagnostics
 import fsspec
 import intake
 import numpy as np
+import siphon
 import xarray as xr
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
@@ -22,7 +23,6 @@ class CESMDataGetter(ClimateDataGetter):
     further details.
     """
 
-    available_models = ["cesm2"]
     remote_open_possible = True
     lon_res = 1.25
     lat_res = 180 / 191
@@ -97,13 +97,22 @@ class CESMDataGetter(ClimateDataGetter):
         realizations = self._subset["realizations"]
         frequency = self._frequency
         ds_processed = self._ds.copy()
+        # Calculate total precipitation from convective and large-scale precipitation
+        if "PRECC" in ds_processed.data_vars and "PRECL" in ds_processed.data_vars:
+            ds_processed["PRECT"] = ds_processed["PRECC"] + ds_processed["PRECL"]
+            ds_processed = ds_processed.drop_vars(["PRECC", "PRECL"])
         # Index data variables by an integer realization coordinate instead of the
-        # member_id coordinate (which is a string), and add model coordinate.
+        # member_id coordinate (which is a string), and add model (and if necessary
+        # scenario) dimensions.
         ds_processed = ds_processed.swap_dims({"member_id": "realization"})
         ds_processed["realization"] = realizations
         ds_processed[["TREFHT", "PRECT"]] = ds_processed[
             ["TREFHT", "PRECT"]
         ].expand_dims({"model": self.available_models})
+        if "scenario" not in ds_processed:
+            ds_processed[["TREFHT", "PRECT"]] = ds_processed[
+                ["TREFHT", "PRECT"]
+            ].expand_dims({"scenario": self.available_scenarios})
         # Add time bounds to the dataset (if not already present)
         ds_processed = ds_processed.bounds.add_missing_bounds(axes=["T"])
         # Make time bounds a data variable instead of a coordinate if necessary, and
@@ -155,6 +164,7 @@ class LENS2DataGetter(CESMDataGetter):
     """
 
     data_source = "lens2"
+    available_models = ["cesm2"]
     available_years = np.arange(1850, 2101)
     available_scenarios = ["ssp370"]
     available_realizations = np.arange(100)
@@ -201,16 +211,6 @@ class LENS2DataGetter(CESMDataGetter):
         self._ds = ds_subset
         super()._subset_remote_data()
 
-    def _process_data(self):
-        ds_processed = self._ds.copy()
-        # Add scenario coordinate
-        ds_processed = ds_processed.expand_dims({"scenario": self.available_scenarios})
-        # Calculate total precipitation from convective and large-scale precipitation
-        ds_processed["PRECT"] = ds_processed["PRECC"] + ds_processed["PRECL"]
-        ds_processed = ds_processed.drop_vars(["PRECC", "PRECL"])
-        self._ds = ds_processed
-        super()._process_data()
-
 
 class ARISEDataGetter(CESMDataGetter):
     """
@@ -231,6 +231,7 @@ class ARISEDataGetter(CESMDataGetter):
     """
 
     data_source = "arise"
+    available_models = ["cesm2"]
     available_years = np.arange(2035, 2070)
     available_scenarios = ["ssp245", "sai15"]
     available_realizations = np.arange(10)
@@ -280,7 +281,7 @@ class ARISEDataGetter(CESMDataGetter):
                     f"{version}/data/catalogs/cesm2-arise-sai-1.5.json"
                 )
             else:
-                raise ValueError(f"Scenario {scenario} is not supported)")
+                raise ValueError(f"Scenario {scenario} is not supported.")
             catalog = intake.open_esm_datastore(catalog_url)
             catalog_subset = catalog.search(
                 variable=["TREFHT", "PRECT"],
@@ -304,6 +305,7 @@ class ARISEDataGetter(CESMDataGetter):
                 preprocess=_preprocess,
                 backend_kwargs={"consolidated": False},
                 data_vars="minimal",
+                chunks="auto",
             )
             # Subset to available years (sims were run for different years within/
             # between scenarios)
@@ -318,4 +320,107 @@ class ARISEDataGetter(CESMDataGetter):
         ds_in = xr.concat(
             ds_list, dim="scenario", data_vars="minimal", combine_attrs="drop_conflicts"
         )
+        self._ds = ds_in
+
+
+class GLENSDataGetter(CESMDataGetter):
+    """Class for downloading CESM1 GLENS data from the UCAR server."""
+
+    available_models = ["cesm1"]
+    lon_res = 1.25
+    lat_res = 180 / 191
+    data_source = "arise"
+    available_years = np.arange(2010, 2100)
+    available_scenarios = ["rcp85", "sai"]
+    available_realizations = np.arange(20)
+
+    def _find_remote_data(self):
+        frequency = self._frequency
+        years = self._subset["years"]
+        realizations = self._subset["realizations"]
+        member_ids = [f"{(i + 1):03d}" for i in realizations]
+        scenarios = self._subset["scenarios"]
+        api_token = self._api_token
+
+        def _preprocess(_ds):
+            _member_id = _ds.attrs["case"].split(".")[-1]
+            assert _member_id in member_ids, f"Unexpected member_id {_member_id}"
+            _data_var = [
+                v for v in _ds.data_vars if v in ["TREFHT", "PRECC", "PRECL", "PRECT"]
+            ][0]
+            _ds = _ds[[_data_var, "time_bnds"]]
+            _ds = center_times(_ds)
+            _ds[_data_var] = _ds[_data_var].expand_dims(member_id=[_member_id])
+            return _ds
+
+        ds_list = []
+
+        for scenario in scenarios:
+            if scenario == "rcp85" and frequency in ["monthly", "yearly"]:
+                catalog_urls = [
+                    "https://tds.ucar.edu/thredds/catalog/esgcet/343/ucar.cgd.ccsm4."
+                    "GLENS.Control.atm.proc.monthly_ave.{data_var}.v1.xml"
+                    for data_var in ["TREFHT", "PRECC", "PRECL"]
+                ]
+            if scenario == "rcp85" and frequency == "daily":
+                catalog_urls = [
+                    "https://tds.ucar.edu/thredds/catalog/esgcet/495/ucar.cgd.ccsm4."
+                    f"GLENS.Control.atm.proc.daily.ave.{data_var}.v1.xml"
+                    for data_var in ["TREFHT", "PRECT"]
+                ]
+            elif scenario == "sai" and frequency in ["monthly", "yearly"]:
+                catalog_urls = [
+                    "https://tds.ucar.edu/thredds/catalog/esgcet/349/ucar.cgd.ccsm4."
+                    f"GLENS.Feedback.atm.proc.monthly_ave.{data_var}.v1.xml"
+                    for data_var in ["TREFHT", "PRECC", "PRECL"]
+                ]
+            elif scenario == "sai" and frequency == "daily":
+                catalog_urls = [
+                    "https://tds.ucar.edu/thredds/catalog/esgcet/352/ucar.cgd.ccsm4."
+                    f"GLENS.Feedback.atm.proc.daily_ave.{data_var}.v1.xml"
+                    for data_var in ["TREFHT", "PRECT"]
+                ]
+            else:
+                raise ValueError(
+                    f"Scenario {scenario} and/or frequency {frequency} not supported."
+                )
+            dataset_names = []
+            for cat_url in catalog_urls:
+                dataset_names.extend(
+                    [
+                        dataset.url_path
+                        for dataset in siphon.TDSCatalog(cat_url).datasets.values()
+                    ]
+                )
+            datasets = [
+                {
+                    "name": name,
+                    "url": "simplecache::"
+                    f"https://tds.ucar.edu/thredds/fileServer/{name}"
+                    f"?api-token={api_token}",
+                    "start_year": int(name.split(".")[-2][:4]),
+                    "end_year": int(name.split(".")[-2][7:11]),
+                    "member_id": name.split(".")[5],
+                }
+                for name in dataset_names
+            ]
+            datasets = [
+                dataset
+                for dataset in datasets
+                if np.any(
+                    (years >= dataset["start_year"]) & (years <= dataset["end_year"])
+                )
+                and dataset["member_id"] in member_ids
+            ]
+            urls = [dataset["url"] for dataset in datasets]
+            ds_curr = xr.open_mfdataset(
+                urls,
+                data_vars="minimal",
+                preprocess=_preprocess,
+                combine="nested",
+                engine="h5netcdf",
+                chunks="auto",
+            )
+            ds_list.append(ds_curr)
+        ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal")
         self._ds = ds_in

@@ -1,6 +1,6 @@
 """Module defining get_climate_data and get_climate_data_file_names functions."""
 
-from climepi.climdata._cesm import ARISEDataGetter, LENS2DataGetter
+from climepi.climdata._cesm import ARISEDataGetter, LENS2DataGetter, GLENSDataGetter
 from climepi.climdata._isimip import ISIMIPDataGetter
 
 
@@ -13,6 +13,7 @@ def get_climate_data(
     force_remake=False,
     subset_check_interval=10,
     max_subset_wait_time=20,
+    api_token=None,
     **kwargs,
 ):
     """
@@ -94,6 +95,8 @@ def get_climate_data(
         complete, in seconds, before timing out (default is 20). Server-side subsetting
         will continue to run after this function times out, and this function can be
         re-run to check if the subsetting has completed and retrieve the subsetted data.
+    api_token : str, optional
+        API token for accessing the data. Only required for some data sources.
     **kwargs
         Additional keyword arguments to pass to xarray.open_mfdataset when opening
         downloaded data files.
@@ -110,6 +113,7 @@ def get_climate_data(
         save_dir=save_dir,
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
+        api_token=api_token,
     )
     ds_clim = data_getter.get_data(
         download=download, force_remake=force_remake, **kwargs
@@ -145,7 +149,12 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
 
 
 def _get_data_getter(
-    data_source, *args, subset_check_interval=None, max_subset_wait_time=None, **kwargs
+    data_source,
+    *args,
+    subset_check_interval=None,
+    max_subset_wait_time=None,
+    api_token=None,
+    **kwargs,
 ):
     if data_source == "lens2":
         data_getter = LENS2DataGetter(*args, **kwargs)
@@ -158,6 +167,8 @@ def _get_data_getter(
             max_subset_wait_time=max_subset_wait_time,
             **kwargs,
         )
+    elif data_source == "glens:
+        data_getter = GLENSDataGetter(*args, **kwargs)
     else:
         raise ValueError(f"Data source '{data_source}' not supported.")
     return data_getter
