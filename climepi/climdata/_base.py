@@ -1,6 +1,6 @@
 """Module defining get_climate_data and get_climate_data_file_names functions."""
 
-from climepi.climdata._cesm import ARISEDataGetter, LENS2DataGetter, GLENSDataGetter
+from climepi.climdata._cesm import ARISEDataGetter, GLENSDataGetter, LENS2DataGetter
 from climepi.climdata._isimip import ISIMIPDataGetter
 
 
@@ -167,7 +167,7 @@ def _get_data_getter(
             max_subset_wait_time=max_subset_wait_time,
             **kwargs,
         )
-    elif data_source == "glens:
+    elif data_source == "glens":
         data_getter = GLENSDataGetter(*args, **kwargs)
     else:
         raise ValueError(f"Data source '{data_source}' not supported.")
