@@ -168,7 +168,7 @@ def _get_data_getter(
             **kwargs,
         )
     elif data_source == "glens":
-        data_getter = GLENSDataGetter(*args, **kwargs)
+        data_getter = GLENSDataGetter(*args, api_token=api_token, **kwargs)
     else:
         raise ValueError(f"Data source '{data_source}' not supported.")
     return data_getter

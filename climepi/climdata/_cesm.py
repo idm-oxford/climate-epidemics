@@ -401,7 +401,7 @@ class GLENSDataGetter(CESMDataGetter):
                     f"https://tds.ucar.edu/thredds/fileServer/{name}"
                     f"?api-token={api_token}",
                     "start_year": int(name.split(".")[-2][:4]),
-                    "end_year": int(name.split(".")[-2][7:11]),
+                    "end_year": int(name.split(".")[-2].split("-")[1][:4]),
                     "member_id": name.split(".")[5],
                 }
                 for name in dataset_names
@@ -410,7 +410,8 @@ class GLENSDataGetter(CESMDataGetter):
                 dataset
                 for dataset in datasets
                 if np.any(
-                    (years >= dataset["start_year"]) & (years <= dataset["end_year"])
+                    (np.array(years) >= dataset["start_year"])
+                    & (np.array(years) <= dataset["end_year"])
                 )
                 and dataset["member_id"] in member_ids
             ]
