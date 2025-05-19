@@ -357,28 +357,32 @@ class GLENSDataGetter(CESMDataGetter):
 
         for scenario in scenarios:
             if scenario == "rcp85" and frequency in ["monthly", "yearly"]:
+                data_vars = ["TREFHT", "PRECC", "PRECL"]
                 catalog_urls = [
                     "https://tds.ucar.edu/thredds/catalog/esgcet/343/ucar.cgd.ccsm4."
                     f"GLENS.Control.atm.proc.monthly_ave.{data_var}.v1.xml"
-                    for data_var in ["TREFHT", "PRECC", "PRECL"]
+                    for data_var in data_vars
                 ]
             elif scenario == "rcp85" and frequency == "daily":
+                data_vars = ["TREFHT", "PRECT"]
                 catalog_urls = [
                     "https://tds.ucar.edu/thredds/catalog/esgcet/495/ucar.cgd.ccsm4."
                     f"GLENS.Control.atm.proc.daily.ave.{data_var}.v1.xml"
-                    for data_var in ["TREFHT", "PRECT"]
+                    for data_var in data_vars
                 ]
             elif scenario == "sai" and frequency in ["monthly", "yearly"]:
+                data_vars = ["TREFHT", "PRECC", "PRECL"]
                 catalog_urls = [
                     "https://tds.ucar.edu/thredds/catalog/esgcet/349/ucar.cgd.ccsm4."
                     f"GLENS.Feedback.atm.proc.monthly_ave.{data_var}.v1.xml"
-                    for data_var in ["TREFHT", "PRECC", "PRECL"]
+                    for data_var in data_vars
                 ]
             elif scenario == "sai" and frequency == "daily":
+                data_vars = ["TREFHT", "PRECT"]
                 catalog_urls = [
                     "https://tds.ucar.edu/thredds/catalog/esgcet/352/ucar.cgd.ccsm4."
                     f"GLENS.Feedback.atm.proc.daily_ave.{data_var}.v1.xml"
-                    for data_var in ["TREFHT", "PRECT"]
+                    for data_var in data_vars
                 ]
             else:
                 raise ValueError(
@@ -423,6 +427,9 @@ class GLENSDataGetter(CESMDataGetter):
                 combine="nested",
                 engine="h5netcdf",
                 chunks={},
+            )
+            ds_curr[data_vars] = ds_curr[data_vars].expand_dims(
+                {"scenario": [scenario]}
             )
             ds_list.append(ds_curr)
         ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal")
