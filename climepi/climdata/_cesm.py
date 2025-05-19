@@ -427,6 +427,7 @@ class GLENSDataGetter(CESMDataGetter):
                 combine="nested",
                 engine="h5netcdf",
                 chunks={},
+                parallel=True,
             )
             ds_curr[data_vars] = ds_curr[data_vars].expand_dims(
                 {"scenario": [scenario]}
