@@ -427,11 +427,12 @@ class GLENSDataGetter(CESMDataGetter):
                 combine="nested",
                 engine="h5netcdf",
                 chunks={},
-                parallel=True,
             )
             ds_curr[data_vars] = ds_curr[data_vars].expand_dims(
                 {"scenario": [scenario]}
             )
             ds_list.append(ds_curr)
         ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal")
+        # Load time bounds to avoid errors saving to file (since no encoding set)
+        ds_in.time_bnds.load()
         self._ds = ds_in
