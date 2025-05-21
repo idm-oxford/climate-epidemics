@@ -87,13 +87,6 @@ class CESMDataGetter(ClimateDataGetter):
             delayed_obj.compute()
         self._temp_file_names = [temp_file_name]
 
-    def _open_temp_data(self, **kwargs):
-        # Open the temporary dataset, and store the opened dataset in the _ds attribute.
-        # Extends the parent method by using the chunks attribute of the original remote
-        # dataset (unless overridden by the user in the kwargs argument).
-        kwargs = {"chunks": self._ds.chunks.mapping, **kwargs}
-        super()._open_temp_data(**kwargs)
-
     def _process_data(self):
         # Extends the parent method to add renaming, unit conversion and (depending on
         # the requested data frequency) temporal averaging.
