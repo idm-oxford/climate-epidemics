@@ -1,5 +1,8 @@
 """Module for accessing and downloading CESM LENS2 data."""
 
+import datetime
+import itertools
+
 import dask.diagnostics
 import fsspec
 import intake
@@ -114,7 +117,10 @@ class CESMDataGetter(ClimateDataGetter):
                 ["TREFHT", "PRECT"]
             ].expand_dims({"scenario": self.available_scenarios})
         # Add time bounds to the dataset (if not already present)
-        ds_processed = ds_processed.bounds.add_missing_bounds(axes=["T"])
+        if "time_bnds" not in ds_processed:
+            ds_processed = ds_processed.bounds.add_time_bounds(
+                method="freq", freq="day" if frequency == "daily" else "month"
+            )
         # Make time bounds a data variable instead of a coordinate if necessary, and
         # format in order to match the conventions of xcdat.
         ds_processed = ds_processed.reset_coords("time_bnds")
@@ -240,7 +246,7 @@ class ARISEDataGetter(CESMDataGetter):
         # Running to_datset_dict() on the catalog subset doesn't seem to work for
         # reference/kerchunk format data in AWS, so open the datasets manually.
         frequency = self._frequency
-        available_years = self.available_years
+        years = self._subset["years"]
         realizations = self._subset["realizations"]
         member_ids = [f"{(i + 1):03d}" for i in realizations]
         scenarios = self._subset["scenarios"]
@@ -254,19 +260,34 @@ class ARISEDataGetter(CESMDataGetter):
         def _preprocess(_ds):
             _member_id = _ds.attrs["case"].split(".")[-1]
             assert _member_id in member_ids, f"Unexpected member_id {_member_id}"
+            _scenario = (
+                "sai15"
+                if _ds.attrs["case"].split(".")[-2] == "SSP245-TSMLT-GAUSS-DEFAULT"
+                else "ssp245"
+                if ".".join(_ds.attrs["case"].split(".")[-3:-1])
+                == "CMIP6-SSP2-4.5-WACCM"
+                else None
+            )
+            if _scenario is None:
+                raise ValueError(
+                    f"Failed to parse scenario from case attr '{_ds.attrs['case']}'"
+                )
             _data_var = [v for v in _ds.data_vars if v in ["TREFHT", "PRECT"]][0]
-            if frequency == "daily":
-                # time_bnds supplied with daily data seem to be incorrect
-                _ds = _ds[[_data_var]]
-            elif frequency == "monthly":
-                # monthly data seem to have time at the right of the bounds (which may
-                # lead to cutting the last value when subsetting)
-                _ds = _ds[[_data_var, "time_bnds"]]
-                _ds = center_times(_ds)
-            _ds[_data_var] = _ds[_data_var].expand_dims(member_id=[_member_id])
+            _ds = _ds[[_data_var]]  # drops time_bnds (incorrect for daily data)
+            _ds[_data_var] = _ds[_data_var].expand_dims(
+                member_id=[_member_id], scenario=[_scenario]
+            )
+            # times seem to be at end of interval for monthly data, so shift
+            if frequency in ["monthly", "yearly"]:
+                _old_time = _ds["time"]
+                _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="MS"))
+                _ds["time"].encoding = _old_time.encoding
+                _ds["time"].attrs = _old_time.attrs
+
             return _ds
 
         version = _get_data_version()
+
         ds_list = []
 
         for scenario in scenarios:
@@ -283,43 +304,51 @@ class ARISEDataGetter(CESMDataGetter):
             else:
                 raise ValueError(f"Scenario {scenario} is not supported.")
             catalog = intake.open_esm_datastore(catalog_url)
+
             catalog_subset = catalog.search(
                 variable=["TREFHT", "PRECT"],
                 frequency=catalog_frequency,
                 member_id=member_ids,
             )
-            s3_urls = catalog_subset.df.path.to_list()
+            datasets = [
+                {
+                    "url": url,
+                    "start_year": int(url.split(".")[-2][:4]),
+                    "end_year": int(url.split(".")[-2].split("-")[1][:4]),
+                    "member_id": member_id,
+                }
+                for url, member_id in zip(
+                    catalog_subset.df.path,
+                    catalog_subset.df.member_id,
+                    strict=True,
+                )
+            ]
             mappers = [
                 fsspec.filesystem(
                     "reference",
-                    fo=url,
+                    fo=dataset["url"],
                     remote_protocol="s3",
                     remote_options={"anon": True},
                     target_options={"anon": True},
                 ).get_mapper("")
-                for url in s3_urls
+                for dataset in datasets
+                if dataset["member_id"] in member_ids
+                and np.any(
+                    (np.array(years) >= dataset["start_year"])
+                    & (np.array(years) <= dataset["end_year"])
+                )
             ]
-            ds_curr = xr.open_mfdataset(
-                mappers,
-                engine="zarr",
-                preprocess=_preprocess,
-                backend_kwargs={"consolidated": False},
-                data_vars="minimal",
-                chunks={},
+            ds_list.append(
+                xr.open_mfdataset(
+                    mappers,
+                    chunks={},
+                    preprocess=_preprocess,
+                    engine="zarr",
+                    data_vars="minimal",
+                    backend_kwargs={"consolidated": False},
+                )
             )
-            # Subset to available years (sims were run for different years within/
-            # between scenarios)
-            ds_curr = ds_curr.sel(
-                time=slice(str(available_years[0]), str(available_years[-1]))
-            )
-            # Add scenario dimension over which to concatenate
-            ds_curr[["TREFHT", "PRECT"]] = ds_curr[["TREFHT", "PRECT"]].expand_dims(
-                {"scenario": [scenario]}
-            )
-            ds_list.append(ds_curr)
-        ds_in = xr.concat(
-            ds_list, dim="scenario", data_vars="minimal", combine_attrs="drop_conflicts"
-        )
+        ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal")
         self._ds = ds_in
 
 
@@ -345,62 +374,73 @@ class GLENSDataGetter(CESMDataGetter):
         def _preprocess(_ds):
             _member_id = _ds.attrs["case"].split(".")[-1]
             assert _member_id in member_ids, f"Unexpected member_id {_member_id}"
+            _scenario_str = _ds.attrs["case"].split(".")[-2]
+            _scenario = (
+                "rcp85"
+                if _scenario_str.lower() == "control"
+                else "sai"
+                if _scenario_str.lower() == "feedback"
+                else None
+            )
+            if _scenario is None:
+                raise ValueError(
+                    f"Failed to parse scenario string '{_scenario_str}' from dataset"
+                )
             _data_var = [
                 v for v in _ds.data_vars if v in ["TREFHT", "PRECC", "PRECL", "PRECT"]
             ][0]
-            _ds = _ds[[_data_var, "time_bnds"]]
-            _ds = center_times(_ds)
-            _ds[_data_var] = _ds[_data_var].expand_dims(member_id=[_member_id])
+            _ds = _ds[[_data_var]]  # drops time_bnds (avoids performance issues)
+            _ds[_data_var] = _ds[_data_var].expand_dims(
+                member_id=[_member_id], scenario=[_scenario]
+            )
+            # times seem to be at end of interval in some cases, so shift
+            _old_time = _ds["time"]
+            if frequency in ["monthly", "yearly"]:
+                _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="MS"))
+            if _scenario == "sai" and frequency == "daily":
+                _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="D"))
+            _ds["time"].encoding = _old_time.encoding
+            _ds["time"].attrs = _old_time.attrs
             return _ds
 
-        ds_list = []
+        if frequency in ["monthly", "yearly"]:
+            data_vars = ["TREFHT", "PRECC", "PRECL"]
+        elif frequency == "daily":
+            data_vars = ["TREFHT", "PRECT"]
+        else:
+            raise ValueError(f"Frequency {frequency} is not supported.")
 
-        for scenario in scenarios:
+        urls = []
+
+        for scenario, data_var in itertools.product(scenarios, data_vars):
             if scenario == "rcp85" and frequency in ["monthly", "yearly"]:
-                data_vars = ["TREFHT", "PRECC", "PRECL"]
-                catalog_urls = [
+                catalog_url = (
                     "https://tds.ucar.edu/thredds/catalog/esgcet/343/ucar.cgd.ccsm4."
                     f"GLENS.Control.atm.proc.monthly_ave.{data_var}.v1.xml"
-                    for data_var in data_vars
-                ]
+                )
             elif scenario == "rcp85" and frequency == "daily":
-                data_vars = ["TREFHT", "PRECT"]
-                catalog_urls = [
+                catalog_url = (
                     "https://tds.ucar.edu/thredds/catalog/esgcet/495/ucar.cgd.ccsm4."
                     f"GLENS.Control.atm.proc.daily.ave.{data_var}.v1.xml"
-                    for data_var in data_vars
-                ]
+                )
             elif scenario == "sai" and frequency in ["monthly", "yearly"]:
-                data_vars = ["TREFHT", "PRECC", "PRECL"]
-                catalog_urls = [
+                catalog_url = (
                     "https://tds.ucar.edu/thredds/catalog/esgcet/349/ucar.cgd.ccsm4."
                     f"GLENS.Feedback.atm.proc.monthly_ave.{data_var}.v1.xml"
-                    for data_var in data_vars
-                ]
+                )
             elif scenario == "sai" and frequency == "daily":
-                data_vars = ["TREFHT", "PRECT"]
-                catalog_urls = [
+                catalog_url = (
                     "https://tds.ucar.edu/thredds/catalog/esgcet/352/ucar.cgd.ccsm4."
                     f"GLENS.Feedback.atm.proc.daily_ave.{data_var}.v1.xml"
-                    for data_var in data_vars
-                ]
+                )
             else:
                 raise ValueError(
                     f"Scenario {scenario} and/or frequency {frequency} not supported."
                 )
-            dataset_names = []
-            for cat_url in catalog_urls:
-                dataset_names.extend(
-                    [
-                        dataset.url_path
-                        for dataset in siphon.catalog.TDSCatalog(
-                            cat_url
-                        ).datasets.values()
-                    ]
-                )
+            catalog = siphon.catalog.TDSCatalog(catalog_url)
+            dataset_names = [dataset.url_path for dataset in catalog.datasets.values()]
             datasets = [
                 {
-                    "name": name,
                     "url": "simplecache::"
                     f"https://tds.ucar.edu/thredds/fileServer/{name}"
                     f"?api-token={api_token}",
@@ -410,29 +450,22 @@ class GLENSDataGetter(CESMDataGetter):
                 }
                 for name in dataset_names
             ]
-            datasets = [
-                dataset
-                for dataset in datasets
-                if np.any(
-                    (np.array(years) >= dataset["start_year"])
-                    & (np.array(years) <= dataset["end_year"])
-                )
-                and dataset["member_id"] in member_ids
-            ]
-            urls = [dataset["url"] for dataset in datasets]
-            ds_curr = xr.open_mfdataset(
-                urls,
-                data_vars="minimal",
-                preprocess=_preprocess,
-                combine="nested",
-                engine="h5netcdf",
-                chunks={},
+            urls.extend(
+                [
+                    dataset["url"]
+                    for dataset in datasets
+                    if dataset["member_id"] in member_ids
+                    and np.any(
+                        (np.array(years) >= dataset["start_year"])
+                        & (np.array(years) <= dataset["end_year"])
+                    )
+                ]
             )
-            ds_curr[data_vars] = ds_curr[data_vars].expand_dims(
-                {"scenario": [scenario]}
-            )
-            ds_list.append(ds_curr)
-        ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal")
-        # Load time bounds to avoid errors saving to file (since no encoding set)
-        ds_in.time_bnds.load()
+        ds_in = xr.open_mfdataset(
+            urls,
+            chunks={},
+            preprocess=_preprocess,
+            engine="h5netcdf",
+            data_vars="minimal",
+        )
         self._ds = ds_in
