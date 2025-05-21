@@ -338,10 +338,11 @@ class ARISEDataGetter(CESMDataGetter):
                     preprocess=_preprocess,
                     engine="zarr",
                     data_vars="minimal",
+                    join="inner",
                     backend_kwargs={"consolidated": False},
                 )
             )
-        ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal")
+        ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal", join="inner")
         self._ds = ds_in
 
 
@@ -460,5 +461,6 @@ class GLENSDataGetter(CESMDataGetter):
             preprocess=_preprocess,
             engine="h5netcdf",
             data_vars="minimal",
+            join="inner",
         )
         self._ds = ds_in
