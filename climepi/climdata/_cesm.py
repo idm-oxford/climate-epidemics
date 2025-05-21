@@ -358,7 +358,7 @@ class GLENSDataGetter(CESMDataGetter):
     available_models = ["cesm1"]
     lon_res = 1.25
     lat_res = 180 / 191
-    data_source = "arise"
+    data_source = "glens"
     available_years = np.arange(2010, 2100)
     available_scenarios = ["rcp85", "sai"]
     available_realizations = np.arange(20)
