@@ -1,6 +1,5 @@
 """Module for accessing and downloading CESM LENS2 data."""
 
-import datetime
 import itertools
 
 import dask.diagnostics
@@ -86,6 +85,15 @@ class CESMDataGetter(ClimateDataGetter):
         with dask.diagnostics.ProgressBar():
             delayed_obj.compute()
         self._temp_file_names = [temp_file_name]
+
+    def _open_temp_data(self, **kwargs):
+        # Open the temporary dataset, and store the opened dataset in the _ds attribute.
+        # Extends the parent method by specifying chunks for the member_id coordinate.
+        kwargs = {
+            "chunks": {"member_id": 1, "model": 1, "scenario": 1, "location": 1},
+            **kwargs,
+        }
+        super()._open_temp_data(**kwargs)
 
     def _process_data(self):
         # Extends the parent method to add renaming, unit conversion and (depending on

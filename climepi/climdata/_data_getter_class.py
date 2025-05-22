@@ -3,6 +3,7 @@ import pathlib
 import tempfile
 import warnings
 
+import dask.diagnostics
 import numpy as np
 import pooch
 import xarray as xr
@@ -353,7 +354,12 @@ class ClimateDataGetter:
             temp_save_dir / temp_file_name for temp_file_name in temp_file_names
         ]
         self._ds_temp = xr.open_mfdataset(
-            temp_file_paths, **{"data_vars": "minimal", "chunks": {}, **kwargs}
+            temp_file_paths,
+            **{
+                "data_vars": "minimal",
+                "chunks": {"realization": 1, "model": 1, "scenario": 1, "location": 1},
+                **kwargs,
+            },
         )
         self._ds = self._ds_temp.copy()
         if "time_bnds" in self._ds:
@@ -399,42 +405,27 @@ class ClimateDataGetter:
         file_name_da = self.file_name_da
         ds_all = self._ds
         save_dir.mkdir(parents=True, exist_ok=True)
+        loop_coord_names = ["scenario", "model", "realization"]
+        loop_coord_vals = [scenarios, models, realizations]
+        datasets = []
+        save_paths = []
         if locations is not None:
-            for location, scenario, model, realization in itertools.product(
-                np.atleast_1d(locations), scenarios, models, realizations
-            ):
-                ds_curr = ds_all.sel(
-                    location=[location],
-                    realization=[realization],
-                    scenario=[scenario],
-                    model=[model],
-                )
-                save_path = (
-                    save_dir
-                    / file_name_da.sel(
-                        location=location,
-                        scenario=scenario,
-                        model=model,
-                        realization=realization,
-                    ).values.flatten()[0]
-                )
-                ds_curr.to_netcdf(save_path)
-        else:
-            for scenario, model, realization in itertools.product(
-                scenarios, models, realizations
-            ):
-                ds_curr = ds_all.sel(
-                    realization=[realization], scenario=[scenario], model=[model]
-                )
-                save_path = (
-                    save_dir
-                    / file_name_da.sel(
-                        scenario=scenario,
-                        model=model,
-                        realization=realization,
-                    ).values.flatten()[0]
-                )
-                ds_curr.to_netcdf(save_path)
+            loop_coord_names.append("location")
+            loop_coord_vals.append(np.atleast_1d(locations))
+        for coord_comb in itertools.product(*loop_coord_vals):
+            coord_dict = dict(zip(loop_coord_names, coord_comb, strict=True))
+            ds_curr = ds_all.sel({k: [v] for k, v in coord_dict.items()})
+            save_path_curr = (
+                save_dir
+                / file_name_da.sel(
+                    coord_dict,
+                ).values.flatten()[0]
+            )
+            datasets.append(ds_curr)
+            save_paths.append(save_path_curr)
+        delayed_obj = xr.save_mfdataset(datasets, save_paths, compute=False)
+        with dask.diagnostics.ProgressBar():
+            delayed_obj.compute()
 
     def _delete_temporary(self):
         # Delete the temporary file(s) created when downloading the data (once the data
