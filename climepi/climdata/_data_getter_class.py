@@ -294,6 +294,7 @@ class ClimateDataGetter:
             self._open_temp_data()
         self._process_data()
         if download:
+            print("Processing data...")
             self._save_processed_data()
             print(f"Formatted data saved to '{self._save_dir}'")
             self._delete_temporary()
