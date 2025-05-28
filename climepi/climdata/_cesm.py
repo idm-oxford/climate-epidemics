@@ -8,6 +8,7 @@ import intake
 import numpy as np
 import siphon.catalog
 import xarray as xr
+from tqdm import tqdm
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import BoundsAccessor, center_times  # noqa
@@ -463,6 +464,9 @@ class GLENSDataGetter(CESMDataGetter):
                     )
                 ]
             )
+        print("Opening data files...")
+        for url in tqdm(urls):
+            fsspec.open_local(url)  # note this triggers download/caching of the data
         ds_in = xr.open_mfdataset(
             urls,
             chunks={},
