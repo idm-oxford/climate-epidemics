@@ -113,11 +113,13 @@ class CESMDataGetter(ClimateDataGetter):
         ds_processed["realization"] = realizations
         ds_processed[["TREFHT", "PRECT"]] = ds_processed[
             ["TREFHT", "PRECT"]
-        ].expand_dims({"model": self.available_models})
+        ].expand_dims({"model": np.array(self.available_models, dtype="object")})
         if "scenario" not in ds_processed:
             ds_processed[["TREFHT", "PRECT"]] = ds_processed[
                 ["TREFHT", "PRECT"]
-            ].expand_dims({"scenario": self.available_scenarios})
+            ].expand_dims(
+                {"scenario": np.array(self.available_scenarios, dtype="object")}
+            )
         # Add time bounds to the dataset (if not already present)
         if "time_bnds" not in ds_processed:
             ds_processed = ds_processed.bounds.add_time_bounds(
@@ -277,7 +279,8 @@ class ARISEDataGetter(CESMDataGetter):
             _data_var = [v for v in _ds.data_vars if v in ["TREFHT", "PRECT"]][0]
             _ds = _ds[[_data_var]]  # drops time_bnds (incorrect for daily data)
             _ds[_data_var] = _ds[_data_var].expand_dims(
-                member_id=[_member_id], scenario=[_scenario]
+                member_id=[_member_id],
+                scenario=np.array([_scenario], dtype="object"),
             )
             # times seem to be at end of interval for monthly data, so shift
             if frequency in ["monthly", "yearly"]:
@@ -394,7 +397,8 @@ class GLENSDataGetter(CESMDataGetter):
             ][0]
             _ds = _ds[[_data_var]]  # drops time_bnds (avoids performance issues)
             _ds[_data_var] = _ds[_data_var].expand_dims(
-                member_id=[_member_id], scenario=[_scenario]
+                member_id=[_member_id],
+                scenario=np.array([_scenario], dtype="object"),
             )
             # times seem to be at end of interval in some cases, so shift
             _old_time = _ds["time"]
