@@ -277,7 +277,7 @@ class ARISEDataGetter(CESMDataGetter):
                     f"Failed to parse scenario from case attr '{_ds.attrs['case']}'"
                 )
             _data_var = [v for v in _ds.data_vars if v in ["TREFHT", "PRECT"]][0]
-            _ds = _ds[[_data_var]]  # drops time_bnds (incorrect for daily data)
+            _ds = _ds[[_data_var]]  # drops time_bnds (readded later)
             _ds[_data_var] = _ds[_data_var].expand_dims(
                 member_id=[_member_id],
                 scenario=np.array([_scenario], dtype="object"),
@@ -400,12 +400,14 @@ class GLENSDataGetter(CESMDataGetter):
                 member_id=[_member_id],
                 scenario=np.array([_scenario], dtype="object"),
             )
-            # times seem to be at end of interval in some cases, so shift
+            # times seem to be at end of interval, so shift
             _old_time = _ds["time"]
             if frequency in ["monthly", "yearly"]:
                 _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="MS"))
-            if _scenario == "sai" and frequency == "daily":
+            elif frequency == "daily":
                 _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="D"))
+            else:
+                raise ValueError(f"Frequency {frequency} is not supported.")
             _ds["time"].encoding = _old_time.encoding
             _ds["time"].attrs = _old_time.attrs
             return _ds
