@@ -8,7 +8,6 @@ import intake
 import numpy as np
 import siphon.catalog
 import xarray as xr
-from tqdm import tqdm
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import BoundsAccessor, center_times  # noqa
