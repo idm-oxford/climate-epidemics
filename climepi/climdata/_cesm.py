@@ -400,7 +400,7 @@ class GLENSDataGetter(CESMDataGetter):
                 member_id=[_member_id],
                 scenario=np.array([_scenario], dtype="object"),
             )
-            # times seem to be at end of interval, so shift
+            # Times seem to be at end of interval, so shift
             _old_time = _ds["time"]
             if frequency in ["monthly", "yearly"]:
                 _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="MS"))
@@ -410,6 +410,8 @@ class GLENSDataGetter(CESMDataGetter):
                 raise ValueError(f"Frequency {frequency} is not supported.")
             _ds["time"].encoding = _old_time.encoding
             _ds["time"].attrs = _old_time.attrs
+            # Subset to requested years now to avoid concatenation/merging issues
+            _ds = _ds.isel(time=np.isin(_ds.time.dt.year, years))
             return _ds
 
         if frequency in ["monthly", "yearly"]:
@@ -450,8 +452,7 @@ class GLENSDataGetter(CESMDataGetter):
             dataset_names = [dataset.url_path for dataset in catalog.datasets.values()]
             datasets = [
                 {
-                    "url": "simplecache::"
-                    f"https://tds.ucar.edu/thredds/fileServer/{name}"
+                    "url": f"https://tds.ucar.edu/thredds/fileServer/{name}"
                     f"?api-token={api_token}",
                     "start_year": int(name.split(".")[-2][:4]),
                     "end_year": int(name.split(".")[-2].split("-")[1][:4]),
@@ -471,14 +472,14 @@ class GLENSDataGetter(CESMDataGetter):
                 ]
             )
         print("Opening data files...")
-        for url in tqdm(urls):
-            fsspec.open_local(url)  # note this triggers download/caching of the data
-        ds_in = xr.open_mfdataset(
-            urls,
-            chunks={},
-            preprocess=_preprocess,
-            engine="h5netcdf",
-            data_vars="minimal",
-            join="inner",
-        )
+        with dask.diagnostics.ProgressBar():
+            ds_in = xr.open_mfdataset(
+                urls,
+                chunks={},
+                preprocess=_preprocess,
+                engine="h5netcdf",
+                data_vars="minimal",
+                join="inner",
+                parallel=True,
+            )
         self._ds = ds_in
