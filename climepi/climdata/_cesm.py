@@ -292,7 +292,7 @@ class ARISEDataGetter(CESMDataGetter):
 
         version = _get_data_version()
 
-        ds_list = []
+        urls = []
 
         for scenario in scenarios:
             if scenario == "ssp245":
@@ -327,33 +327,30 @@ class ARISEDataGetter(CESMDataGetter):
                     strict=True,
                 )
             ]
-            mappers = [
-                fsspec.filesystem(
-                    "reference",
-                    fo=dataset["url"],
-                    remote_protocol="s3",
-                    remote_options={"anon": True},
-                    target_options={"anon": True},
-                ).get_mapper("")
-                for dataset in datasets
-                if dataset["member_id"] in member_ids
-                and np.any(
-                    (np.array(years) >= dataset["start_year"])
-                    & (np.array(years) <= dataset["end_year"])
-                )
-            ]
-            ds_list.append(
-                xr.open_mfdataset(
-                    mappers,
-                    chunks={},
-                    preprocess=_preprocess,
-                    engine="zarr",
-                    data_vars="minimal",
-                    join="inner",
-                    backend_kwargs={"consolidated": False},
-                )
+            urls.extend(
+                [
+                    dataset["url"]
+                    for dataset in datasets
+                    if dataset["member_id"] in member_ids
+                    and np.any(
+                        (np.array(years) >= dataset["start_year"])
+                        & (np.array(years) <= dataset["end_year"])
+                    )
+                ]
             )
-        ds_in = xr.concat(ds_list, dim="scenario", data_vars="minimal", join="inner")
+        ds_in = xr.open_mfdataset(
+            urls,
+            chunks={},
+            preprocess=_preprocess,
+            engine="kerchunk",
+            data_vars="minimal",
+            parallel=True,
+            join="inner",
+            storage_options={
+                "remote_options": {"anon": True},
+                "target_options": {"anon": True},
+            },
+        )
         self._ds = ds_in
 
 
