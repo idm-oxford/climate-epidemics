@@ -3,7 +3,6 @@
 import itertools
 
 import dask.diagnostics
-import fsspec
 import intake
 import numpy as np
 import siphon.catalog
