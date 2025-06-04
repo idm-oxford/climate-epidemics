@@ -478,5 +478,7 @@ class GLENSDataGetter(CESMDataGetter):
                     engine="h5netcdf",
                 )
             )
-        ds_in = xr.combine_by_coords(ds_list, data_vars="minimal", join="inner")
+        ds_in = xr.combine_by_coords(
+            ds_list, data_vars="minimal", join="inner", combine_attrs="drop_conflicts"
+        )
         self._ds = ds_in
