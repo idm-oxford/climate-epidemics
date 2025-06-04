@@ -6,6 +6,7 @@ import dask.diagnostics
 import intake
 import numpy as np
 import siphon.catalog
+import tqdm
 import xarray as xr
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
@@ -467,14 +468,15 @@ class GLENSDataGetter(CESMDataGetter):
                 ]
             )
         print("Opening data files...")
-        with dask.diagnostics.ProgressBar():
-            ds_in = xr.open_mfdataset(
-                urls,
-                chunks={},
-                preprocess=_preprocess,
-                engine="h5netcdf",
-                data_vars="minimal",
-                join="inner",
-                parallel=True,
+        ds_list = []
+        for url in tqdm.tqdm(urls):
+            ds_list.append(
+                xr.open_dataset(
+                    url,
+                    chunks={},
+                    preprocess=_preprocess,
+                    engine="h5netcdf",
+                )
             )
+        ds_in = xr.combine_by_coords(ds_list, data_vars="minimal", join="inner")
         self._ds = ds_in
