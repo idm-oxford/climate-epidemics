@@ -471,8 +471,8 @@ class GLENSDataGetter(CESMDataGetter):
         ds_list = []
         for url in tqdm.tqdm(urls):
             ds_list.append(
-                xr.open_dataset(
-                    url,
+                xr.open_mfdataset(
+                    [url],
                     chunks={},
                     preprocess=_preprocess,
                     engine="h5netcdf",
