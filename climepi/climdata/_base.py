@@ -159,6 +159,10 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
 def _get_data_getter(
     data_source,
     *args,
+    subset_check_interval=None,
+    max_subset_wait_time=None,
+    api_token=None,
+    simplecache=None,
     **kwargs,
 ):
     if data_source == "lens2":
@@ -166,9 +170,16 @@ def _get_data_getter(
     elif data_source == "arise":
         data_getter = ARISEDataGetter(*args, **kwargs)
     elif data_source == "glens":
-        data_getter = GLENSDataGetter(*args, **kwargs)
+        data_getter = GLENSDataGetter(
+            *args, api_token=api_token, simplecache=simplecache, **kwargs
+        )
     elif data_source == "isimip":
-        data_getter = ISIMIPDataGetter(*args, **kwargs)
+        data_getter = ISIMIPDataGetter(
+            *args,
+            subset_check_interval=subset_check_interval,
+            max_subset_wait_time=max_subset_wait_time,
+            **kwargs,
+        )
     else:
         raise ValueError(f"Data source '{data_source}' not supported.")
     return data_getter
