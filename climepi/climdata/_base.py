@@ -14,6 +14,7 @@ def get_climate_data(
     subset_check_interval=10,
     max_subset_wait_time=20,
     api_token=None,
+    simplecache=False,
     **kwargs,
 ):
     """
@@ -96,7 +97,13 @@ def get_climate_data(
         will continue to run after this function times out, and this function can be
         re-run to check if the subsetting has completed and retrieve the subsetted data.
     api_token : str, optional
-        API token for accessing the data. Only required for some data sources.
+        API token for accessing the data. Currently only required for GLENS data (API
+        keys can be obtained from https://www.earthsystemgrid.org/).
+    simplecache : bool, optional
+        For GLENS data only; whether to use simplecache for caching data files to disk
+        before processing (default is False). Setting to True can reduce the number of
+        HTTP requests made to the data server, but may incur a substantial disk space
+        overhead.
     **kwargs
         Additional keyword arguments to pass to xarray.open_mfdataset when opening
         downloaded data files.
@@ -114,6 +121,7 @@ def get_climate_data(
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
         api_token=api_token,
+        simplecache=simplecache,
     )
     ds_clim = data_getter.get_data(
         download=download, force_remake=force_remake, **kwargs
@@ -151,24 +159,16 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
 def _get_data_getter(
     data_source,
     *args,
-    subset_check_interval=None,
-    max_subset_wait_time=None,
-    api_token=None,
     **kwargs,
 ):
     if data_source == "lens2":
         data_getter = LENS2DataGetter(*args, **kwargs)
     elif data_source == "arise":
         data_getter = ARISEDataGetter(*args, **kwargs)
-    elif data_source == "isimip":
-        data_getter = ISIMIPDataGetter(
-            *args,
-            subset_check_interval=subset_check_interval,
-            max_subset_wait_time=max_subset_wait_time,
-            **kwargs,
-        )
     elif data_source == "glens":
-        data_getter = GLENSDataGetter(*args, api_token=api_token, **kwargs)
+        data_getter = GLENSDataGetter(*args, **kwargs)
+    elif data_source == "isimip":
+        data_getter = ISIMIPDataGetter(*args, **kwargs)
     else:
         raise ValueError(f"Data source '{data_source}' not supported.")
     return data_getter

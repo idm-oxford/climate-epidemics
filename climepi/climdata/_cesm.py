@@ -365,6 +365,10 @@ class GLENSDataGetter(CESMDataGetter):
     available_scenarios = ["rcp85", "sai"]
     available_realizations = np.arange(20)
 
+    def __init__(self, *args, simplecache=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._simplecache = simplecache
+
     def _find_remote_data(self):
         frequency = self._frequency
         years = self._subset["years"]
@@ -470,6 +474,10 @@ class GLENSDataGetter(CESMDataGetter):
         print("Opening data files...")
         ds_list = []
         for url in tqdm.tqdm(urls):
+            if self._simplecache:
+                # Triggers caching of full data file (possible high storage cost but
+                # reduces number of HTTP requests)
+                url = "simplecache::" + url
             ds_list.append(
                 xr.open_mfdataset(
                     [url],
