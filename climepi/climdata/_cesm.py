@@ -1,10 +1,12 @@
 """Module for accessing and downloading CESM LENS2 data."""
 
+import functools
 import itertools
 
 import dask.diagnostics
 import intake
 import numpy as np
+import pooch
 import siphon.catalog
 import tqdm
 import xarray as xr
@@ -365,9 +367,10 @@ class GLENSDataGetter(CESMDataGetter):
     available_scenarios = ["rcp85", "sai"]
     available_realizations = np.arange(20)
 
-    def __init__(self, *args, simplecache=False, **kwargs):
+    def __init__(self, *args, full_download=False, **kwargs):
         super().__init__(*args, **kwargs)
-        self._simplecache = simplecache
+        self._full_download = full_download
+        self._urls = None
 
     def _find_remote_data(self):
         frequency = self._frequency
@@ -376,43 +379,6 @@ class GLENSDataGetter(CESMDataGetter):
         member_ids = [f"{(i + 1):03d}" for i in realizations]
         scenarios = self._subset["scenarios"]
         api_token = self._api_token
-
-        def _preprocess(_ds):
-            _member_id = _ds.attrs["case"].split(".")[-1]
-            assert _member_id in member_ids, f"Unexpected member_id {_member_id}"
-            _scenario_str = _ds.attrs["case"].split(".")[-2]
-            _scenario = (
-                "rcp85"
-                if _scenario_str.lower() == "control"
-                else "sai"
-                if _scenario_str.lower() == "feedback"
-                else None
-            )
-            if _scenario is None:
-                raise ValueError(
-                    f"Failed to parse scenario string '{_scenario_str}' from dataset"
-                )
-            _data_var = [
-                v for v in _ds.data_vars if v in ["TREFHT", "PRECC", "PRECL", "PRECT"]
-            ][0]
-            _ds = _ds[[_data_var]]  # drops time_bnds (avoids performance issues)
-            _ds[_data_var] = _ds[_data_var].expand_dims(
-                member_id=[_member_id],
-                scenario=np.array([_scenario], dtype="object"),
-            )
-            # Times seem to be at end of interval, so shift
-            _old_time = _ds["time"]
-            if frequency in ["monthly", "yearly"]:
-                _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="MS"))
-            elif frequency == "daily":
-                _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="D"))
-            else:
-                raise ValueError(f"Frequency {frequency} is not supported.")
-            _ds["time"].encoding = _old_time.encoding
-            _ds["time"].attrs = _old_time.attrs
-            # Subset to requested years now to avoid concatenation/merging issues
-            _ds = _ds.isel(time=np.isin(_ds.time.dt.year, years))
-            return _ds
 
         if frequency in ["monthly", "yearly"]:
             data_vars = ["TREFHT", "PRECC", "PRECL"]
@@ -471,13 +437,21 @@ class GLENSDataGetter(CESMDataGetter):
                     )
                 ]
             )
+
+        if self._full_download:
+            self._urls = urls
+            return
+
+        _preprocess = functools.partial(
+            _preprocess_glens_dataset,
+            frequency=frequency,
+            years=years,
+            member_ids=member_ids,
+        )
+
         print("Opening data files...")
         ds_list = []
         for url in tqdm.tqdm(urls):
-            if self._simplecache:
-                # Triggers caching of full data file (possible high storage cost but
-                # reduces number of HTTP requests)
-                url = "simplecache::" + url
             ds_list.append(
                 xr.open_mfdataset(
                     [url],
@@ -490,3 +464,94 @@ class GLENSDataGetter(CESMDataGetter):
             ds_list, data_vars="minimal", join="inner", combine_attrs="drop_conflicts"
         )
         self._ds = ds_in
+
+    def _subset_remote_data(self):
+        if self._full_download:
+            # If full download is requested, we can't subset until after download.
+            return
+        super()._subset_remote_data()
+
+    def _download_remote_data(self):
+        if self._full_download:
+            # Download the remote data files to a temporary directory.
+            urls = self._urls
+            temp_save_dir = self._temp_save_dir
+            temp_file_names = []
+
+            for url in urls:
+                url_parts = url.split("/")
+                download_file_name = url_parts[-1]
+                base_url = "/".join(url_parts[:-1])
+                pup = pooch.create(
+                    base_url=base_url,
+                    path=temp_save_dir,
+                    registry={download_file_name: None},
+                    retry_if_failed=5,
+                )
+                pup.fetch(
+                    download_file_name,
+                    progressbar=True,
+                )
+                temp_file_names.append(download_file_name)
+            self._temp_file_names = temp_file_names
+            return
+        super()._download_remote_data()
+
+    def _open_temp_data(self, **kwargs):
+        if self._full_download:
+            # Need to preprocess the downloaded data files.
+            frequency = self._frequency
+            years = self._subset["years"]
+            realizations = self._subset["realizations"]
+            kwargs["preprocess"] = functools.partial(
+                _preprocess_glens_dataset,
+                frequency=frequency,
+                years=years,
+                realizations=realizations,
+            )
+        return super()._open_temp_data(**kwargs)
+
+    def _process_data(self):
+        if self._full_download:
+            # Subset data now that it has been downloaded.
+            self._subset_remote_data()
+        return super()._process_data()
+
+
+def _preprocess_glens_dataset(_ds, frequency=None, years=None, realizations=None):
+    member_ids = [f"{(i + 1):03d}" for i in realizations]
+    _member_id = _ds.attrs["case"].split(".")[-1]
+    assert _member_id in member_ids, f"Unexpected member_id {_member_id}"
+    _scenario_str = _ds.attrs["case"].split(".")[-2]
+    _scenario = (
+        "rcp85"
+        if _scenario_str.lower() == "control"
+        else "sai"
+        if _scenario_str.lower() == "feedback"
+        else None
+    )
+    if _scenario is None:
+        raise ValueError(
+            f"Failed to parse scenario string '{_scenario_str}' from dataset"
+        )
+    _data_var = [
+        v for v in _ds.data_vars if v in ["TREFHT", "PRECC", "PRECL", "PRECT"]
+    ][0]
+    _ds = _ds[[_data_var]]  # drops time_bnds (avoids performance issues)
+    _ds[_data_var] = _ds[_data_var].expand_dims(
+        member_id=[_member_id],
+        scenario=np.array([_scenario], dtype="object"),
+    )
+    # Times seem to be at end of interval, so shift
+    _old_time = _ds["time"]
+    if frequency in ["monthly", "yearly"]:
+        _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="MS"))
+    elif frequency == "daily":
+        _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="D"))
+    else:
+        raise ValueError(f"Frequency {frequency} is not supported.")
+    _ds["time"].encoding = _old_time.encoding
+    _ds["time"].attrs = _old_time.attrs
+    # Subset to requested years now to avoid concatenation/merging issues
+    _ds = _ds.isel(time=np.isin(_ds.time.dt.year, years))
+    return _ds

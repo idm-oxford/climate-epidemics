@@ -14,7 +14,7 @@ def get_climate_data(
     subset_check_interval=10,
     max_subset_wait_time=20,
     api_token=None,
-    simplecache=False,
+    full_download=False,
     **kwargs,
 ):
     """
@@ -99,11 +99,14 @@ def get_climate_data(
     api_token : str, optional
         API token for accessing the data. Currently only required for GLENS data (API
         keys can be obtained from https://www.earthsystemgrid.org/).
-    simplecache : bool, optional
-        For GLENS data only; whether to use simplecache for caching data files to disk
-        before processing (default is False). Setting to True can reduce the number of
-        HTTP requests made to the data server, but may incur a substantial disk space
-        overhead.
+    full_download : bool, optional
+        For GLENS data only; whether to download full data files rather than attempting
+        to open the files via HTTP and download the relevant subset (default is False).
+        Setting to True can reduce the number of HTTP requests made to the data server,
+        but may incur a substantial disk space overhead (note full data files are
+        only cleared up after all data have been downloaded and processed - splitting
+        the data retrieval into multiple calls to this function may reduce the disk
+        space overhead).
     **kwargs
         Additional keyword arguments to pass to xarray.open_mfdataset when opening
         downloaded data files.
@@ -121,7 +124,7 @@ def get_climate_data(
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
         api_token=api_token,
-        simplecache=simplecache,
+        full_download=full_download,
     )
     ds_clim = data_getter.get_data(
         download=download, force_remake=force_remake, **kwargs
@@ -162,7 +165,7 @@ def _get_data_getter(
     subset_check_interval=None,
     max_subset_wait_time=None,
     api_token=None,
-    simplecache=None,
+    full_download=None,
     **kwargs,
 ):
     if data_source == "lens2":
@@ -171,7 +174,7 @@ def _get_data_getter(
         data_getter = ARISEDataGetter(*args, **kwargs)
     elif data_source == "glens":
         data_getter = GLENSDataGetter(
-            *args, api_token=api_token, simplecache=simplecache, **kwargs
+            *args, api_token=api_token, full_download=full_download, **kwargs
         )
     elif data_source == "isimip":
         data_getter = ISIMIPDataGetter(
