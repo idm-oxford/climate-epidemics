@@ -2,11 +2,13 @@
 
 import functools
 import itertools
+import time
 
 import dask.diagnostics
 import intake
 import numpy as np
 import pooch
+import requests
 import siphon.catalog
 import tqdm
 import xarray as xr
@@ -414,7 +416,14 @@ class GLENSDataGetter(CESMDataGetter):
                 raise ValueError(
                     f"Scenario {scenario} and/or frequency {frequency} not supported."
                 )
-            catalog = siphon.catalog.TDSCatalog(catalog_url)
+            while True:
+                try:
+                    catalog = siphon.catalog.TDSCatalog(catalog_url)
+                    break
+                except requests.exceptions.HTTPError as e:
+                    print(f"HTTP error opening catalog {catalog_url}: {e}")
+                    print("Retrying in 10 seconds...")
+                    time.sleep(10)
             dataset_names = [dataset.url_path for dataset in catalog.datasets.values()]
             datasets = [
                 {
