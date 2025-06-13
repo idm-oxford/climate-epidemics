@@ -455,7 +455,7 @@ class GLENSDataGetter(CESMDataGetter):
             _preprocess_glens_dataset,
             frequency=frequency,
             years=years,
-            member_ids=member_ids,
+            realizations=realizations,
         )
 
         print("Opening data files...")
