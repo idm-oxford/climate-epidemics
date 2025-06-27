@@ -355,10 +355,6 @@ class UncertainSuitabilityModel(SuitabilityModel):
         elif stat == "median":
             suitability_table_new = suitability_table_new.median(dim="sample")
         elif stat == "quantile":
-            if quantile is None:
-                raise ValueError(
-                    "The 'quantile' argument must be provided if stat is 'quantile'."
-                )
             suitability_table_new = suitability_table_new.quantile(
                 q=quantile, dim="sample"
             )
