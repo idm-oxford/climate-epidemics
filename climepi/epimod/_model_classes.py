@@ -80,8 +80,10 @@ class SuitabilityModel(EpiModel):
         (this is for performance reasons). Suitability values can be either binary (0
         or 1) or continuous. Suitability is assumed to take the nearest endpoint value
         for temperature and/or precipitation values outside the provided range(s).
-        Default is None. Only one of `temperature_range` and `suitability_table` should
-        be provided.
+        May also have an additional dimension named "sample" indexing equally likely
+        possible suitability tables, or a dimension "quantile" indexing quantiles of the
+        suitability values. Default is None. Only one of `temperature_range` and
+        `suitability_table` should be provided.
     """
 
     def __init__(self, temperature_range=None, suitability_table=None):
@@ -205,6 +207,8 @@ class SuitabilityModel(EpiModel):
                 "long_name": "Temperature",
                 "units": "°C",
             }
+        if suitability_table[suitability_var_name].dtype == bool:
+            suitability_table = suitability_table.astype(int)
         if "precipitation" not in suitability_table.dims:
             kwargs_hvplot = {"x": "temperature", **kwargs}
             return suitability_table[suitability_var_name].hvplot.line(**kwargs_hvplot)
@@ -304,84 +308,78 @@ class SuitabilityModel(EpiModel):
         )
         return da_suitability
 
-
-class UncertainSuitabilityModel(SuitabilityModel):
-    """
-    Class for suitability models with uncertainty.
-
-    Parameters
-    ----------
-    suitability_table : xarray.Dataset
-        A dataset containing suitability values defined for different temperature
-        values or temperature/precipitation combinations. Should be as for the
-        suitability_table parameter of the SuitabilityModel class, except with an
-        additional dimension named "sample" indexing equally likely possible suitability
-        tables, or a dimension "quantile" indexing quantiles of the suitability values.
-
-    """
-
-    def __init__(self, suitability_table=None):
-        super().__init__(suitability_table=suitability_table)
-
-    def reduce(self, stat=None, quantile=None, suitability_threshold=None):
+    def reduce(
+        self,
+        suitability_threshold=None,
+        stat=None,
+        quantile=None,
+        rescale=False,
+    ):
         """
         Get a summary suitability model.
 
         Applies a summary statistic over the equally likely suitability tables and/or
         calculates a binary suitability model based on a threshold value. If both a
         suitability threshold and a summary statistic are provided, the summary
-        statistic is applied first, and then the suitability threshold is applied.
+        suitability threshold is applied, and then the statistic.
 
         Parameters
         ----------
+        suitability_threshold : float, optional
+            The threshold value (strictly) above which climate conditions are considered
+            suitable in a binary suitability model. Default is None. If None, a binary
+            suitability model is not computed.
         stat : str, optional
             The summary statistic to compute. Can be "mean", "median", or "quantile".
             Default is None. If None, no summary statistic is computed.
         quantile : float or array-like of floats, optional
             The quantile(s) to compute if stat is "quantile". Default is None.
-        suitability_threshold : float, optional
-            The threshold value (strictly) above which climate conditions are considered
-            suitable in a binary suitability model. Default is None. If None, a binary
-            suitability model is not computed.
+        rescale : bool or str, optional
+            If True, the suitability values (after applying any summary statistics)
+            are rescaled so that the maximum value is one. Can also be set to "mean"
+            or "median" such that the mean/median suitability table has max value 1.
+            Default is False. Has no effect if suitability_threshold is specified.
 
         Returns
         -------
-        SuitabilityModel or UncertainSuitabilityModel
+        SuitabilityModel
             The summary suitability model.
         """
-        suitability_table_new = self.suitability_table.copy()
-        if stat == "mean":
-            suitability_table_new = suitability_table_new.mean(dim="sample")
-        elif stat == "median":
-            suitability_table_new = suitability_table_new.median(dim="sample")
-        elif stat == "quantile":
-            suitability_table_new = suitability_table_new.quantile(
+        suitability_var_name = self._suitability_var_name
+        da_suitability = self.suitability_table[suitability_var_name]
+        if suitability_threshold is not None:
+            da_suitability = da_suitability > suitability_threshold
+        if da_suitability.dtype == bool and stat in ["median", "quantile"]:
+            binary_suitability = True
+            da_suitability = da_suitability.astype(int)
+        else:
+            binary_suitability = False
+        suitability_stat_dict = {"mean": None, "median": None, "quantile": None}
+        if stat == "mean" or rescale == "mean":
+            suitability_stat_dict["mean"] = da_suitability.mean(dim="sample")
+        if stat == "median" or rescale == "median":
+            suitability_stat_dict["median"] = da_suitability.median(dim="sample")
+        if stat == "quantile":
+            suitability_stat_dict["quantile"] = da_suitability.quantile(
                 q=quantile, dim="sample"
             )
-        elif stat is not None:
-            raise ValueError(
-                f"Invalid stat '{stat}'. Must be 'mean', 'median', or 'quantile'."
-            )
-        if suitability_threshold is not None:
-            suitability_var_name = self._suitability_var_name
-            suitability_table_new = xr.Dataset(
-                {
-                    "suitability": suitability_table_new[suitability_var_name]
-                    > suitability_threshold
-                }
-            )
+        if stat is not None:
+            da_suitability = suitability_stat_dict[stat]
+        if binary_suitability:
+            da_suitability = da_suitability.astype(bool)
+        if rescale:
+            if isinstance(rescale, str):
+                da_suitability = da_suitability / suitability_stat_dict[rescale].max()
+            else:
+                da_suitability = da_suitability / da_suitability.max()
+        suitability_table_new = da_suitability.to_dataset(name=suitability_var_name)
         if (
-            "sample" in suitability_table_new.dims
-            or "quantile" in suitability_table_new.dims
-        ):
-            return UncertainSuitabilityModel(suitability_table=suitability_table_new)
-        if (
-            suitability_threshold is not None
+            da_suitability.dtype == bool
             and len(suitability_table_new.dims) == 1
             and "temperature" in suitability_table_new.dims
         ):
             suitable_temperatures = suitability_table_new.where(
-                suitability_table_new.suitability, drop=True
+                suitability_table_new[suitability_var_name], drop=True
             ).temperature.values
             return SuitabilityModel(
                 temperature_range=[suitable_temperatures[0], suitable_temperatures[-1]]
