@@ -9,10 +9,10 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
 
-from climepi.epimod._model_classes import UncertainSuitabilityModel
+from climepi.epimod._model_classes import SuitabilityModel
 
 
-class ParameterizedSuitabilityModel(UncertainSuitabilityModel):
+class ParameterizedSuitabilityModel(SuitabilityModel):
     """
     Class for parameterized suitability models.
 
@@ -21,7 +21,7 @@ class ParameterizedSuitabilityModel(UncertainSuitabilityModel):
     climate variables. Provides methods for inferring the dependence of parameters on
     temperature from laboratory data.
 
-    Subclass of UncertainSuitabilityModel
+    Subclass of SuitabilityModel
     """
 
     def __init__(
@@ -140,16 +140,12 @@ class ParameterizedSuitabilityModel(UncertainSuitabilityModel):
         num_samples : int, optional
             Number of samples to draw from the posterior distribution of the fitted
             parameters. If None, all samples are used.
-        rescale : bool, optional
-            If True, the suitability values are rescaled so that the maximum value
-            (across temperatures) of the mean suitability curve (over samples) is 1.
-            Default is False.
         """
         parameter_vals = {}
         for parameter_name, parameter_entry in self._parameters.items():
             if isinstance(parameter_entry, dict):
                 idata = parameter_entry["idata"]
-                da_response = _get_posterior_response(
+                da_response = get_posterior_temperature_response(
                     idata=idata,
                     num_samples=num_samples,
                     temperature_vals=temperature_vals,
@@ -162,14 +158,20 @@ class ParameterizedSuitabilityModel(UncertainSuitabilityModel):
             elif isinstance(parameter_entry, numbers.Number):
                 parameter_vals[parameter_name] = parameter_entry
             elif callable(parameter_entry):
-                coords = {
-                    "temperature": xr.DataArray(temperature_vals, name="temperature")
+                ds_coords = xr.Dataset(coords={"temperature": temperature_vals})
+                ds_coords["temperature"].attrs = {
+                    "long_name": "Temperature",
+                    "units": "°C",
                 }
                 if precipitation_vals is not None:
-                    coords["precipitation"] = xr.DataArray(
-                        precipitation_vals, name="precipitation"
+                    ds_coords = ds_coords.assign_coords(
+                        precipitation=("precipitation", precipitation_vals)
                     )
-                parameter_vals[parameter_name] = parameter_entry(**coords)
+                    ds_coords["precipitation"].attrs = {
+                        "long_name": "Precipitation",
+                        "units": "mm/day",
+                    }
+                parameter_vals[parameter_name] = parameter_entry(**ds_coords.coords)
             else:
                 raise ValueError(
                     f"Invalid parameter entry for '{parameter_name}': {parameter_entry}"
@@ -300,7 +302,8 @@ def fit_temperature_response(
             steepness=steepness,
             temperature_min=temperature_min,
             temperature_max=temperature_max,
-            probability=False,  # clipping mean at 1 can cause issues with sampling
+            # probability=False,  # clipping mean at 1 can cause issues with sampling
+            probability=probability,
             array_lib=pt,
         )
         if "noise_std" in priors:
@@ -309,13 +312,19 @@ def fit_temperature_response(
         else:
             noise_precision = priors["noise_precision"]()
             kwargs_normal = {"tau": noise_precision}
-        kwargs_likelihood = {"lower": 0, "observed": trait_data}
-        if probability:
-            kwargs_likelihood["upper"] = 1
-        likelihood = pm.Censored(  # noqa
+        # kwargs_likelihood = {"lower": 0, "observed": trait_data}
+        # if probability:
+        #     kwargs_likelihood["upper"] = 1
+        # likelihood = pm.Censored(  # noqa
+        #     "likelihood",
+        #     pm.Normal.dist(mu=mu, **kwargs_normal),
+        #     **kwargs_likelihood,
+        # )
+        likelihood = pm.Normal(
             "likelihood",
-            pm.Normal.dist(mu=mu, **kwargs_normal),
-            **kwargs_likelihood,
+            mu=mu,
+            observed=trait_data,
+            **kwargs_normal,
         )
         # Sample from the posterior distribution using the DEMetropolisZ algorithm
         # (NUTS not suitable given non-differentiable likelihood?)
@@ -326,6 +335,79 @@ def fit_temperature_response(
         idata = pm.sample(**kwargs_sample)
     idata = idata.sel(draw=slice(None, None, thin))
     return idata
+
+
+def get_posterior_temperature_response(
+    idata,
+    num_samples=None,
+    temperature_vals=None,
+    curve_type=None,
+    probability=None,
+    trait_name=None,
+    trait_attrs=None,
+):
+    """
+    Get the posterior distribution of the fitted temperature response.
+
+    Parameters
+    ----------
+    idata : pymc.backends.base.MultiTrace
+        The posterior distribution of the fitted parameters (as returned by
+        fit_temperature_response()).
+    num_samples : int, optional
+        Number of samples to draw from the posterior distribution. If None, all samples
+        are used.
+    temperature_vals : array-like, optional
+        Vector of temperature values for which the response is to be computed. If not
+        provided, a default range is generated based on the minimum and maximum
+        temperature values in the posterior distribution.
+    curve_type : str
+        The type of curve fitted. Options are 'quadratic' and 'briere'.
+    probability : bool, optional
+        If True, the response is constrained to be between 0 and 1. Default is False.
+    trait_name : str, optional
+        The name of the trait variable. If None, the response variable is named
+        "response".
+    trait_attrs : dict, optional
+        Additional attributes to assign to the trait variable in the returned dataset.
+        If None, no additional attributes are assigned.
+
+    Returns
+    -------
+    xarray.DataArray
+        The posterior distribution of the fitted temperature response, with dimensions
+        "temperature" and "sample".
+    """
+    curve_func = _get_curve_func(curve_type)
+    ds_posterior = az.extract(
+        data=idata,
+        var_names=["steepness", "temperature_min", "temperature_max"],
+        num_samples=num_samples,
+    )
+    ds_posterior = ds_posterior.drop_vars(["chain", "draw"]).assign_coords(
+        sample=np.arange(ds_posterior.sample.size)
+    )
+    if temperature_vals is None:
+        temperature_vals = np.linspace(
+            ds_posterior.temperature_min.min().item(),
+            ds_posterior.temperature_max.max().item(),
+            500,
+        )
+    ds_posterior_expanded = ds_posterior.assign_coords(temperature=temperature_vals)
+    da_posterior_response = curve_func(
+        temperature=ds_posterior_expanded.temperature,
+        steepness=ds_posterior_expanded.steepness,
+        temperature_min=ds_posterior_expanded.temperature_min,
+        temperature_max=ds_posterior_expanded.temperature_max,
+        probability=probability,
+        array_lib=xr,
+    )
+    da_posterior_response.name = trait_name if trait_name is not None else "response"
+    if trait_attrs is not None:
+        da_posterior_response.attrs.update(trait_attrs)
+    da_posterior_response.temperature.attrs["long_name"] = "Temperature"
+    da_posterior_response.temperature.attrs["units"] = "°C"
+    return da_posterior_response
 
 
 def plot_fitted_temperature_response(
@@ -362,7 +444,7 @@ def plot_fitted_temperature_response(
     trait_attrs : dict, optional
         Additional attributes to assign to the trait variable in the plotted dataset.
     """
-    da_posterior_response = _get_posterior_response(
+    da_posterior_response = get_posterior_temperature_response(
         idata=idata,
         temperature_vals=temperature_vals,
         curve_type=curve_type,
@@ -439,44 +521,3 @@ def _get_curve_func(curve_type):
         raise ValueError(
             f"Invalid curve_type: {curve_type}. Must be 'briere' or 'quadratic'."
         )
-
-
-def _get_posterior_response(
-    idata,
-    num_samples=None,
-    temperature_vals=None,
-    curve_type=None,
-    probability=None,
-    trait_name=None,
-    trait_attrs=None,
-):
-    curve_func = _get_curve_func(curve_type)
-    ds_posterior = az.extract(
-        data=idata,
-        var_names=["steepness", "temperature_min", "temperature_max"],
-        num_samples=num_samples,
-    )
-    ds_posterior = ds_posterior.drop_vars(["chain", "draw"]).assign_coords(
-        sample=np.arange(ds_posterior.sample.size)
-    )
-    if temperature_vals is None:
-        temperature_vals = np.linspace(
-            ds_posterior.temperature_min.min().item(),
-            ds_posterior.temperature_max.max().item(),
-            500,
-        )
-    ds_posterior_expanded = ds_posterior.assign_coords(temperature=temperature_vals)
-    da_posterior_response = curve_func(
-        temperature=ds_posterior_expanded.temperature,
-        steepness=ds_posterior_expanded.steepness,
-        temperature_min=ds_posterior_expanded.temperature_min,
-        temperature_max=ds_posterior_expanded.temperature_max,
-        probability=probability,
-        array_lib=xr,
-    )
-    da_posterior_response.name = trait_name if trait_name is not None else "response"
-    if trait_attrs is not None:
-        da_posterior_response.attrs.update(trait_attrs)
-    da_posterior_response.temperature.attrs["long_name"] = "Temperature"
-    da_posterior_response.temperature.attrs["units"] = "°C"
-    return da_posterior_response
