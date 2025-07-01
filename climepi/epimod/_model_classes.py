@@ -241,27 +241,81 @@ class SuitabilityModel(EpiModel):
         )
         return da_suitability
 
+    # def _run_main_temp_table(self, ds_clim):
+    #     # Run the main logic of a suitability model defined by a temperature suitability
+    #     # table.
+    #     temperature = ds_clim["temperature"]
+    #     suitability_table = self.suitability_table
+    #     table_temp_vals = suitability_table["temperature"].values
+    #     suitability_var_name = self._suitability_var_name
+    #     table_suitability_vals = (
+    #         suitability_table[suitability_var_name].transpose("temperature", ...).values
+    #     )
+
+    #     def suitability_func(temperature_curr):
+    #         suitability_curr = np.interp(
+    #             temperature_curr,
+    #             table_temp_vals,
+    #             table_suitability_vals,
+    #         )
+    #         return suitability_curr
+
+    #     da_suitability = xr.apply_ufunc(
+    #         suitability_func, temperature, dask="parallelized"
+    #     )
+    #     da_suitability.attrs = suitability_table[suitability_var_name].attrs
+    #     return da_suitability
+
     def _run_main_temp_table(self, ds_clim):
         # Run the main logic of a suitability model defined by a temperature suitability
         # table.
         temperature = ds_clim["temperature"]
-        suitability_table = self.suitability_table
-        table_temp_vals = suitability_table["temperature"].values
         suitability_var_name = self._suitability_var_name
-        table_suitability_vals = suitability_table[suitability_var_name].values
-
-        def suitability_func(temperature_curr):
-            suitability_curr = np.interp(
-                temperature_curr,
-                table_temp_vals,
-                table_suitability_vals,
+        da_suitability_table = self.suitability_table[suitability_var_name].transpose(
+            "temperature", ...
+        )
+        table_suitability_vals = da_suitability_table.values
+        table_temp_vals = da_suitability_table["temperature"].values
+        table_temp_deltas = np.diff(table_temp_vals)
+        if not np.all(
+            np.isclose(table_temp_deltas, table_temp_deltas[0], rtol=1e-3, atol=0)
+        ):
+            raise ValueError(
+                "The suitability table must be defined on a regular grid of "
+                "temperature values.",
             )
+
+        table_temp_delta = table_temp_deltas[0]
+
+        temp_inds = (temperature - table_temp_vals[0]) / table_temp_delta
+        temp_inds = temp_inds.round(0).astype(int).clip(0, len(table_temp_vals) - 1)
+
+        def suitability_func(temp_inds_curr):
+            suitability_curr = table_suitability_vals[temp_inds_curr, ...]
             return suitability_curr
 
+        output_core_dims = [list(da_suitability_table.dims)[1:]]
+        output_sizes = {
+            dim: size
+            for dim, size in da_suitability_table.sizes.items()
+            if dim != "temperature"
+        }
+
         da_suitability = xr.apply_ufunc(
-            suitability_func, temperature, dask="parallelized"
+            suitability_func,
+            temp_inds,
+            dask="parallelized",
+            output_core_dims=output_core_dims,
+            dask_gufunc_kwargs={
+                "output_sizes": output_sizes,
+            },
         )
-        da_suitability.attrs = suitability_table[suitability_var_name].attrs
+
+        if output_sizes != {}:
+            da_suitability = da_suitability.assign_coords(
+                {dim: da_suitability_table[dim] for dim in output_sizes.keys()}
+            )
+
         return da_suitability
 
     def _run_main_temp_precip_table(self, ds_clim):
@@ -269,16 +323,14 @@ class SuitabilityModel(EpiModel):
         # precipitation suitability table.
         temperature = ds_clim["temperature"]
         precipitation = ds_clim["precipitation"]
-        suitability_table = self.suitability_table
         suitability_var_name = self._suitability_var_name
-        table_values = (
-            suitability_table[suitability_var_name]
-            .transpose("temperature", "precipitation")
-            .values
+        da_suitability_table = self.suitability_table[suitability_var_name].transpose(
+            "temperature", "precipitation", ...
         )
-        table_temp_vals = suitability_table["temperature"].values
+        table_suitability_vals = da_suitability_table.values
+        table_temp_vals = da_suitability_table["temperature"].values
         table_temp_deltas = np.diff(table_temp_vals)
-        table_precip_vals = suitability_table["precipitation"].values
+        table_precip_vals = da_suitability_table["precipitation"].values
         table_precip_deltas = np.diff(table_precip_vals)
         if not np.all(
             np.isclose(table_temp_deltas, table_temp_deltas[0], rtol=1e-3, atol=0)
@@ -300,12 +352,34 @@ class SuitabilityModel(EpiModel):
         )
 
         def suitability_func(temp_inds_curr, precip_inds_curr):
-            suitability_curr = table_values[temp_inds_curr, precip_inds_curr]
+            suitability_curr = table_suitability_vals[
+                temp_inds_curr, precip_inds_curr, ...
+            ]
             return suitability_curr
 
+        output_core_dims = [list(da_suitability_table.dims)[2:]]
+        output_sizes = {
+            dim: size
+            for dim, size in da_suitability_table.sizes.items()
+            if dim not in ["temperature", "precipitation"]
+        }
+
         da_suitability = xr.apply_ufunc(
-            suitability_func, temp_inds, precip_inds, dask="parallelized"
+            suitability_func,
+            temp_inds,
+            precip_inds,
+            dask="parallelized",
+            output_core_dims=output_core_dims,
+            dask_gufunc_kwargs={
+                "output_sizes": output_sizes,
+            },
         )
+
+        if output_sizes != {}:
+            da_suitability = da_suitability.assign_coords(
+                {dim: da_suitability_table[dim] for dim in output_sizes.keys()}
+            )
+
         return da_suitability
 
     def reduce(
@@ -320,8 +394,8 @@ class SuitabilityModel(EpiModel):
 
         Applies a summary statistic over the equally likely suitability tables and/or
         calculates a binary suitability model based on a threshold value. If both a
-        suitability threshold and a summary statistic are provided, the summary
-        suitability threshold is applied, and then the statistic.
+        suitability threshold and a summary statistic are provided, the suitability
+        threshold is applied first, and then the statistic.
 
         Parameters
         ----------
@@ -362,7 +436,7 @@ class SuitabilityModel(EpiModel):
         if stat == "quantile":
             suitability_stat_dict["quantile"] = da_suitability.quantile(
                 q=quantile, dim="sample"
-            )
+            ).rename({"quantile": "suitability_quantile"})
         if stat is not None:
             da_suitability = suitability_stat_dict[stat]
         if binary_suitability:
