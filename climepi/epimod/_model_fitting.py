@@ -1,10 +1,12 @@
 import copy
 import numbers
+import pathlib
 
 import arviz as az
 import holoviews
 import hvplot.xarray  # noqa
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
@@ -21,7 +23,56 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
     climate variables. Provides methods for inferring the dependence of parameters on
     temperature from laboratory data.
 
-    Subclass of SuitabilityModel
+    Subclass of SuitabilityModel.
+
+    Parameters
+    ----------
+    parameters : dict, optional
+        Dictionary of model parameters. Each key is a parameter name, and the value
+        is either a number (constant parameter), a callable (function which takes
+        keyword arguments `temperature` and, if the model is dependent on
+        precipitation, `precipitation`, which should be able to handle xarray DataArrays
+        as inputs), or, for temperature-dependent parameters that
+        are to be fitted, a dictionary with the following keys:
+            curve_type : str
+                The type of curve to fit. Options are 'quadratic' (response =
+                a*(T-T_min)*(T-T_max) for T_min < T < T_max, where T is temperature, and
+                zero otherwise) and 'briere' (response = a*T*(T-T_min)*sqrt(T_max-T) for
+                T_min < T < T_max, where T is temperature, and zero otherwise). In both
+                cases, a is the steepness parameter, T_min is the minimum temperature,
+                and T_max is the maximum temperature, and normally distributed noise is
+                assumed on the response.
+            probability : bool, optional
+                If True, the fitted curve is constrained to be between 0 and 1. Default
+                is False.
+            priors : dict, optional
+                Dictionary of priors for the parameters of the model. The keys should be
+                the parameter names ('steepness', 'temperature_min', 'temperature_max',
+                and either 'noise_std' or 'noise_precision' - see description for
+                'curve_type' above) and the values should callable functions that return
+                pymc distributions. Where not specified, default priors are used based
+                on the curve type (as used by Mordecai et al., PLoS Negl Trop Dis 2017).
+            attrs : dict, optional
+                Additional attributes to assign to the trait variable in the posterior
+                response DataArray (in particular, the 'long_name' and 'units'
+                attributes are used by hvplot to automatically label axes in the
+                plot_fitted_temperature_responses() method).
+        Additionally, the following can either be provided as part of the parameter
+        dictionary, or will be automatically extracted from the `data` argument if
+        provided:
+            temperature_data: array-like
+                Vector of temperature values for which response data are available.
+            trait_data: array-like
+                Vector of trait values corresponding to the temperature data.
+        data : pandas.DataFrame, optional
+            A DataFrame containing the temperature and trait data for the parameters to
+            be fitted. The DataFrame should have columns "trait_name", "temperature",
+            and "trait_value".
+    suitability_function : callable
+        A callable that takes the model parameters as keyword arguments and returns a
+        suitability metric (e.g., the basic reproduction number). The callable should
+        be able to handle xarray DataArrays as inputs.
+
     """
 
     def __init__(
@@ -81,9 +132,12 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         """
         Plot the fitted temperature responses.
 
+        Note that this method requires that the model has been fitted to data
+        using fit_temperature_responses() before it can be called.
+
         Parameters
         ----------
-        parameters : str or list of str, optional
+        parameter_names : str or list of str, optional
             The name of the parameter(s) to plot. If None, all fitted parameters
             will be plotted.
         temperature_vals : array-like, optional
@@ -91,7 +145,14 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             If not provided, a default range is generated on a per-parameter basis
             based on the minimum and maximum temperature values in the posterior
             distribution.
+
+        Returns
+        -------
+        holoviews.Layout
+            A holoviews Layout object containing the plots of the fitted temperature
+            responses for the specified parameters.
         """
+        self._check_fitting()
         if parameter_names is None:
             parameter_names = [
                 parameter_name
@@ -129,22 +190,32 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         """
         Construct a suitability table based on the fitted parameters.
 
+        Note that this method requires that the model has been fitted to data
+        using fit_temperature_responses() before it can be called.
+
         Parameters
         ----------
         temperature_vals : array-like
             Vector of temperature values for which the suitability is to be computed.
             Must be provided.
-        precipitation_vals : array-like, optional
+        precipitation_vals : array-like
             Vector of precipitation values for which the suitability is to be computed.
-            Only needed if the suitability function depends on precipitation.
+            Only needed for models that depend on precipitation.
         num_samples : int, optional
             Number of samples to draw from the posterior distribution of the fitted
             parameters. If None, all samples are used.
         """
+        self._check_fitting()
         parameter_vals = {}
         for parameter_name, parameter_entry in self._parameters.items():
             if isinstance(parameter_entry, dict):
-                idata = parameter_entry["idata"]
+                try:
+                    idata = parameter_entry.get("idata")
+                except KeyError as e:
+                    raise ValueError(
+                        f"Parameter '{parameter_name}' does not have fitted data. "
+                        "Please fit the model using fit_temperature_responses() first."
+                    ) from e
                 da_response = get_posterior_temperature_response(
                     idata=idata,
                     num_samples=num_samples,
@@ -194,7 +265,8 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
         See the documentation for SuitabilityModel.run() for details.
         """
-        self._check_fitting_suitability_table()
+        self._check_fitting()
+        self._check_suitability_table()
         return super().run(*args, **kwargs)
 
     def plot_suitability_region(self, **kwargs):
@@ -204,7 +276,8 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         See the documentation for SuitabilityModel.plot_suitability_region() for
         details.
         """
-        self._check_fitting_suitability_table()
+        self._check_fitting()
+        self._check_suitability_table()
         return super().plot_suitability_region(**kwargs)
 
     def get_max_suitability(self):
@@ -214,7 +287,8 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         See the documentation for SuitabilityModel.get_max_suitability() for
         details.
         """
-        self._check_fitting_suitability_table()
+        self._check_fitting()
+        self._check_suitability_table()
         return super().get_max_suitability()
 
     def _extract_data(self, data):
@@ -228,7 +302,18 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             parameter_dict["trait_data"] = data_subset["trait_value"].values
         self._parameters = parameters
 
-    def _check_fitting_suitability_table(self):
+    def _check_fitting(self):
+        # Checks if the model has been fitted to data.
+        if any(
+            (isinstance(parameter_entry, dict)) and ("idata" not in parameter_entry)
+            for parameter_entry in self._parameters.values()
+        ):
+            raise ValueError(
+                "Need to fit the model with fit_temperature_responses() before running "
+                "this method."
+            )
+
+    def _check_suitability_table(self):
         # Checks if the suitability table has been constructed.
         if self.suitability_table is None:
             raise ValueError(
@@ -258,13 +343,23 @@ def fit_temperature_response(
     trait_data : array-like
         Vector of values of the trait variable for the corresponding temperature values.
     curve_type : str
-        The type of curve to fit. Options are 'quadratic' and 'briere'.
+        The type of curve to fit. Options are 'quadratic' (response =
+        a*(T-T_min)*(T-T_max) for T_min < T < T_max, where T is temperature, and zero
+        otherwise) and 'briere' (response = a*T*(T-T_min)*sqrt(T_max-T) for
+        T_min < T < T_max, where T is temperature, and zero otherwise). In both cases,
+        a is the steepness parameter, T_min is the minimum temperature, and T_max is
+        the maximum temperature, and normally distributed noise is assumed on the
+        response.
     probability : bool, optional
-        If True, the response is constrained to be between 0 and 1. Default is False.
+        If True, the fitted curve is constrained to be between 0 and 1. Default is
+        False.
     priors : dict, optional
         Dictionary of priors for the parameters of the model. The keys should be the
-        parameter names and the values should callable functions that return pymc
-        distributions. If None, default priors are used based on the curve type.
+        parameter names ('steepness', 'temperature_min', 'temperature_max', and either
+        'noise_std' or 'noise_precision' - see description for 'curve_type' above) and
+        the values should callable functions that return pymc distributions. Where not
+        specified, default priors are used based on the curve type (as used by Mordecai
+        et al., PLoS Negl Trop Dis 2017).
     step : callable, optional
         A callable that returns a pymc step method for sampling. If None, the default
         step method (DEMetropolisZ) is used.
@@ -469,6 +564,35 @@ def plot_fitted_temperature_response(
             {"trait": ("temperature", trait_data)},
             coords={"temperature": temperature_data},
         ).hvplot.scatter()
+    )
+
+
+def get_mordecai_ae_aegypti_data():
+    """
+    Get Aedes aegypti temperature response data from Mordecai et al. (2017).
+
+    Returns the temperature response data used to fit the Aedes aegypti model in
+    Mordecai et al., PLoS Negl Trop Dis 2017
+    (https://doi.org/10.1371/journal.pntd.0005568).
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    pandas.DataFrame
+        The temperature response data for Aedes aegypti. The DataFrame has columns
+        'trait_name' (for the trait variable, with values 'eggs_per_female_per_day',
+        'egg_to_adult_development_rate', 'egg_to_adult_survival_probability',
+        'adult_lifespan', 'biting_rate', 'mosquito_to_human_transmission_probability',
+        'human_to_mosquito_transmission_probability', and 'extrinsic_incubation_rate'),
+        'temperature' (for the temperature values), 'trait_value' (for the
+        corresponding trait values), and 'reference' (giving original source information
+        for the data).
+    """
+    return pd.read_csv(
+        pathlib.Path(__file__).parent / "_example_data/mordecai_ae_aegypti_data.csv"
     )
 
 

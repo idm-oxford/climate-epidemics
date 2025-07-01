@@ -81,7 +81,7 @@ include = ["climepi*"]
 
 [tool.setuptools.package-data]
 "climepi.climdata._example_registry_files" = ["*.txt"]
-"climepi.epimod._example_data" = ["*.nc"]
+"climepi.epimod._example_data" = ["*.nc", "*.csv"]
 
 [tool.versioneer]
 VCS = "git"
