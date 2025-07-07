@@ -71,18 +71,15 @@ class SuitabilityModel(EpiModel):
         values or temperature/precipitation combinations. The dataset should have a
         single data variable (with any desired name) with dimension(s) "temperature"
         and, optionally, "precipitation". Temperatures should be in degrees Celsius and
-        precipitation values in mm/day. If suitability only depends on temperature,
-        linear interpolation is used to calculate suitability values away from grid
-        points. If suitability only depends on both tempperature and precipitation,
-        equi-spaced temperature and precipitation values should be provided (this is not
-        required if suitability only depends on temperature), and nearest neighbour
-        interpolation is used to calculate suitability values away from grid points
-        (this is for performance reasons). Suitability values can be either binary (0
-        or 1) or continuous. Suitability is assumed to take the nearest endpoint value
-        for temperature and/or precipitation values outside the provided range(s).
-        May also have an additional dimension named "sample" indexing equally likely
-        possible suitability tables, or a dimension "quantile" indexing quantiles of the
-        suitability values. Default is None. Only one of `temperature_range` and
+        precipitation values in mm/day. Equi-spaced temperature and (where applicable)
+        precipitation values should be provided, and nearest neighbour interpolation is
+        used to calculate suitability values away from grid points (this is for
+        performance reasons). Suitability values can be either binary (0 or 1) or
+        continuous. Suitability is assumed to take the nearest endpoint value for
+        temperature and/or precipitation values outside the provided range(s). May also
+        have an additional dimension named "sample" indexing equally likely possible
+        suitability tables, or a dimension "suitability_quantile" indexing quantiles of
+        the suitability values. Default is None. Only one of `temperature_range` and
         `suitability_table` should be provided.
     """
 
