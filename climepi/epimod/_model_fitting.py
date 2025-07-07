@@ -259,6 +259,71 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         self.suitability_table = suitability_table
         return suitability_table.copy()
 
+    def get_posterior_min_peak_max_temperature(self, suitability_threshold=0):
+        """
+        Get posterior distributions of minimum, peak, and maximum temperatures.
+
+        Calculates the posterior distributions of the minimum/maximum temperatures that
+        are considered suitable, as well as the temperature at which the suitability is
+        at its peak.
+
+        Note that this method requires that the model has been fitted to data using
+        fit_temperature_responses() and that a suitability table has been constructed
+        using construct_suitability_table() before it can be called. Note also that
+        this method will only work if suitability is a function of temperature only.
+
+        Parameters
+        ----------
+        suitability_threshold : float, optional
+            The threshold above which to consider the temperature values suitable.
+            Default is 0.
+
+        Returns
+        -------
+        xarray.Dataset
+            A dataset containing the posterior distributions of the minimum,
+            peak, and maximum temperature values.
+        """
+        self._check_fitting()
+        self._check_suitability_table()
+        da_suitability_table = self.suitability_table[self._suitability_var_name]
+        da_temperature = da_suitability_table.temperature
+        if "precipitation" in da_suitability_table.dims:
+            raise ValueError(
+                "This method only works for models that depend on temperature only."
+            )
+        da_posterior_peak = (
+            da_temperature.isel(
+                temperature=da_suitability_table.argmax(dim="temperature")
+            )
+            .reset_coords(drop=True)
+            .assign_attrs(long_name="Temperature of peak suitability", units="°C")
+        )
+        da_suitable = da_suitability_table > suitability_threshold
+        da_posterior_min = (
+            da_temperature.isel(temperature=da_suitable.argmax(dim="temperature"))
+            .reset_coords(drop=True)
+            .assign_attrs(long_name="Minimum suitable temperature", units="°C")
+        )
+        da_posterior_max = (
+            da_temperature.isel(temperature=slice(None, None, -1))
+            .isel(
+                temperature=da_suitable.isel(temperature=slice(None, None, -1)).argmax(
+                    dim="temperature"
+                )
+            )
+            .reset_coords(drop=True)
+            .assign_attrs(long_name="Maximum suitable temperature", units="°C")
+        )
+        ds_posterior_min_peak_max = xr.Dataset(
+            {
+                "temperature_min": da_posterior_min,
+                "temperature_peak": da_posterior_peak,
+                "temperature_max": da_posterior_max,
+            }
+        )
+        return ds_posterior_min_peak_max
+
     def run(self, *args, **kwargs):
         """
         Run the epidemiological model on a given climate dataset.
