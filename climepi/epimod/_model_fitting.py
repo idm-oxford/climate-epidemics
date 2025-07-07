@@ -37,7 +37,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                 a*(T-T_min)*(T-T_max) for T_min < T < T_max, where T is temperature, and
                 zero otherwise) and 'briere' (response = a*T*(T-T_min)*sqrt(T_max-T) for
                 T_min < T < T_max, where T is temperature, and zero otherwise). In both
-                cases, a is the steepness parameter, T_min is the minimum temperature,
+                cases, a is the scale parameter, T_min is the minimum temperature,
                 and T_max is the maximum temperature, and normally distributed noise is
                 assumed on the response.
             probability : bool, optional
@@ -45,7 +45,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                 is False.
             priors : dict, optional
                 Dictionary of priors for the parameters of the model. The keys should be
-                the parameter names ('steepness', 'temperature_min', 'temperature_max',
+                the parameter names ('scale', 'temperature_min', 'temperature_max',
                 and either 'noise_std' or 'noise_precision' - see description for
                 'curve_type' above) and the values should callable functions that return
                 pymc distributions. Where not specified, default priors are used based
@@ -410,7 +410,7 @@ def fit_temperature_response(
         a*(T-T_min)*(T-T_max) for T_min < T < T_max, where T is temperature, and zero
         otherwise) and 'briere' (response = a*T*(T-T_min)*sqrt(T_max-T) for
         T_min < T < T_max, where T is temperature, and zero otherwise). In both cases,
-        a is the steepness parameter, T_min is the minimum temperature, and T_max is
+        a is the scale parameter, T_min is the minimum temperature, and T_max is
         the maximum temperature, and normally distributed noise is assumed on the
         response.
     probability : bool, optional
@@ -418,7 +418,7 @@ def fit_temperature_response(
         False.
     priors : dict, optional
         Dictionary of priors for the parameters of the model. The keys should be the
-        parameter names ('steepness', 'temperature_min', 'temperature_max', and either
+        parameter names ('scale', 'temperature_min', 'temperature_max', and either
         'noise_std' or 'noise_precision' - see description for 'curve_type' above) and
         the values should callable functions that return pymc distributions. Where not
         specified, default priors are used based on the curve type (as used by Mordecai
@@ -439,9 +439,9 @@ def fit_temperature_response(
     curve_func = _get_curve_func(curve_type)
     priors = priors or {}
     priors = {
-        "steepness": (lambda: pm.Gamma("steepness", alpha=1, beta=1))
+        "scale": (lambda: pm.Gamma("scale", alpha=1, beta=1))
         if curve_type == "quadratic"
-        else (lambda: pm.Gamma("steepness", alpha=1, beta=10))
+        else (lambda: pm.Gamma("scale", alpha=1, beta=10))
         if curve_type == "briere"
         else (lambda: None),
         "temperature_min": lambda: pm.Uniform("temperature_min", lower=0, upper=24),
@@ -451,13 +451,15 @@ def fit_temperature_response(
         ),
         **priors,
     }
+    # temperature_min_obs = np.min(temperature_data[trait_data > 0])
+    # temperature_max_obs = np.max(temperature_data[trait_data > 0])
     with pm.Model():
-        steepness = priors["steepness"]()
+        scale = priors["scale"]()
         temperature_min = priors["temperature_min"]()
         temperature_max = priors["temperature_max"]()
         mu = curve_func(
             temperature_data,
-            steepness=steepness,
+            scale=scale,
             temperature_min=temperature_min,
             temperature_max=temperature_max,
             # probability=False,  # clipping mean at 1 can cause issues with sampling
@@ -470,15 +472,22 @@ def fit_temperature_response(
         else:
             noise_precision = priors["noise_precision"]()
             kwargs_normal = {"tau": noise_precision}
+        # constraint = pm.math.and_(
+        #     pm.math.ge(temperature_min_obs, temperature_min),
+        #     pm.math.le(temperature_max_obs, temperature_max),
+        # )
+        # pm.Potential(
+        #     "temp_bounds_constraint", pm.math.log(pm.math.switch(constraint, 1, 0))
+        # )
         # kwargs_likelihood = {"lower": 0, "observed": trait_data}
-        # if probability:
-        #     kwargs_likelihood["upper"] = 1
-        # likelihood = pm.Censored(  # noqa
+        # # if probability:
+        # #     kwargs_likelihood["upper"] = 1
+        # likelihood = pm.Truncated(  # noqa
         #     "likelihood",
         #     pm.Normal.dist(mu=mu, **kwargs_normal),
         #     **kwargs_likelihood,
         # )
-        likelihood = pm.Normal(
+        likelihood = pm.Normal(  # noqa
             "likelihood",
             mu=mu,
             observed=trait_data,
@@ -488,6 +497,10 @@ def fit_temperature_response(
         # (NUTS not suitable given non-differentiable likelihood?)
         kwargs_sample = {
             "step": pm.DEMetropolisZ() if step is None else step(),
+            # "initvals": {
+            #     "temperature_min": temperature_min_obs - 1,
+            #     "temperature_max": temperature_max_obs + 1,
+            # },
             **kwargs_sample,
         }
         idata = pm.sample(**kwargs_sample)
@@ -539,7 +552,7 @@ def get_posterior_temperature_response(
     curve_func = _get_curve_func(curve_type)
     ds_posterior = az.extract(
         data=idata,
-        var_names=["steepness", "temperature_min", "temperature_max"],
+        var_names=["scale", "temperature_min", "temperature_max"],
         num_samples=num_samples,
     )
     ds_posterior = ds_posterior.drop_vars(["chain", "draw"]).assign_coords(
@@ -554,7 +567,7 @@ def get_posterior_temperature_response(
     ds_posterior_expanded = ds_posterior.assign_coords(temperature=temperature_vals)
     da_posterior_response = curve_func(
         temperature=ds_posterior_expanded.temperature,
-        steepness=ds_posterior_expanded.steepness,
+        scale=ds_posterior_expanded.scale,
         temperature_min=ds_posterior_expanded.temperature_min,
         temperature_max=ds_posterior_expanded.temperature_max,
         probability=probability,
@@ -632,15 +645,13 @@ def plot_fitted_temperature_response(
 
 def _bounded_quadratic(
     temperature,
-    steepness=None,
+    scale=None,
     temperature_min=None,
     temperature_max=None,
     probability=None,
     array_lib=np,
 ):
-    response = (
-        steepness * (temperature - temperature_min) * (temperature_max - temperature)
-    )
+    response = scale * (temperature - temperature_min) * (temperature_max - temperature)
     response = array_lib.where(temperature >= temperature_min, response, 0)
     response = array_lib.where(temperature <= temperature_max, response, 0)
     if probability:
@@ -650,14 +661,14 @@ def _bounded_quadratic(
 
 def _briere(
     temperature,
-    steepness=None,
+    scale=None,
     temperature_min=None,
     temperature_max=None,
     probability=None,
     array_lib=np,
 ):
     response = (
-        steepness
+        scale
         * temperature
         * (temperature - temperature_min)
         * np.abs(temperature_max - temperature) ** 0.5
