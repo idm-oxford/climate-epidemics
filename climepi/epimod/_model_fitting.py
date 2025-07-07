@@ -1,12 +1,10 @@
 import copy
 import numbers
-import pathlib
 
 import arviz as az
 import holoviews
 import hvplot.xarray  # noqa
 import numpy as np
-import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
@@ -629,35 +627,6 @@ def plot_fitted_temperature_response(
             {"trait": ("temperature", trait_data)},
             coords={"temperature": temperature_data},
         ).hvplot.scatter()
-    )
-
-
-def get_mordecai_ae_aegypti_data():
-    """
-    Get Aedes aegypti temperature response data from Mordecai et al. (2017).
-
-    Returns the temperature response data used to fit the Aedes aegypti model in
-    Mordecai et al., PLoS Negl Trop Dis 2017
-    (https://doi.org/10.1371/journal.pntd.0005568).
-
-    Parameters
-    ----------
-    None
-
-    Returns
-    -------
-    pandas.DataFrame
-        The temperature response data for Aedes aegypti. The DataFrame has columns
-        'trait_name' (for the trait variable, with values 'eggs_per_female_per_day',
-        'egg_to_adult_development_rate', 'egg_to_adult_survival_probability',
-        'adult_lifespan', 'biting_rate', 'mosquito_to_human_transmission_probability',
-        'human_to_mosquito_transmission_probability', and 'extrinsic_incubation_rate'),
-        'temperature' (for the temperature values), 'trait_value' (for the
-        corresponding trait values), and 'reference' (giving original source information
-        for the data).
-    """
-    return pd.read_csv(
-        pathlib.Path(__file__).parent / "_example_data/mordecai_ae_aegypti_data.csv"
     )
 
 
