@@ -238,31 +238,6 @@ class SuitabilityModel(EpiModel):
         )
         return da_suitability
 
-    # def _run_main_temp_table(self, ds_clim):
-    #     # Run the main logic of a suitability model defined by a temperature suitability
-    #     # table.
-    #     temperature = ds_clim["temperature"]
-    #     suitability_table = self.suitability_table
-    #     table_temp_vals = suitability_table["temperature"].values
-    #     suitability_var_name = self._suitability_var_name
-    #     table_suitability_vals = (
-    #         suitability_table[suitability_var_name].transpose("temperature", ...).values
-    #     )
-
-    #     def suitability_func(temperature_curr):
-    #         suitability_curr = np.interp(
-    #             temperature_curr,
-    #             table_temp_vals,
-    #             table_suitability_vals,
-    #         )
-    #         return suitability_curr
-
-    #     da_suitability = xr.apply_ufunc(
-    #         suitability_func, temperature, dask="parallelized"
-    #     )
-    #     da_suitability.attrs = suitability_table[suitability_var_name].attrs
-    #     return da_suitability
-
     def _run_main_temp_table(self, ds_clim):
         # Run the main logic of a suitability model defined by a temperature suitability
         # table.
