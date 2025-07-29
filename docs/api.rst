@@ -36,7 +36,6 @@ Methods
    :template: autosummary/accessor_method.rst
 
    Dataset.climepi.ensemble_stats
-   Dataset.climepi.estimate_ensemble_stats
    Dataset.climepi.monthly_average
    Dataset.climepi.plot_map
    Dataset.climepi.plot_time_series

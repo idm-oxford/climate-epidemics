@@ -12,7 +12,6 @@ import xarray as xr
 # error occurs, and to use a different temporary file name each time to avoid
 # potential conflicts if multiple instances of the code are run simultaneously.
 CACHE_DIR = pooch.os_cache("climepi")
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ClimateDataGetter:

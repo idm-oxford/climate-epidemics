@@ -43,6 +43,7 @@ pooch = "*"
 pymc = "*"
 requests = "*"
 s3fs = "*"                       # needed when using intake-esm to access CESM data on AWS server
+scipy = "*"
 urllib3 = "*"
 xarray = "!=2025.7.0,!=2025.7.1" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"

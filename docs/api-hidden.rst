@@ -2,7 +2,6 @@
    :toctree: generated/
 
    climepi.ClimEpiDatasetAccessor.ensemble_stats
-   climepi.ClimEpiDatasetAccessor.estimate_ensemble_stats
    climepi.ClimEpiDatasetAccessor.monthly_average
    climepi.ClimEpiDatasetAccessor.plot_map
    climepi.ClimEpiDatasetAccessor.plot_time_series
