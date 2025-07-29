@@ -115,9 +115,9 @@ class TestSuitabilityModel:
             "units": "there",
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
-        ds_clim = xr.Dataset({"temperature": ("kenobi", [-0.5, 1, 0.5, 1.75, 2.5])})
+        ds_clim = xr.Dataset({"temperature": ("kenobi", [-0.5, 1, 0.51, 1.75, 2.5])})
         ds_suitability = model.run(ds_clim)
-        suitability_values_expected = [0, 0.5, 0.25, 0.875, 1]  # linear interpolation
+        suitability_values_expected = [0, 0.5, 0.5, 1, 1]  # nearest neighbour interp
         npt.assert_equal(
             ds_suitability["hello"].values,
             suitability_values_expected,
