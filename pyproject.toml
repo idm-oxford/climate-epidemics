@@ -34,7 +34,7 @@ h5netcdf = ">=1.6.1,<2"
 hvplot = "*"
 intake = "*"
 intake-esm = "*"
-kerchunk = "*"
+kerchunk = "<0.2.8" # https://github.com/fsspec/kerchunk/issues/566
 nc-time-axis = "*"
 numpy = "*"
 pandas = "*"
@@ -47,8 +47,9 @@ scipy = "*"
 siphon = "*"
 tqdm = "*"
 urllib3 = "*"
-xarray = "!=2024.10.0" #bug in polyfit/polyval https://github.com/pydata/xarray/issues/9690
+xarray = "<2025.7.0"
 xcdat = "*"
+zarr = "<3" # https://github.com/fsspec/kerchunk/issues/566
 
 [tool.pixi.pypi-dependencies]
 climepi = { path = ".", editable = true }
