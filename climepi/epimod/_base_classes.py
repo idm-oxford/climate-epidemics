@@ -347,7 +347,7 @@ class SuitabilityModel(EpiModel):
             },
         )
 
-        if output_sizes != {}:
+        if output_sizes:
             da_suitability = da_suitability.assign_coords(
                 {dim: da_suitability_table[dim] for dim in output_sizes.keys()}
             )
