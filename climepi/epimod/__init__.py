@@ -6,7 +6,7 @@ from climepi.epimod._examples import (  # noqa
     get_example_model,
     get_example_temperature_response_data,
 )
-from climepi.epimod._model_classes import (  # noqa
+from climepi.epimod._base_classes import (  # noqa
     EpiModel,
     SuitabilityModel,
 )

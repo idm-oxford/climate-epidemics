@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from climepi.epimod._model_classes import SuitabilityModel
+from climepi.epimod._base_classes import SuitabilityModel
 
 EXAMPLES = {
     "mordecai_ae_aegypti_niche": {

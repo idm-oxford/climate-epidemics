@@ -9,7 +9,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
 
-from climepi.epimod._model_classes import SuitabilityModel
+from climepi.epimod._base_classes import SuitabilityModel
 
 
 class ParameterizedSuitabilityModel(SuitabilityModel):
