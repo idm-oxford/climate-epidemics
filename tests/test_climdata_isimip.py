@@ -76,6 +76,10 @@ def test_find_remote_data(mock_session):
         elif mock_session.return_value.get.call_args[0][0] == "fake_url":
             model = "ukesm1-0-ll"
             next_ = None
+        else:
+            raise ValueError(
+                f"Unexpected URL {mock_session.return_value.get.call_args[0][0]}."
+            )
         response = {
             "results": [
                 {
