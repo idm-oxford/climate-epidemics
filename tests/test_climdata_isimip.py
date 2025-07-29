@@ -290,7 +290,7 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_create, data_subse
             "/", maxsplit=1
         )[-1]
         namelist = [
-            f"{zip_file_name.split(".")[0]}_file_{x}.nc" for x in [1, 2, 3, 4]
+            f"{zip_file_name.split('.')[0]}_file_{x}.nc" for x in [1, 2, 3, 4]
         ] + ["not_a_nc_file.txt"]
         return namelist
 
