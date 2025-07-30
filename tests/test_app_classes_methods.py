@@ -983,18 +983,18 @@ class TestController:
         )
         # Create a panel object as would be done in the app
         view_panel = pn.panel(controller.epi_model_plot_view)
-        hvt.assertEqual(view_panel._pane[0].object, model1.plot_suitability_region())
+        hvt.assertEqual(view_panel._pane[0].object, model1.plot_suitability())
         # Updating epi_model_name should update the view panel by triggering
         # _get_epi_model
         controller.epi_example_name = "model2"
-        hvt.assertEqual(view_panel._pane[0].object, model2.plot_suitability_region())
-        # Check case where epi_model.plot_suitability_region raises an error
+        hvt.assertEqual(view_panel._pane[0].object, model2.plot_suitability())
+        # Check case where epi_model.plot_suitability raises an error
         controller.epi_output_choice = "Suitability values"
         controller.epi_example_name = "model3"
         assert (
             view_panel._pane[0].object
             == "Error generating plot: 'str' object has no attribute "
-            "'plot_suitability_region'"
+            "'plot_suitability'"
         )
 
     def test_epi_plot_controls(self):

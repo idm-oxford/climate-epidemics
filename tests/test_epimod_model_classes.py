@@ -169,10 +169,10 @@ class TestSuitabilityModel:
         with pytest.raises(ValueError):
             model1.run(ds_clim)
 
-    def test_plot_suitability_region_range(self):
-        """Test the plot_suitability_region method with a temperature range."""
+    def test_plot_suitability_range(self):
+        """Test the plot_suitability method with a temperature range."""
         model = epimod.SuitabilityModel(temperature_range=[0, 1])
-        result = model.plot_suitability_region(color="red")
+        result = model.plot_suitability(color="red")
         assert isinstance(result, hv.Curve)
         assert result.kdims[0].pprint_label == "Temperature (°C)"
         assert result.vdims[0].pprint_label == "Suitability"
@@ -181,8 +181,8 @@ class TestSuitabilityModel:
             (result.data.index.values >= 0) & (result.data.index.values <= 1),
         )
 
-    def test_plot_suitability_region_temp_table(self):
-        """Test plot_suitability_region with a temp-dependent suitability table."""
+    def test_plot_suitability_temp_table(self):
+        """Test plot_suitability with a temp-dependent suitability table."""
         suitability_table = xr.Dataset(
             {"suitability": ("temperature", [0, 0.5, 1])},
             coords={"temperature": [0, 1, 2]},
@@ -196,13 +196,13 @@ class TestSuitabilityModel:
             "units": "°C",
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
-        result = model.plot_suitability_region(color="blue")
+        result = model.plot_suitability(color="blue")
         assert isinstance(result, hv.Curve)
         assert result.kdims[0].pprint_label == "Temperature (°C)"
         assert result.vdims[0].pprint_label == "hello there (general kenobi)"
 
-    def test_plot_suitability_region_temp_precip_table(self):
-        """Test plot_suitability_region with a temp/precip-dependent suitability table."""
+    def test_plot_suitability_temp_precip_table(self):
+        """Test plot_suitability with a temp/precip-dependent suitability table."""
         suitability_table = xr.Dataset(
             {
                 "suitability": (
@@ -224,7 +224,7 @@ class TestSuitabilityModel:
             "units": "mm/day",
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
-        result = model.plot_suitability_region()
+        result = model.plot_suitability()
         assert isinstance(result, hv.QuadMesh)
         assert result.kdims[0].pprint_label == "Temperature (°C)"
         assert result.kdims[1].pprint_label == "Precipitation (mm/day)"

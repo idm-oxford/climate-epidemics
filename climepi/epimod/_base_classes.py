@@ -166,7 +166,7 @@ class SuitabilityModel(EpiModel):
             )
         return ds_epi
 
-    def plot_suitability_region(self, **kwargs):
+    def plot_suitability(self, **kwargs):
         """
         Plot suitability against temperature and (if relevant) precipitation.
 
