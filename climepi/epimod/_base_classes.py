@@ -424,10 +424,38 @@ class SuitabilityModel(EpiModel):
             and len(suitability_table_new.dims) == 1
             and "temperature" in suitability_table_new.dims
         ):
-            suitable_temperatures = suitability_table_new.where(
+            temperature = suitability_table_new.temperature
+            suitable_temperatures = temperature.where(
                 suitability_table_new[suitability_var_name], drop=True
-            ).temperature.values
-            return SuitabilityModel(
-                temperature_range=[suitable_temperatures[0], suitable_temperatures[-1]]
             )
+            first_suitable_table_temp = suitable_temperatures.item(0)
+            last_suitable_table_temp = suitable_temperatures.item(-1)
+            first_suitable_loc = temperature.get_index("temperature").get_loc(
+                first_suitable_table_temp
+            )
+            last_suitable_loc = temperature.get_index("temperature").get_loc(
+                last_suitable_table_temp
+            )
+            if (
+                first_suitable_loc
+                and first_suitable_loc > 0
+                and last_suitable_loc < len(temperature) - 1
+                and len(suitable_temperatures)
+                == last_suitable_loc - first_suitable_loc + 1
+            ):
+                min_temp = (  # interpolates between first suitable temperature and the
+                    # temperature just below it, consistent with nearest neighbour
+                    # interpolation used in _run_main_temp_table
+                    0.5
+                    * (
+                        temperature.item(first_suitable_loc - 1)
+                        + first_suitable_table_temp
+                    )
+                )
+                max_temp = 0.5 * (
+                    last_suitable_table_temp + temperature.item(last_suitable_loc + 1)
+                )
+                return SuitabilityModel(
+                    temperature_range=[min_temp, max_temp],
+                )
         return SuitabilityModel(suitability_table=suitability_table_new)
