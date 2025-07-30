@@ -108,23 +108,26 @@ class TestSuitabilityModel:
     def test_run_temp_table(self):
         """Test the run method with a temperature-dependent suitability table."""
         suitability_table = xr.Dataset(
-            {"hello": ("temperature", [0, 0.5, 1])},
-            coords={"temperature": [0, 1, 2]},
+            {"hello": (("there", "temperature"), [[0, 0.5, 1], [1, 1, 1]])},
+            coords={"temperature": [0, 1, 2], "there": [0, 1]},
         )
         suitability_table["hello"].attrs = {
-            "units": "there",
+            "units": "kenobi",
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
-        ds_clim = xr.Dataset({"temperature": ("kenobi", [-0.5, 1, 0.51, 1.75, 2.5])})
+        ds_clim = xr.Dataset({"temperature": ("lat", [-0.5, 1, 0.51, 1.75, 2.5])})
         ds_suitability = model.run(ds_clim)
-        suitability_values_expected = [0, 0.5, 0.5, 1, 1]  # nearest neighbour interp
+        suitability_values_expected = [  # nearest neighbor interpolation
+            [0, 0.5, 0.5, 1, 1],
+            [1, 1, 1, 1, 1],
+        ]
         npt.assert_equal(
-            ds_suitability["hello"].values,
+            ds_suitability["hello"].transpose("there", "lat").values,
             suitability_values_expected,
         )
         assert ds_suitability["hello"].attrs == {
             "long_name": "Hello",
-            "units": "there",
+            "units": "kenobi",
         }
         # Check that running with a suitability table with non-equally spaced
         # temperature or precipitation values raises an error.
@@ -138,35 +141,39 @@ class TestSuitabilityModel:
         suitability_table = xr.Dataset(
             {
                 "suitability": (
-                    ("temperature", "precipitation"),
-                    [[0, 0.5], [0.75, 1], [0.25, 0.69]],
+                    ("general", "temperature", "precipitation"),
+                    [[[0, 0.5], [0.75, 1], [0.25, 0.69]], [[0, 0], [0, 0], [0, 0]]],
                 ),
             },
             coords={
                 "temperature": [0, 1, 2],
                 "precipitation": [0, 1],
+                "general": ["kenobi", "grievous"],
             },
         )
         suitability_table["suitability"].attrs = {
             "long_name": "hello",
-            "units": "kenobi",
+            "units": "there",
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
         ds_clim = xr.Dataset(
             {
-                "temperature": ("general", [-0.3, 0, 1.5, 0.7, 2, 4]),
-                "precipitation": ("general", [-0.5, 1, 0.25, 0.75, 0.3, 0.8]),
+                "temperature": ("lat", [-0.3, 0, 1.5, 0.7, 2, 4]),
+                "precipitation": ("lat", [-0.5, 1, 0.25, 0.75, 0.3, 0.8]),
             }
         )
         ds_suitability = model.run(ds_clim)
-        suitability_values_expected = [0, 0.5, 0.25, 1, 0.25, 0.69]  # nearest neighbor
+        suitability_values_expected = [  # nearest neighbor interpolation
+            [0, 0.5, 0.25, 1, 0.25, 0.69],
+            [0, 0, 0, 0, 0, 0],
+        ]
         npt.assert_equal(
-            ds_suitability["suitability"].values,
+            ds_suitability["suitability"].transpose("general", "lat").values,
             suitability_values_expected,
         )
         assert ds_suitability["suitability"].attrs == {
             "long_name": "hello",
-            "units": "kenobi",
+            "units": "there",
         }
         # Check that running with a suitability table with non-equally spaced
         # temperature or precipitation values raises an error.
