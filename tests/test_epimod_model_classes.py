@@ -184,7 +184,7 @@ class TestSuitabilityModel:
     def test_plot_suitability_temp_table(self):
         """Test plot_suitability with a temp-dependent suitability table."""
         suitability_table = xr.Dataset(
-            {"suitability": ("temperature", [0, 0.5, 1])},
+            {"suitability": ("temperature", [False, True, False])},
             coords={"temperature": [0, 1, 2]},
         )
         suitability_table["suitability"].attrs = {
