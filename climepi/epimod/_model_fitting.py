@@ -560,8 +560,8 @@ def get_posterior_temperature_response(
     )
     if temperature_vals is None:
         temperature_vals = np.linspace(
-            ds_posterior.temperature_min.min().item(),
-            ds_posterior.temperature_max.max().item(),
+            ds_posterior.temperature_min.min().item() - 1,
+            ds_posterior.temperature_max.max().item() + 1,
             500,
         )
     ds_posterior_expanded = ds_posterior.assign_coords(temperature=temperature_vals)
