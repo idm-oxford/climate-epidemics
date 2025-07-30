@@ -126,6 +126,12 @@ class TestSuitabilityModel:
             "long_name": "Hello",
             "units": "there",
         }
+        # Check that running with a suitability table with non-equally spaced
+        # temperature or precipitation values raises an error.
+        suitability_table1 = suitability_table.assign_coords(temperature=[0, 1, 1.5])
+        model1 = epimod.SuitabilityModel(suitability_table=suitability_table1)
+        with pytest.raises(ValueError):
+            model1.run(ds_clim)
 
     def test_run_temp_precip_table(self):
         """Test the run method with a temp/precip-dependent suitability table."""
