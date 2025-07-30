@@ -258,3 +258,84 @@ class TestSuitabilityModel:
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
         result = model.get_max_suitability()
         npt.assert_equal(result, 3.5)
+
+
+@pytest.mark.parametrize(
+    "suitability_vals_in,suitability_threshold, stat, quantile, rescale, "
+    "suitability_vals_out_expected, temperature_range_out_expected",
+    [
+        ([[0, 1, 3], [0, 0, 0]], 0, "mean", None, False, [2 / 3, 0], None),
+        ([[0, 2, 3], [0, 0, 0]], None, "median", None, True, [1, 0], None),
+        (
+            [[False, False, True, True], [False, True, False, False]],
+            None,
+            "quantile",
+            0.5,
+            False,
+            [True, False],
+            None,
+        ),
+        (
+            [list(range(100))],
+            None,
+            "quantile",
+            [0.25, 0.75],
+            False,
+            [[24.75, 74.25]],
+            None,
+        ),
+        (
+            [[0, 2, 4], [0, 1, 0]],
+            None,
+            None,
+            None,
+            "mean",
+            [[0, 1, 2], [0, 0.5, 0]],
+            None,
+        ),
+        (
+            [[False], [True], [True], [False]],
+            None,
+            "median",
+            None,
+            False,
+            None,
+            [0.5, 2.5],
+        ),
+    ],
+)
+def test_reduce(
+    suitability_vals_in,
+    suitability_threshold,
+    stat,
+    quantile,
+    rescale,
+    suitability_vals_out_expected,
+    temperature_range_out_expected,
+):
+    """Test the reduce method of SuitabilityModel."""
+    suitability_table_in = xr.Dataset(
+        {
+            "suitability": (("temperature", "sample"), suitability_vals_in),
+        },
+        coords={"temperature": range(len(suitability_vals_in))},
+    )
+    model = epimod.SuitabilityModel(suitability_table=suitability_table_in)
+    reduced_model = model.reduce(
+        suitability_threshold=suitability_threshold,
+        stat=stat,
+        quantile=quantile,
+        rescale=rescale,
+    )
+    if temperature_range_out_expected is not None:
+        npt.assert_equal(
+            reduced_model.temperature_range,
+            temperature_range_out_expected,
+        )
+        return
+    npt.assert_equal(
+        reduced_model.suitability_table["suitability"]
+        .transpose("temperature", ...)
+        .values,
+        suitability_vals_out_expected,
+    )
