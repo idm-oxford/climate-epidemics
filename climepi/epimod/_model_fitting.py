@@ -555,7 +555,7 @@ def get_posterior_temperature_response(
         var_names=["scale", "temperature_min", "temperature_max"],
         num_samples=num_samples,
     )
-    ds_posterior = ds_posterior.drop_vars(["chain", "draw"]).assign_coords(
+    ds_posterior = ds_posterior.drop_vars(["sample", "chain", "draw"]).assign_coords(
         sample=np.arange(ds_posterior.sample.size)
     )
     if temperature_vals is None:
