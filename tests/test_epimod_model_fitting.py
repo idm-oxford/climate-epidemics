@@ -3,11 +3,13 @@
 from unittest.mock import patch
 
 import numpy as np
+import numpy.testing as npt
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
 
 from climepi import epimod
+from climepi.epimod import _model_fitting
 
 
 @patch("climepi.epimod._model_fitting.pm", autospec=True)
@@ -93,3 +95,50 @@ def test_fit_temperature_response(mock_briere, mock_pm, specify_std_prior):
         tune=500,
     )
     assert result.response_parameter.shape == (4, 1000)
+
+
+def test_get_posterior_temperature_response():
+    """Test the get_posterior_temperature_response function."""
+    scale = np.array([[1, 2, 3], [4, 5, 6]])
+    temperature_min = np.array([[0, 0.25, 0.5], [0.5, 0.7, 0.5]])
+    temperature_max = np.array([[1, 1, 1], [1, 1, 1]])
+    idata = xr.Dataset(
+        {
+            "scale": (["chain", "draw"], scale),
+            "temperature_min": (["chain", "draw"], temperature_min),
+            "temperature_max": (["chain", "draw"], temperature_max),
+        },
+    )
+    result = epimod.get_posterior_temperature_response(
+        idata,
+        num_samples=6,
+        curve_type="quadratic",
+        trait_name="googly",
+        trait_attrs={"back of": "the hand"},
+    )
+
+    temperature_vals_expected = np.linspace(-1, 2, 500)
+    npt.assert_equal(result.temperature.values, temperature_vals_expected)
+
+    temperature_vals_expanded = temperature_vals_expected[:, np.newaxis]
+    scale_flat_expanded = scale.flatten()[np.newaxis]
+    temperature_min_flat_expanded = temperature_min.flatten()[np.newaxis]
+    temperature_max_flat_expanded = temperature_max.flatten()[np.newaxis]
+    response_vals_expected = (
+        scale_flat_expanded
+        * (temperature_vals_expanded - temperature_min_flat_expanded)
+        * (temperature_max_flat_expanded - temperature_vals_expanded)
+        * (temperature_vals_expanded >= temperature_min_flat_expanded)
+        * (temperature_vals_expanded <= temperature_max_flat_expanded)
+    )
+    npt.assert_allclose(
+        np.sort(result.values, axis=1),
+        np.sort(response_vals_expected, axis=1),
+    )
+
+    assert result.name == "googly"
+    assert result.attrs == {"back of": "the hand"}
+    assert result.temperature.attrs == {
+        "long_name": "Temperature",
+        "units": "°C",
+    }
