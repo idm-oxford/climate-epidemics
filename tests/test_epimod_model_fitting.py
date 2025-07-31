@@ -307,7 +307,7 @@ class TestParameterizedSuitabilityModel:
         """Test the fit_temperature_responses method."""
 
         def _mock_fit(*args, trait_data=None, **kwargs):
-            return "i" + trait_data
+            return ["i" + trait_data]
 
         mock_fit_temperature_response.side_effect = _mock_fit
 
@@ -354,11 +354,11 @@ class TestParameterizedSuitabilityModel:
             draws=10,
         )
         assert idata_dict == {
-            "general": "idata_general",
-            "bold": "idata_bold",
+            "general": ["idata_general"],
+            "bold": ["idata_bold"],
         }
-        assert model._parameters["general"]["idata"] == "idata_general"
-        assert model._parameters["bold"]["idata"] == "idata_bold"
+        assert model._parameters["general"]["idata"] == ["idata_general"]
+        assert model._parameters["bold"]["idata"] == ["idata_bold"]
 
     @patch(
         "climepi.epimod._model_fitting.plot_fitted_temperature_response",
