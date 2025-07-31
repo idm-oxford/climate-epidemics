@@ -243,13 +243,13 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         self.suitability_table = suitability_table
         return suitability_table.copy()
 
-    def get_posterior_min_peak_max_temperature(self, suitability_threshold=0):
+    def get_posterior_min_optimal_max_temperature(self, suitability_threshold=0):
         """
-        Get posterior distributions of minimum, peak, and maximum temperatures.
+        Get posterior distributions of minimum, optimal, and maximum temperatures.
 
         Calculates the posterior distributions of the minimum/maximum temperatures that
-        are considered suitable, as well as the temperature at which the suitability is
-        at its peak.
+        are considered suitable, as well as the optimal temperature at which the
+        suitability is at its peak.
 
         Note that this method requires that the model has been fitted to data using
         fit_temperature_responses() and that a suitability table has been constructed
@@ -266,7 +266,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         -------
         xarray.Dataset
             A dataset containing the posterior distributions of the minimum,
-            peak, and maximum temperature values.
+            optimal, and maximum temperature values.
         """
         self._check_fitting()
         self._check_suitability_table()
@@ -276,12 +276,12 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             raise ValueError(
                 "This method only works for models that depend on temperature only."
             )
-        da_posterior_peak = (
+        da_posterior_optimal = (
             da_temperature.isel(
                 temperature=da_suitability_table.argmax(dim="temperature")
             )
             .reset_coords(drop=True)
-            .assign_attrs(long_name="Temperature of peak suitability", units="°C")
+            .assign_attrs(long_name="Optimal temperature for suitability", units="°C")
         )
         da_suitable = da_suitability_table > suitability_threshold
         da_posterior_min = (
@@ -299,14 +299,14 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             .reset_coords(drop=True)
             .assign_attrs(long_name="Maximum suitable temperature", units="°C")
         )
-        ds_posterior_min_peak_max = xr.Dataset(
+        ds_posterior_min_optimal_max = xr.Dataset(
             {
                 "temperature_min": da_posterior_min,
-                "temperature_peak": da_posterior_peak,
+                "temperature_optimal": da_posterior_optimal,
                 "temperature_max": da_posterior_max,
             }
         )
-        return ds_posterior_min_peak_max
+        return ds_posterior_min_optimal_max
 
     def run(self, *args, **kwargs):
         """
