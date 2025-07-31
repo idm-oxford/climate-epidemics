@@ -162,8 +162,6 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         plots = []
         for parameter_name in parameter_names:
             parameter_dict = self._parameters[parameter_name]
-            if "idata" not in parameter_dict:
-                continue
             plots.append(
                 plot_fitted_temperature_response(
                     idata=parameter_dict["idata"],
@@ -183,7 +181,6 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         temperature_vals=None,
         precipitation_vals=None,
         num_samples=None,
-        rescale=False,
     ):
         """
         Construct a suitability table based on the fitted parameters.
@@ -250,10 +247,6 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             .assign_attrs(long_name=self._suitability_var_long_name)
             .to_dataset(name=self._suitability_var_name)
         )
-        if rescale:
-            suitability_table = (
-                suitability_table / suitability_table.mean(dim="sample").max()
-            )
         self.suitability_table = suitability_table
         return suitability_table.copy()
 
