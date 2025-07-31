@@ -332,16 +332,15 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         self._check_suitability_table()
         return super().run(*args, **kwargs)
 
-    def plot_suitability_region(self, **kwargs):
+    def plot_suitability(self, **kwargs):
         """
         Plot suitability against temperature and (if relevant) precipitation.
 
-        See the documentation for SuitabilityModel.plot_suitability_region() for
-        details.
+        See the documentation for SuitabilityModel.plot_suitability() for details.
         """
         self._check_fitting()
         self._check_suitability_table()
-        return super().plot_suitability_region(**kwargs)
+        return super().plot_suitability(**kwargs)
 
     def get_max_suitability(self):
         """
