@@ -2,7 +2,7 @@ import copy
 import numbers
 
 import arviz as az
-import holoviews
+import holoviews as hv
 import hvplot.xarray  # noqa
 import numpy as np
 import pymc as pm
@@ -176,7 +176,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                     trait_attrs=parameter_dict.get("attrs", None),
                 )
             )
-        return holoviews.Layout(plots).opts(shared_axes=False)
+        return hv.Layout(plots).opts(shared_axes=False)
 
     def construct_suitability_table(
         self,
