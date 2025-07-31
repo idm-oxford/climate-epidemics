@@ -203,13 +203,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         parameter_vals = {}
         for parameter_name, parameter_entry in self._parameters.items():
             if isinstance(parameter_entry, dict):
-                try:
-                    idata = parameter_entry.get("idata")
-                except KeyError as e:
-                    raise ValueError(
-                        f"Parameter '{parameter_name}' does not have fitted data. "
-                        "Please fit the model using fit_temperature_responses() first."
-                    ) from e
+                idata = parameter_entry.get("idata")
                 da_response = get_posterior_temperature_response(
                     idata=idata,
                     num_samples=num_samples,
@@ -423,8 +417,8 @@ def fit_temperature_response(
 
     Returns
     -------
-    dict
-        A dictionary containing the fitted parameters.
+    arviz.InferenceData
+        The posterior distribution of the fitted parameters.
     """
     curve_func = _get_curve_func(curve_type)
     priors = priors or {}
@@ -512,7 +506,7 @@ def get_posterior_temperature_response(
 
     Parameters
     ----------
-    idata : pymc.backends.base.MultiTrace
+    idata : arviz.InferenceData
         The posterior distribution of the fitted parameters (as returned by
         fit_temperature_response()).
     num_samples : int, optional
@@ -586,7 +580,7 @@ def plot_fitted_temperature_response(
 
     Parameters
     ----------
-    idata : pymc.backends.base.MultiTrace
+    idata : arviz.InferenceData
         The posterior distribution of the fitted parameters.
     temperature_vals : array-like, optional
         Vector of temperature values for which the response is to be plotted. If not
