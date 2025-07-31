@@ -459,3 +459,50 @@ class TestParameterizedSuitabilityModel:
         assert suitability_table.suitability.attrs["long_name"] == "Grievous"
         assert suitability_table.temperature.attrs["long_name"] == "Temperature"
         assert suitability_table.precipitation.attrs["long_name"] == "Precipitation"
+
+
+def test_get_posterior_min_optimal_max_temperature():
+    """Test the get_posterior_min_optimal_max_temperature method."""
+    suitability_model = epimod.ParameterizedSuitabilityModel(parameters={})
+    suitability_model.suitability_table = xr.Dataset(
+        {
+            "suitability": (
+                ("sample", "temperature"),
+                np.array([[0, 0.1, 0.2, 0.1, 0], [0, 1, 0.8, 0.5, 0]]),
+            ),
+        },
+        coords={
+            "temperature": [0, 1, 2, 3, 4],
+            "sample": [0, 1],
+        },
+    )
+
+    result1 = suitability_model.get_posterior_min_optimal_max_temperature()
+    npt.assert_equal(result1.temperature_min.values, [0.5, 0.5])
+    npt.assert_equal(result1.temperature_optimal.values, [2, 1])
+    npt.assert_equal(result1.temperature_max.values, [3.5, 3.5])
+
+    result2 = suitability_model.get_posterior_min_optimal_max_temperature(
+        suitability_threshold=0.15
+    )
+    npt.assert_equal(result2.temperature_min.values, [1.5, 0.5])
+    npt.assert_equal(result2.temperature_optimal.values, [2, 1])
+    npt.assert_equal(result2.temperature_max.values, [2.5, 3.5])
+
+    with pytest.raises(
+        ValueError, match="Minimum and/or maximum suitable temperatures do not exist."
+    ):
+        suitability_model.get_posterior_min_optimal_max_temperature(
+            suitability_threshold=0.5
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="This method only works for models that depend on temperature only.",
+    ):
+        suitability_model.suitability_table["suitability"] = (
+            suitability_model.suitability_table["suitability"].expand_dims(
+                precipitation=1
+            )
+        )
+        suitability_model.get_posterior_min_optimal_max_temperature()
