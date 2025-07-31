@@ -103,7 +103,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         **kwargs_sample : dict, optional
             Keyword arguments to pass to pymc.sample().
         """
-        parameters = copy.deepcopy(self._parameters)
+        parameters = self._parameters
         idata_dict = {}
         for parameter_name, parameter_dict in parameters.items():
             if not isinstance(parameter_dict, dict):
@@ -379,9 +379,8 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         # Checks if the suitability table has been constructed.
         if self.suitability_table is None:
             raise ValueError(
-                "Need to fit the model with fit_temperature_responses() and/or "
-                "construct the suitability table with construct_suitability_table() "
-                "before running this method."
+                "Need to construct the suitability table with "
+                "construct_suitability_table() before running this method."
             )
 
 
