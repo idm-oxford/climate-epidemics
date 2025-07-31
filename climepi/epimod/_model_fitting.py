@@ -284,21 +284,34 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             .assign_attrs(long_name="Optimal temperature for suitability", units="°C")
         )
         da_suitable = da_suitability_table > suitability_threshold
-        da_posterior_min = (
-            da_temperature.isel(temperature=da_suitable.argmax(dim="temperature"))
-            .reset_coords(drop=True)
-            .assign_attrs(long_name="Minimum suitable temperature", units="°C")
-        )
-        da_posterior_max = (
-            da_temperature.isel(temperature=slice(None, None, -1))
-            .isel(
-                temperature=da_suitable.isel(temperature=slice(None, None, -1)).argmax(
-                    dim="temperature"
-                )
+        first_suitable_idx = da_suitable.argmax(dim="temperature")
+        last_suitable_idx = (
+            da_suitable.sizes["temperature"]
+            - 1
+            - da_suitable.isel(temperature=slice(None, None, -1)).argmax(
+                dim="temperature"
             )
-            .reset_coords(drop=True)
-            .assign_attrs(long_name="Maximum suitable temperature", units="°C")
         )
+        if np.any(first_suitable_idx == 0) or np.any(
+            last_suitable_idx == da_suitable.sizes["temperature"] - 1
+        ):
+            raise ValueError(
+                "Minimum and/or maximum suitable temperatures do not exist."
+            )
+        da_posterior_min = 0.5 * (
+            da_temperature.isel(temperature=first_suitable_idx - 1).reset_coords(
+                drop=True
+            )
+            + da_temperature.isel(temperature=first_suitable_idx).reset_coords(
+                drop=True
+            )
+        ).assign_attrs(long_name="Minimum suitable temperature", units="°C")
+        da_posterior_max = 0.5 * (
+            da_temperature.isel(temperature=last_suitable_idx).reset_coords(drop=True)
+            + da_temperature.isel(temperature=last_suitable_idx + 1).reset_coords(
+                drop=True
+            )
+        ).assign_attrs(long_name="Maximum suitable temperature", units="°C")
         ds_posterior_min_optimal_max = xr.Dataset(
             {
                 "temperature_min": da_posterior_min,
