@@ -359,3 +359,103 @@ class TestParameterizedSuitabilityModel:
         }
         assert model._parameters["general"]["idata"] == "idata_general"
         assert model._parameters["bold"]["idata"] == "idata_bold"
+
+    @patch(
+        "climepi.epimod._model_fitting.plot_fitted_temperature_response",
+        autospec=True,
+    )
+    @patch("climepi.epimod._model_fitting.hv.Layout", autospec=True)
+    def test_plot_fitted_temperature_responses(self, mock_layout, mock_plot_response):
+        """Test the plot_fitted_temperature_responses method."""
+
+        def _mock_plot_response(*args, idata=None, **kwargs):
+            return idata
+
+        mock_plot_response.side_effect = _mock_plot_response
+
+        model = epimod.ParameterizedSuitabilityModel(
+            parameters={
+                "hello": "there",
+                "general": {  # not fitted so shouldn't be plotted
+                    "curve_type": "kenobi"
+                },
+                "bold": {
+                    "curve_type": "one",
+                    "idata": "idata_bold",
+                    "temperature_data": "temperature_data_bold",
+                    "trait_data": "data_bold",
+                    "attrs": {"fine": "addition"},
+                },
+            }
+        )
+
+        p = model.plot_fitted_temperature_responses(temperature_vals="temperature_vals")
+
+        assert p == mock_layout.return_value.opts.return_value
+        mock_plot_response.assert_called_once_with(
+            idata="idata_bold",
+            temperature_vals="temperature_vals",
+            temperature_data="temperature_data_bold",
+            trait_data="data_bold",
+            curve_type="one",
+            probability=False,
+            trait_name="bold",
+            trait_attrs={"fine": "addition"},
+        )
+        mock_layout.assert_called_once_with(["idata_bold"])
+
+    @patch(
+        "climepi.epimod._model_fitting.get_posterior_temperature_response",
+        autospec=True,
+    )
+    def test_construct_suitability_table(self, mock_get_posterior_response):
+        """Test the construct_suitability_table method."""
+        temperature_vals = np.array([0, 1])
+        precipitation_vals = np.array([0.1, 0.2])
+
+        def _mock_get_posterior_response(*args, idata=None, **kwargs):
+            if idata == "general_idata":
+                da_posterior = xr.DataArray(
+                    [[1, 2], [3, 4]],
+                    coords={
+                        "temperature": temperature_vals,
+                        "sample": [0, 1],
+                    },
+                    name="general",
+                )
+                da_posterior["temperature"] = da_posterior["temperature"].assign_attrs(
+                    long_name="Temperature",
+                    units="°C",
+                )
+                return da_posterior
+            return None
+
+        mock_get_posterior_response.side_effect = _mock_get_posterior_response
+
+        model = epimod.ParameterizedSuitabilityModel(
+            parameters={
+                "hello": 1,
+                "general": {
+                    "curve_type": "kenobi",
+                    "idata": "general_idata",
+                },
+                "bold": lambda temperature=None, precipitation=None: precipitation,
+            },
+            suitability_function=lambda hello, general, bold: hello + general + bold,
+            suitability_var_long_name="Grievous",
+        )
+        suitability_table = model.construct_suitability_table(
+            temperature_vals=temperature_vals,
+            precipitation_vals=precipitation_vals,
+        )
+        npt.assert_equal(
+            suitability_table.suitability.transpose(
+                "temperature", "precipitation", "sample"
+            ).values,
+            1
+            + np.array([[[1, 2], [1, 2]], [[3, 4], [3, 4]]])
+            + np.array([[[0.1, 0.1], [0.2, 0.2]], [[0.1, 0.1], [0.2, 0.2]]]),
+        )
+        assert suitability_table.suitability.attrs["long_name"] == "Grievous"
+        assert suitability_table.temperature.attrs["long_name"] == "Temperature"
+        assert suitability_table.precipitation.attrs["long_name"] == "Precipitation"
