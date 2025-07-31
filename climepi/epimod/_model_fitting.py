@@ -120,7 +120,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                 **kwargs_sample,
             )
             parameter_dict["idata"] = idata
-            idata_dict[parameter_name] = idata
+            idata_dict[parameter_name] = idata.copy()
         self._parameters = parameters
         return idata_dict
 
