@@ -5,6 +5,7 @@ from unittest.mock import patch
 import holoviews as hv
 import numpy as np
 import numpy.testing as npt
+import pandas as pd
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
@@ -210,3 +211,151 @@ def test_plot_fitted_temperature_response(mock_get_posterior):
         trait_name=None,
         trait_attrs=None,
     )
+
+
+class TestParameterizedSuitabilityModel:
+    """Test the ParameterizedSuitabilityModel class."""
+
+    def test_init(self):
+        """
+        Test the initialization of the ParameterizedSuitabilityModel.
+
+        Includes testing of the _extract_data method, which is called during
+        initialization.
+        """
+        model = epimod.ParameterizedSuitabilityModel(
+            parameters={
+                "general": {"curve_type": "hello"},
+                "kenobi": {"curve_type": "there"},
+            },
+            data=pd.DataFrame(
+                {
+                    "trait_name": ["general", "general", "kenobi"],
+                    "temperature": [0, 1, 0],
+                    "trait_value": [1, 2, 3],
+                }
+            ),
+            suitability_function="some_function",
+        )
+        assert model.suitability_table is None
+        assert model._parameters["general"]["curve_type"] == "hello"
+        npt.assert_equal(
+            model._parameters["general"]["temperature_data"],
+            [0, 1],
+        )
+        npt.assert_equal(
+            model._parameters["general"]["trait_data"],
+            [1, 2],
+        )
+        assert model._parameters["kenobi"]["curve_type"] == "there"
+        npt.assert_equal(
+            model._parameters["kenobi"]["temperature_data"],
+            [0],
+        )
+        npt.assert_equal(
+            model._parameters["kenobi"]["trait_data"],
+            [3],
+        )
+        assert model._suitability_function == "some_function"
+        assert model._suitability_var_name == "suitability"
+        assert model._suitability_var_long_name == "Suitability"
+
+    def test_overridden_methods(self):
+        """
+        Test methods that override the parent SuitabilityModel methods.
+
+        Tests that the _check_fitting and _check_suitability_table methods raise errors
+        when the model is not fitted or the suitability table is not constructed, and
+        that the parent methods are called when the checks pass.
+        """
+        model = epimod.ParameterizedSuitabilityModel()
+        for method, parent_method_name, kwargs in zip(
+            [model.run, model.plot_suitability, model.get_max_suitability],
+            [
+                "climepi.epimod._model_fitting.SuitabilityModel." + x
+                for x in ["run", "plot_suitability", "get_max_suitability"]
+            ],
+            [
+                {"ds_clim": "some_climate_data"},
+                {},
+                {},
+            ],
+            strict=True,
+        ):
+            with patch(parent_method_name, autospec=True) as mock_parent_method:
+                model._parameters = {
+                    "hello": "there",
+                    "general": {"curve_type": "kenobi"},
+                }
+                model.suitability_table = None
+                with pytest.raises(ValueError, match="Need to fit the model"):
+                    method(**kwargs)
+                model._parameters["general"]["idata"] = "some_idata"
+                with pytest.raises(
+                    ValueError, match="Need to construct the suitability table"
+                ):
+                    method(**kwargs)
+                model.suitability_table = "some_table"
+                method(**kwargs)
+                mock_parent_method.assert_called_once_with(model, **kwargs)
+
+    @patch(
+        "climepi.epimod._model_fitting.fit_temperature_response",
+        autospec=True,
+    )
+    def test_fit_temperature_responses(self, mock_fit_temperature_response):
+        """Test the fit_temperature_responses method."""
+
+        def _mock_fit(*args, trait_data=None, **kwargs):
+            return "i" + trait_data
+
+        mock_fit_temperature_response.side_effect = _mock_fit
+
+        model = epimod.ParameterizedSuitabilityModel(
+            parameters={
+                "hello": "there",
+                "general": {
+                    "curve_type": "kenobi",
+                    "temperature_data": "temperature_data_general",
+                    "trait_data": "data_general",
+                },
+                "bold": {
+                    "curve_type": "one",
+                    "temperature_data": "temperature_data_bold",
+                    "trait_data": "data_bold",
+                    "probability": True,
+                    "priors": "priors_bold",
+                },
+            }
+        )
+
+        idata_dict = model.fit_temperature_responses(step="step", draws=10)
+
+        # Assert that the mock was called with the expected arguments
+        assert mock_fit_temperature_response.call_count == 2
+        mock_fit_temperature_response.assert_any_call(
+            temperature_data="temperature_data_general",
+            trait_data="data_general",
+            curve_type="kenobi",
+            probability=False,
+            priors=None,
+            step="step",
+            thin=1,
+            draws=10,
+        )
+        mock_fit_temperature_response.assert_any_call(
+            temperature_data="temperature_data_bold",
+            trait_data="data_bold",
+            curve_type="one",
+            probability=True,
+            priors="priors_bold",
+            step="step",
+            thin=1,
+            draws=10,
+        )
+        assert idata_dict == {
+            "general": "idata_general",
+            "bold": "idata_bold",
+        }
+        assert model._parameters["general"]["idata"] == "idata_general"
+        assert model._parameters["bold"]["idata"] == "idata_bold"
