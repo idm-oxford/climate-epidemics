@@ -150,7 +150,6 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             A holoviews Layout object containing the plots of the fitted temperature
             responses for the specified parameters.
         """
-        self._check_fitting()
         if parameter_names is None:
             parameter_names = [
                 parameter_name
