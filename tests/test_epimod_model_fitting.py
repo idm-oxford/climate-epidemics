@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import holoviews as hv
 import numpy as np
 import numpy.testing as npt
 import pytensor.tensor as pt
@@ -9,7 +10,6 @@ import pytest
 import xarray as xr
 
 from climepi import epimod
-from climepi.epimod import _model_fitting
 
 
 @patch("climepi.epimod._model_fitting.pm", autospec=True)
@@ -142,3 +142,71 @@ def test_get_posterior_temperature_response():
         "long_name": "Temperature",
         "units": "°C",
     }
+
+
+@patch(
+    "climepi.epimod._model_fitting.get_posterior_temperature_response", autospec=True
+)
+def test_plot_fitted_temperature_response(mock_get_posterior):
+    """Test the plot_fitted_temperature_response function."""
+    da = xr.DataArray(
+        np.random.rand(10, 3),
+        dims=["temperature", "sample"],
+        coords={
+            "temperature": np.linspace(0, 1, 10),
+            "sample": np.arange(3),
+        },
+        name="some_trait",
+    )
+
+    def _mock_get_posterior(*args, **kwargs):
+        return da
+
+    mock_get_posterior.side_effect = _mock_get_posterior
+
+    p = epimod.plot_fitted_temperature_response(
+        "idata",
+        temperature_vals="temperature_vals",
+        temperature_data=np.array([0, 0.5, 1]),
+        trait_data=np.array([0, 1, 0]),
+        curve_type="briere",
+        probability=True,
+    )
+    assert isinstance(p, hv.Overlay)
+    npt.assert_equal(
+        p.Curve.Median_response.dframe().temperature.values,
+        da.temperature.values,
+    )
+    npt.assert_equal(
+        p.Curve.Median_response.data.some_trait.values,
+        da.median(dim="sample").values,
+    )
+    npt.assert_equal(
+        p.Area.A_95_percent_credible_interval.dframe().temperature.values,
+        da.temperature.values,
+    )
+    npt.assert_equal(
+        p.Area.A_95_percent_credible_interval.data.lower.values,
+        da.quantile(0.025, dim="sample").values,
+    )
+    npt.assert_equal(
+        p.Area.A_95_percent_credible_interval.data.upper.values,
+        da.quantile(0.975, dim="sample").values,
+    )
+    npt.assert_equal(
+        p.Scatter.I.dframe().temperature.values,
+        np.array([0, 0.5, 1]),
+    )
+    npt.assert_equal(
+        p.Scatter.I.data.trait.values,
+        np.array([0, 1, 0]),
+    )
+
+    mock_get_posterior.assert_called_once_with(
+        idata="idata",
+        temperature_vals="temperature_vals",
+        curve_type="briere",
+        probability=True,
+        trait_name=None,
+        trait_attrs=None,
+    )
