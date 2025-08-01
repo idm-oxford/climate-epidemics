@@ -691,7 +691,6 @@ def _get_curve_func(curve_type):
         return _briere
     elif curve_type == "quadratic":
         return _bounded_quadratic
-    else:
-        raise ValueError(
-            f"Invalid curve_type: '{curve_type}'. Must be 'briere' or 'quadratic'."
-        )
+    raise ValueError(
+        f"Invalid curve_type: '{curve_type}'. Must be 'briere' or 'quadratic'."
+    )
