@@ -24,9 +24,10 @@ channels = ["conda-forge", "microsoft"]
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 
 [tool.pixi.dependencies]
+arviz = "*"
 bottleneck = "*"
-dask = ">=2024.11.2" # non-GIL-blocking quantile method from here
-datashader = "*" #explicit import appears to be needed with hvplot v0.11.1
+dask = ">=2024.11.2"             # non-GIL-blocking quantile method from here
+datashader = "*"                 #explicit import appears to be needed with hvplot v0.11.1
 flox = "*"
 geopy = "*"
 geoviews = "*"
@@ -41,13 +42,14 @@ pandas = "*"
 panel = "*"
 param = "*"
 pooch = "*"
+pymc = "*"
 requests = "*"
 s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS server
 scipy = "*"
 siphon = "*"
 tqdm = "*"
 urllib3 = "*"
-xarray = "<2025.7.0"
+xarray = "!=2025.7.0,!=2025.7.1" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
 zarr = "<3" # https://github.com/fsspec/kerchunk/issues/566
 
@@ -83,7 +85,7 @@ include = ["climepi*"]
 
 [tool.setuptools.package-data]
 "climepi.climdata._example_registry_files" = ["*.txt"]
-"climepi.epimod._example_data" = ["*.nc"]
+"climepi.epimod._example_data" = ["*.nc", "*.csv"]
 
 [tool.versioneer]
 VCS = "git"

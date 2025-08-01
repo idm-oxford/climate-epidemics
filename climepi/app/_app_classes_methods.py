@@ -644,7 +644,7 @@ class Controller(param.Parameterized):
         """Return the epidemiological model plot."""
         epi_model = self._epi_model
         try:
-            plot = epi_model.plot_suitability_region()
+            plot = epi_model.plot_suitability()
             view = pn.Row(plot)
         except Exception as exc:
             view = pn.Row(f"Error generating plot: {exc}")

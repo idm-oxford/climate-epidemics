@@ -108,58 +108,25 @@ class TestSuitabilityModel:
     def test_run_temp_table(self):
         """Test the run method with a temperature-dependent suitability table."""
         suitability_table = xr.Dataset(
-            {"hello": ("temperature", [0, 0.5, 1])},
-            coords={"temperature": [0, 1, 2]},
+            {"hello": (("there", "temperature"), [[0, 0.5, 1], [1, 1, 1]])},
+            coords={"temperature": [0, 1, 2], "there": [0, 1]},
         )
         suitability_table["hello"].attrs = {
-            "units": "there",
+            "units": "kenobi",
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
-        ds_clim = xr.Dataset({"temperature": ("kenobi", [-0.5, 1, 0.5, 1.75, 2.5])})
+        ds_clim = xr.Dataset({"temperature": ("lat", [-0.5, 1, 0.51, 1.75, 2.5])})
         ds_suitability = model.run(ds_clim)
-        suitability_values_expected = [0, 0.5, 0.25, 0.875, 1]  # linear interpolation
+        suitability_values_expected = [  # nearest neighbor interpolation
+            [0, 0.5, 0.5, 1, 1],
+            [1, 1, 1, 1, 1],
+        ]
         npt.assert_equal(
-            ds_suitability["hello"].values,
+            ds_suitability["hello"].transpose("there", "lat").values,
             suitability_values_expected,
         )
         assert ds_suitability["hello"].attrs == {
             "long_name": "Hello",
-            "units": "there",
-        }
-
-    def test_run_temp_precip_table(self):
-        """Test the run method with a temp/precip-dependent suitability table."""
-        suitability_table = xr.Dataset(
-            {
-                "suitability": (
-                    ("temperature", "precipitation"),
-                    [[0, 0.5], [0.75, 1], [0.25, 0.69]],
-                ),
-            },
-            coords={
-                "temperature": [0, 1, 2],
-                "precipitation": [0, 1],
-            },
-        )
-        suitability_table["suitability"].attrs = {
-            "long_name": "hello",
-            "units": "kenobi",
-        }
-        model = epimod.SuitabilityModel(suitability_table=suitability_table)
-        ds_clim = xr.Dataset(
-            {
-                "temperature": ("general", [-0.3, 0, 1.5, 0.7, 2, 4]),
-                "precipitation": ("general", [-0.5, 1, 0.25, 0.75, 0.3, 0.8]),
-            }
-        )
-        ds_suitability = model.run(ds_clim)
-        suitability_values_expected = [0, 0.5, 0.25, 1, 0.25, 0.69]  # nearest neighbor
-        npt.assert_equal(
-            ds_suitability["suitability"].values,
-            suitability_values_expected,
-        )
-        assert ds_suitability["suitability"].attrs == {
-            "long_name": "hello",
             "units": "kenobi",
         }
         # Check that running with a suitability table with non-equally spaced
@@ -169,10 +136,56 @@ class TestSuitabilityModel:
         with pytest.raises(ValueError):
             model1.run(ds_clim)
 
-    def test_plot_suitability_region_range(self):
-        """Test the plot_suitability_region method with a temperature range."""
+    def test_run_temp_precip_table(self):
+        """Test the run method with a temp/precip-dependent suitability table."""
+        suitability_table = xr.Dataset(
+            {
+                "suitability": (
+                    ("general", "temperature", "precipitation"),
+                    [[[0, 0.5], [0.75, 1], [0.25, 0.69]], [[0, 0], [0, 0], [0, 0]]],
+                ),
+            },
+            coords={
+                "temperature": [0, 1, 2],
+                "precipitation": [0, 1],
+                "general": ["kenobi", "grievous"],
+            },
+        )
+        suitability_table["suitability"].attrs = {
+            "long_name": "hello",
+            "units": "there",
+        }
+        model = epimod.SuitabilityModel(suitability_table=suitability_table)
+        ds_clim = xr.Dataset(
+            {
+                "temperature": ("lat", [-0.3, 0, 1.5, 0.7, 2, 4]),
+                "precipitation": ("lat", [-0.5, 1, 0.25, 0.75, 0.3, 0.8]),
+            }
+        )
+        ds_suitability = model.run(ds_clim)
+        suitability_values_expected = [  # nearest neighbor interpolation
+            [0, 0.5, 0.25, 1, 0.25, 0.69],
+            [0, 0, 0, 0, 0, 0],
+        ]
+        npt.assert_equal(
+            ds_suitability["suitability"].transpose("general", "lat").values,
+            suitability_values_expected,
+        )
+        assert ds_suitability["suitability"].attrs == {
+            "long_name": "hello",
+            "units": "there",
+        }
+        # Check that running with a suitability table with non-equally spaced
+        # temperature or precipitation values raises an error.
+        suitability_table1 = suitability_table.assign_coords(temperature=[0, 1, 1.5])
+        model1 = epimod.SuitabilityModel(suitability_table=suitability_table1)
+        with pytest.raises(ValueError):
+            model1.run(ds_clim)
+
+    def test_plot_suitability_range(self):
+        """Test the plot_suitability method with a temperature range."""
         model = epimod.SuitabilityModel(temperature_range=[0, 1])
-        result = model.plot_suitability_region(color="red")
+        result = model.plot_suitability(color="red")
         assert isinstance(result, hv.Curve)
         assert result.kdims[0].pprint_label == "Temperature (°C)"
         assert result.vdims[0].pprint_label == "Suitability"
@@ -181,10 +194,10 @@ class TestSuitabilityModel:
             (result.data.index.values >= 0) & (result.data.index.values <= 1),
         )
 
-    def test_plot_suitability_region_temp_table(self):
-        """Test plot_suitability_region with a temp-dependent suitability table."""
+    def test_plot_suitability_temp_table(self):
+        """Test plot_suitability with a temp-dependent suitability table."""
         suitability_table = xr.Dataset(
-            {"suitability": ("temperature", [0, 0.5, 1])},
+            {"suitability": ("temperature", [False, True, False])},
             coords={"temperature": [0, 1, 2]},
         )
         suitability_table["suitability"].attrs = {
@@ -196,13 +209,13 @@ class TestSuitabilityModel:
             "units": "°C",
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
-        result = model.plot_suitability_region(color="blue")
+        result = model.plot_suitability(color="blue")
         assert isinstance(result, hv.Curve)
         assert result.kdims[0].pprint_label == "Temperature (°C)"
         assert result.vdims[0].pprint_label == "hello there (general kenobi)"
 
-    def test_plot_suitability_region_temp_precip_table(self):
-        """Test plot_suitability_region with a temp/precip-dependent suitability table."""
+    def test_plot_suitability_temp_precip_table(self):
+        """Test plot_suitability with a temp/precip-dependent suitability table."""
         suitability_table = xr.Dataset(
             {
                 "suitability": (
@@ -224,7 +237,7 @@ class TestSuitabilityModel:
             "units": "mm/day",
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
-        result = model.plot_suitability_region()
+        result = model.plot_suitability()
         assert isinstance(result, hv.QuadMesh)
         assert result.kdims[0].pprint_label == "Temperature (°C)"
         assert result.kdims[1].pprint_label == "Precipitation (mm/day)"
@@ -245,3 +258,84 @@ class TestSuitabilityModel:
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
         result = model.get_max_suitability()
         npt.assert_equal(result, 3.5)
+
+
+@pytest.mark.parametrize(
+    "suitability_vals_in,suitability_threshold, stat, quantile, rescale, "
+    "suitability_vals_out_expected, temperature_range_out_expected",
+    [
+        ([[0, 1, 3], [0, 0, 0]], 0, "mean", None, False, [2 / 3, 0], None),
+        ([[0, 2, 3], [0, 0, 0]], None, "median", None, True, [1, 0], None),
+        (
+            [[False, False, True, True], [False, True, False, False]],
+            None,
+            "quantile",
+            0.5,
+            False,
+            [True, False],
+            None,
+        ),
+        (
+            [list(range(100))],
+            None,
+            "quantile",
+            [0.25, 0.75],
+            False,
+            [[24.75, 74.25]],
+            None,
+        ),
+        (
+            [[0, 2, 4], [0, 1, 0]],
+            None,
+            None,
+            None,
+            "mean",
+            [[0, 1, 2], [0, 0.5, 0]],
+            None,
+        ),
+        (
+            [[False], [True], [True], [False]],
+            None,
+            "median",
+            None,
+            False,
+            None,
+            [0.5, 2.5],
+        ),
+    ],
+)
+def test_reduce(
+    suitability_vals_in,
+    suitability_threshold,
+    stat,
+    quantile,
+    rescale,
+    suitability_vals_out_expected,
+    temperature_range_out_expected,
+):
+    """Test the reduce method of SuitabilityModel."""
+    suitability_table_in = xr.Dataset(
+        {
+            "suitability": (("temperature", "sample"), suitability_vals_in),
+        },
+        coords={"temperature": range(len(suitability_vals_in))},
+    )
+    model = epimod.SuitabilityModel(suitability_table=suitability_table_in)
+    reduced_model = model.reduce(
+        suitability_threshold=suitability_threshold,
+        stat=stat,
+        quantile=quantile,
+        rescale=rescale,
+    )
+    if temperature_range_out_expected is not None:
+        npt.assert_equal(
+            reduced_model.temperature_range,
+            temperature_range_out_expected,
+        )
+        return
+    npt.assert_equal(
+        reduced_model.suitability_table["suitability"]
+        .transpose("temperature", ...)
+        .values,
+        suitability_vals_out_expected,
+    )

@@ -1,4 +1,5 @@
-"""Base module of the epimod subpackage.
+"""
+Base module of the epimod subpackage.
 
 Provides a base epidemiological model class and a subclass for temperature- and/or
 rainfall-dependent suitability models.
@@ -68,19 +69,18 @@ class SuitabilityModel(EpiModel):
     suitability_table : xarray.Dataset, optional
         A dataset containing suitability values defined for different temperature
         values or temperature/precipitation combinations. The dataset should have a
-        single data variable called "suitability" with dimension(s) "temperature" and,
-        optionally, "precipitation". Temperatures should be in degrees Celsius and
-        precipitation values in mm/day. If suitability only depends on temperature,
-        linear interpolation is used to calculate suitability values away from grid
-        points. If suitability only depends on both tempperature and precipitation,
-        equi-spaced temperature and precipitation values should be provided (this is not
-        required if suitability only depends on temperature), and nearest neighbour
-        interpolation is used to calculate suitability values away from grid points
-        (this is for performance reasons). Suitability values can be either binary (0
-        or 1) or continuous. Suitability is assumed to take the nearest endpoint value
-        for temperature and/or precipitation values outside the provided range(s).
-        Default is None. Only one of `temperature_range` and `suitability_table` should
-        be provided.
+        single data variable (with any desired name) with dimension(s) "temperature"
+        and, optionally, "precipitation". Temperatures should be in degrees Celsius and
+        precipitation values in mm/day. Equi-spaced temperature and (where applicable)
+        precipitation values should be provided, and nearest neighbour interpolation is
+        used to calculate suitability values away from grid points (this is for
+        performance reasons). Suitability values can be either binary (0 or 1) or
+        continuous. Suitability is assumed to take the nearest endpoint value for
+        temperature and/or precipitation values outside the provided range(s). May also
+        have an additional dimension named "sample" indexing equally likely possible
+        suitability tables, or a dimension "suitability_quantile" indexing quantiles of
+        the suitability values. Default is None. Only one of `temperature_range` and
+        `suitability_table` should be provided.
     """
 
     def __init__(self, temperature_range=None, suitability_table=None):
@@ -166,7 +166,7 @@ class SuitabilityModel(EpiModel):
             )
         return ds_epi
 
-    def plot_suitability_region(self, **kwargs):
+    def plot_suitability(self, **kwargs):
         """
         Plot suitability against temperature and (if relevant) precipitation.
 
@@ -204,6 +204,8 @@ class SuitabilityModel(EpiModel):
                 "long_name": "Temperature",
                 "units": "°C",
             }
+        if suitability_table[suitability_var_name].dtype == bool:
+            suitability_table = suitability_table.astype(int)
         if "precipitation" not in suitability_table.dims:
             kwargs_hvplot = {"x": "temperature", **kwargs}
             return suitability_table[suitability_var_name].hvplot.line(**kwargs_hvplot)
@@ -240,23 +242,52 @@ class SuitabilityModel(EpiModel):
         # Run the main logic of a suitability model defined by a temperature suitability
         # table.
         temperature = ds_clim["temperature"]
-        suitability_table = self.suitability_table
-        table_temp_vals = suitability_table["temperature"].values
         suitability_var_name = self._suitability_var_name
-        table_suitability_vals = suitability_table[suitability_var_name].values
-
-        def suitability_func(temperature_curr):
-            suitability_curr = np.interp(
-                temperature_curr,
-                table_temp_vals,
-                table_suitability_vals,
+        da_suitability_table = self.suitability_table[suitability_var_name].transpose(
+            "temperature", ...
+        )
+        table_suitability_vals = da_suitability_table.values
+        table_temp_vals = da_suitability_table["temperature"].values
+        table_temp_deltas = np.diff(table_temp_vals)
+        if not np.all(
+            np.isclose(table_temp_deltas, table_temp_deltas[0], rtol=1e-3, atol=0)
+        ):
+            raise ValueError(
+                "The suitability table must be defined on a regular grid of "
+                "temperature values.",
             )
+
+        table_temp_delta = table_temp_deltas[0]
+
+        temp_inds = (temperature - table_temp_vals[0]) / table_temp_delta
+        temp_inds = temp_inds.round(0).astype(int).clip(0, len(table_temp_vals) - 1)
+
+        def suitability_func(temp_inds_curr):
+            suitability_curr = table_suitability_vals[temp_inds_curr, ...]
             return suitability_curr
 
+        output_core_dims = [list(da_suitability_table.dims)[1:]]
+        output_sizes = {
+            dim: size
+            for dim, size in da_suitability_table.sizes.items()
+            if dim != "temperature"
+        }
+
         da_suitability = xr.apply_ufunc(
-            suitability_func, temperature, dask="parallelized"
+            suitability_func,
+            temp_inds,
+            dask="parallelized",
+            output_core_dims=output_core_dims,
+            dask_gufunc_kwargs={
+                "output_sizes": output_sizes,
+            },
         )
-        da_suitability.attrs = suitability_table[suitability_var_name].attrs
+
+        if output_sizes:
+            da_suitability = da_suitability.assign_coords(
+                {dim: da_suitability_table[dim] for dim in output_sizes.keys()}
+            )
+
         return da_suitability
 
     def _run_main_temp_precip_table(self, ds_clim):
@@ -264,16 +295,14 @@ class SuitabilityModel(EpiModel):
         # precipitation suitability table.
         temperature = ds_clim["temperature"]
         precipitation = ds_clim["precipitation"]
-        suitability_table = self.suitability_table
         suitability_var_name = self._suitability_var_name
-        table_values = (
-            suitability_table[suitability_var_name]
-            .transpose("temperature", "precipitation")
-            .values
+        da_suitability_table = self.suitability_table[suitability_var_name].transpose(
+            "temperature", "precipitation", ...
         )
-        table_temp_vals = suitability_table["temperature"].values
+        table_suitability_vals = da_suitability_table.values
+        table_temp_vals = da_suitability_table["temperature"].values
         table_temp_deltas = np.diff(table_temp_vals)
-        table_precip_vals = suitability_table["precipitation"].values
+        table_precip_vals = da_suitability_table["precipitation"].values
         table_precip_deltas = np.diff(table_precip_vals)
         if not np.all(
             np.isclose(table_temp_deltas, table_temp_deltas[0], rtol=1e-3, atol=0)
@@ -295,10 +324,138 @@ class SuitabilityModel(EpiModel):
         )
 
         def suitability_func(temp_inds_curr, precip_inds_curr):
-            suitability_curr = table_values[temp_inds_curr, precip_inds_curr]
+            suitability_curr = table_suitability_vals[
+                temp_inds_curr, precip_inds_curr, ...
+            ]
             return suitability_curr
 
+        output_core_dims = [list(da_suitability_table.dims)[2:]]
+        output_sizes = {
+            dim: size
+            for dim, size in da_suitability_table.sizes.items()
+            if dim not in ["temperature", "precipitation"]
+        }
+
         da_suitability = xr.apply_ufunc(
-            suitability_func, temp_inds, precip_inds, dask="parallelized"
+            suitability_func,
+            temp_inds,
+            precip_inds,
+            dask="parallelized",
+            output_core_dims=output_core_dims,
+            dask_gufunc_kwargs={
+                "output_sizes": output_sizes,
+            },
         )
+
+        if output_sizes:
+            da_suitability = da_suitability.assign_coords(
+                {dim: da_suitability_table[dim] for dim in output_sizes.keys()}
+            )
+
         return da_suitability
+
+    def reduce(
+        self,
+        suitability_threshold=None,
+        stat=None,
+        quantile=None,
+        rescale=False,
+    ):
+        """
+        Get a summary suitability model.
+
+        Applies a summary statistic over the equally likely suitability tables and/or
+        calculates a binary suitability model based on a threshold value. If both a
+        suitability threshold and a summary statistic are provided, the suitability
+        threshold is applied first, and then the statistic.
+
+        Parameters
+        ----------
+        suitability_threshold : float, optional
+            The threshold value (strictly) above which climate conditions are considered
+            suitable in a binary suitability model. Default is None. If None, a binary
+            suitability model is not computed.
+        stat : str, optional
+            The summary statistic to compute. Can be "mean", "median", or "quantile".
+            Default is None. If None, no summary statistic is computed.
+        quantile : float or array-like of floats, optional
+            The quantile(s) to compute if stat is "quantile". Default is None.
+        rescale : bool or str, optional
+            If True, the suitability values (after applying any summary statistics)
+            are rescaled so that the maximum value is one. Can also be set to "mean"
+            or "median" such that the mean/median suitability table has max value 1.
+            Default is False. Has no effect if suitability_threshold is specified.
+
+        Returns
+        -------
+        SuitabilityModel
+            The summary suitability model.
+        """
+        suitability_var_name = self._suitability_var_name
+        da_suitability = self.suitability_table[suitability_var_name]
+        if suitability_threshold is not None:
+            da_suitability = da_suitability > suitability_threshold
+        if da_suitability.dtype == bool and stat in ["median", "quantile"]:
+            binary_suitability = True
+            da_suitability = da_suitability.astype(int)
+        else:
+            binary_suitability = False
+        suitability_stat_dict = {"mean": None, "median": None, "quantile": None}
+        if stat == "mean" or rescale == "mean":
+            suitability_stat_dict["mean"] = da_suitability.mean(dim="sample")
+        if stat == "median" or rescale == "median":
+            suitability_stat_dict["median"] = da_suitability.median(dim="sample")
+        if stat == "quantile":
+            suitability_stat_dict["quantile"] = da_suitability.quantile(
+                q=quantile, dim="sample"
+            ).rename({"quantile": "suitability_quantile"})
+        if stat is not None:
+            da_suitability = suitability_stat_dict[stat]
+        if binary_suitability:
+            da_suitability = da_suitability.astype(bool)
+        if rescale:
+            if isinstance(rescale, str):
+                da_suitability = da_suitability / suitability_stat_dict[rescale].max()
+            else:
+                da_suitability = da_suitability / da_suitability.max()
+        suitability_table_new = da_suitability.to_dataset(name=suitability_var_name)
+        if (
+            da_suitability.dtype == bool
+            and len(suitability_table_new.dims) == 1
+            and "temperature" in suitability_table_new.dims
+        ):
+            temperature = suitability_table_new.temperature
+            suitable_temperatures = temperature.where(
+                suitability_table_new[suitability_var_name], drop=True
+            )
+            first_suitable_table_temp = suitable_temperatures.item(0)
+            last_suitable_table_temp = suitable_temperatures.item(-1)
+            first_suitable_loc = temperature.get_index("temperature").get_loc(
+                first_suitable_table_temp
+            )
+            last_suitable_loc = temperature.get_index("temperature").get_loc(
+                last_suitable_table_temp
+            )
+            if (
+                first_suitable_loc
+                and first_suitable_loc > 0
+                and last_suitable_loc < len(temperature) - 1
+                and len(suitable_temperatures)
+                == last_suitable_loc - first_suitable_loc + 1
+            ):
+                min_temp = (  # interpolates between first suitable temperature and the
+                    # temperature just below it, consistent with nearest neighbour
+                    # interpolation used in _run_main_temp_table
+                    0.5
+                    * (
+                        temperature.item(first_suitable_loc - 1)
+                        + first_suitable_table_temp
+                    )
+                )
+                max_temp = 0.5 * (
+                    last_suitable_table_temp + temperature.item(last_suitable_loc + 1)
+                )
+                return SuitabilityModel(
+                    temperature_range=[min_temp, max_temp],
+                )
+        return SuitabilityModel(suitability_table=suitability_table_new)
