@@ -298,18 +298,26 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             raise ValueError(
                 "Minimum and/or maximum suitable temperatures do not exist."
             )
-        da_posterior_min = 0.5 * (
-            da_temperature.isel(temperature=first_suitable_idx - 1).reset_coords(
-                drop=True
-            )
-            + da_temperature.isel(temperature=first_suitable_idx).reset_coords(
-                drop=True
+        da_posterior_min = (
+            0.5
+            * (
+                da_temperature.isel(temperature=first_suitable_idx - 1).reset_coords(
+                    drop=True
+                )
+                + da_temperature.isel(temperature=first_suitable_idx).reset_coords(
+                    drop=True
+                )
             )
         ).assign_attrs(long_name="Minimum suitable temperature", units="°C")
-        da_posterior_max = 0.5 * (
-            da_temperature.isel(temperature=last_suitable_idx).reset_coords(drop=True)
-            + da_temperature.isel(temperature=last_suitable_idx + 1).reset_coords(
-                drop=True
+        da_posterior_max = (
+            0.5
+            * (
+                da_temperature.isel(temperature=last_suitable_idx).reset_coords(
+                    drop=True
+                )
+                + da_temperature.isel(temperature=last_suitable_idx + 1).reset_coords(
+                    drop=True
+                )
             )
         ).assign_attrs(long_name="Maximum suitable temperature", units="°C")
         ds_posterior_min_optimal_max = xr.Dataset(
