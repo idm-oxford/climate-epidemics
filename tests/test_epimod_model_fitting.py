@@ -389,20 +389,25 @@ class TestParameterizedSuitabilityModel:
             }
         )
 
-        p = model.plot_fitted_temperature_responses(temperature_vals="temperature_vals")
+        for parameter_names in [None, "bold", ["bold"]]:
+            p = model.plot_fitted_temperature_responses(
+                parameter_names=parameter_names, temperature_vals="temperature_vals"
+            )
 
-        assert p == mock_layout.return_value.opts.return_value
-        mock_plot_response.assert_called_once_with(
-            idata="idata_bold",
-            temperature_vals="temperature_vals",
-            temperature_data="temperature_data_bold",
-            trait_data="data_bold",
-            curve_type="one",
-            probability=False,
-            trait_name="bold",
-            trait_attrs={"fine": "addition"},
-        )
-        mock_layout.assert_called_once_with(["idata_bold"])
+            assert p == mock_layout.return_value.opts.return_value
+            mock_plot_response.assert_called_once_with(
+                idata="idata_bold",
+                temperature_vals="temperature_vals",
+                temperature_data="temperature_data_bold",
+                trait_data="data_bold",
+                curve_type="one",
+                probability=False,
+                trait_name="bold",
+                trait_attrs={"fine": "addition"},
+            )
+            mock_layout.assert_called_once_with(["idata_bold"])
+            mock_layout.reset_mock()
+            mock_plot_response.reset_mock()
 
     @patch(
         "climepi.epimod._model_fitting.get_posterior_temperature_response",
