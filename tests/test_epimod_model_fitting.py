@@ -213,6 +213,60 @@ def test_plot_fitted_temperature_response(mock_get_posterior):
     )
 
 
+def test_bounded_quadratic():
+    """Test the _bounded_quadratic function."""
+    temperature = xr.DataArray([0, 1, 2, 3, 4], dims="temperature")
+    scale = xr.DataArray([0.25, 2], dims="kenobi")
+    temperature_min = xr.DataArray([0, 0], dims="kenobi")
+    temperature_max = xr.DataArray([3, 3], dims="kenobi")
+    response = epimod._model_fitting._bounded_quadratic(
+        temperature=temperature,
+        scale=scale,
+        temperature_min=temperature_min,
+        temperature_max=temperature_max,
+        probability=True,
+        array_lib=xr,
+    )
+    assert isinstance(response, xr.DataArray)
+    npt.assert_equal(response.isel(temperature=0, kenobi=0).item(), 0)
+    npt.assert_equal(
+        response.isel(temperature=1, kenobi=0).item(),
+        0.5,  # 0.25 * (1 - 0) * (3 - 1)
+    )
+    npt.assert_equal(response.isel(temperature=4, kenobi=0).item(), 0)
+    npt.assert_equal(
+        response.isel(temperature=1, kenobi=1).item(),
+        1,  # probability=True so max value is 1
+    )
+
+
+def test_briere():
+    """Test the _briere function."""
+    temperature = xr.DataArray([0, 1, 2, 3, 4, 5], dims="temperature")
+    scale = xr.DataArray([0.1, 0.5], dims="kenobi")
+    temperature_min = xr.DataArray([0, 0], dims="kenobi")
+    temperature_max = xr.DataArray([4, 4], dims="kenobi")
+    response = epimod._model_fitting._briere(
+        temperature=temperature,
+        scale=scale,
+        temperature_min=temperature_min,
+        temperature_max=temperature_max,
+        probability=True,
+        array_lib=xr,
+    )
+    assert isinstance(response, xr.DataArray)
+    npt.assert_equal(response.isel(temperature=0, kenobi=0).item(), 0)
+    npt.assert_equal(
+        response.isel(temperature=2, kenobi=0).item(),
+        0.1 * 2 * (2 - 0) * (4 - 2) ** 0.5,
+    )
+    npt.assert_equal(response.isel(temperature=5, kenobi=0).item(), 0)
+    npt.assert_equal(
+        response.isel(temperature=2, kenobi=1).item(),
+        1,  # probability=True so max value is 1
+    )
+
+
 class TestParameterizedSuitabilityModel:
     """Test the ParameterizedSuitabilityModel class."""
 
