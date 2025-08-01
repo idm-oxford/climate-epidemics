@@ -43,23 +43,45 @@ def _plot_map(self, *args, **kwargs):
     return original_plot_map(self, *args, **{**kwargs, "rasterize": False})
 
 
+@patch.object(xr, "open_mfdataset", autospec=True)
 @patch("climepi.app._app_classes_methods.climdata.get_example_dataset", autospec=True)
-def test_load_clim_data_func(mock_get_example_dataset):
+def test_load_clim_data_func(mock_get_example_dataset, mock_open_mfdataset):
     """Unit test for the _load_clim_data_func function."""
-    mock_get_example_dataset.return_value = "mocked_dataset"
-    result = app_classes_methods._load_clim_data_func("some_example_name", "some/dir")
+    mock_get_example_dataset.return_value = "mocked_example_dataset"
+    mock_open_mfdataset.return_value = xr.Dataset(
+        {"time_bnds": (("time", "bnds"), np.array([[0, 1, 2], [1, 2, 3]]))},
+    ).chunk({"time": 3})
+    result = app_classes_methods._load_clim_data_func(
+        "Example dataset",
+        clim_example_name="some_example_name",
+        clim_example_base_dir="some/dir",
+    )
     mock_get_example_dataset.assert_called_once_with(
         "some_example_name", base_dir="some/dir"
     )
-    assert result == "mocked_dataset"
+    assert result == "mocked_example_dataset"
     # Check cached version is returned if the same example_name and base_dir are
     # provided
     mock_get_example_dataset.return_value = "another_mocked_dataset"
     result_cached = app_classes_methods._load_clim_data_func(
-        "some_example_name", "some/dir"
+        "Example dataset",
+        clim_example_name="some_example_name",
+        clim_example_base_dir="some/dir",
     )
-    assert result_cached == "mocked_dataset"
+    assert result_cached == "mocked_example_dataset"
     mock_get_example_dataset.assert_called_once()
+    # Test with custom dataset option
+    result_custom = app_classes_methods._load_clim_data_func(
+        "Custom dataset", custom_clim_data_dir="path/to/custom/data"
+    )
+    assert result_custom == mock_open_mfdataset.return_value
+    assert not result_custom.chunks  # method loads time_bnds into memory
+    mock_open_mfdataset.assert_called_once_with(
+        "path/to/custom/data/*.nc", data_vars="minimal", chunks={}
+    )
+    # Test with invalid dataset option
+    with pytest.raises(ValueError, match="Unrecognised climate data option"):
+        app_classes_methods._load_clim_data_func("Not an option")
 
 
 @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
@@ -282,6 +304,7 @@ class TestPlotter:
             assert plot_obj_last.keys() == [
                 ("QuadMesh", "I"),
                 ("Coastline", "I"),
+                ("Borders", "I"),
                 ("Ocean", "I"),
             ]
         elif plot_type == "time series":
@@ -875,12 +898,15 @@ class TestController:
         controller = app_classes_methods.Controller(
             clim_dataset_example_base_dir="some/dir",
             clim_dataset_example_names=["data1", "data2"],
+            enable_custom_clim_dataset=True,
             epi_model_example_names=["model1", "model2"],
             enable_custom_epi_model=True,
+            custom_clim_data_dir="another/dir",
         )
         for attr, value in [
-            ("clim_dataset_name", "data1"),
-            ("clim_dataset_doc", "data1_doc"),
+            ("clim_data_option", "Example dataset"),
+            ("clim_example_name", "data1"),
+            ("clim_example_doc", "data1_doc"),
             ("clim_data_load_initiator", False),
             ("clim_data_loaded", False),
             ("clim_data_status", "Data not loaded"),
@@ -894,6 +920,7 @@ class TestController:
             ("epi_model_ran", False),
             ("epi_model_status", "Model has not been run"),
             ("_clim_dataset_example_base_dir", "some/dir"),
+            ("_custom_clim_data_dir", "another/dir"),
             ("_ds_clim", None),
             ("_ds_epi", None),
         ]:
@@ -901,6 +928,7 @@ class TestController:
                 f"Unexpected value for {attr}: expected {value}, "
                 f"got {getattr(controller, attr)}"
             )
+        assert controller.param.clim_data_option.precedence == 1
         assert controller._ds_epi_path.parents[1] == pathlib.Path(tempfile.gettempdir())
         assert controller._ds_epi_path.name == "ds_epi.nc"
         assert controller._epi_model.temperature_range == (1, 2)
@@ -1057,11 +1085,11 @@ class TestController:
             data_var="precipitation", frequency="daily", extra_dims={"realization": 2}
         ).climepi.sel_geo("Lords")
 
-        def _mock_get_example_dataset(clim_dataset_name, base_dir=None):
+        def _mock_get_example_dataset(clim_example_name, base_dir=None):
             assert str(base_dir) == "some/dir"
-            if clim_dataset_name == "data1":
+            if clim_example_name == "data1":
                 return ds1
-            if clim_dataset_name == "data2":
+            if clim_example_name == "data2":
                 return ds2
             raise ValueError("Dataset not available")
 
@@ -1080,7 +1108,7 @@ class TestController:
 
         # Test loading the first dataset
 
-        assert controller.clim_dataset_name == "data1"  # should be default
+        assert controller.clim_example_name == "data1"  # should be default
         assert not controller.clim_data_loaded
         assert controller.clim_data_status == "Data not loaded"
         controller.param.trigger("clim_data_load_initiator")
@@ -1114,7 +1142,7 @@ class TestController:
 
         # Test loading a different dataset
 
-        controller.clim_dataset_name = "data2"
+        controller.clim_example_name = "data2"
         assert not controller.clim_data_loaded
         assert controller.clim_data_status == "Data not loaded"
 
@@ -1129,7 +1157,7 @@ class TestController:
         assert not controller.epi_plot_controller.plot_generated
 
         # Check error handling
-        controller.clim_dataset_name = "data3"
+        controller.clim_example_name = "data3"
         with pytest.raises(ValueError, match="Dataset not available"):
             controller.param.trigger("clim_data_load_initiator")
         assert not controller.clim_data_loaded
@@ -1367,21 +1395,21 @@ class TestController:
         """
         Unit test for the _revert_clim_data_load_status method.
 
-        The method is triggered by changing the 'clim_dataset_name' parameter.
+        The method is triggered by changing the 'clim_example_name' parameter.
         """
         controller = app_classes_methods.Controller(
             clim_dataset_example_names=["data1", "data2"]
         )
-        assert controller.clim_dataset_name == "data1"
+        assert controller.clim_example_name == "data1"
         controller.clim_data_loaded = True
         controller.clim_data_status = "Data loaded"
-        controller.clim_dataset_name = "data2"
+        controller.clim_example_name = "data2"
         assert not controller.clim_data_loaded
         assert controller.clim_data_status == "Data not loaded"
         # Check that reselecting the current dataset does not revert the status
         controller.clim_data_loaded = True
         controller.clim_data_status = "Data loaded"
-        controller.clim_dataset_name = "data2"
+        controller.clim_example_name = "data2"
         assert controller.clim_data_loaded
         assert controller.clim_data_status == "Data loaded"
 
@@ -1398,7 +1426,7 @@ class TestController:
         """
         Unit test for the _revert_epi_model_run_status method.
 
-        The method is triggered by changing the 'clim_dataset_name', 'epi_model_option',
+        The method is triggered by changing the 'clim_example_name', 'epi_model_option',
         'epi_example_name', 'epi_temperature_range', 'epi_output_choice', or
         'suitability_threshold' parameters.
         """
@@ -1406,7 +1434,7 @@ class TestController:
             clim_dataset_example_names=["data1", "data2"],
             epi_model_example_names=["model1", "model2"],
         )
-        assert controller.clim_dataset_name == "data1"
+        assert controller.clim_example_name == "data1"
         assert controller.epi_model_option == "Example model"
         assert controller.epi_example_name == "model1"
         assert controller.epi_temperature_range == (15, 30)
@@ -1415,7 +1443,7 @@ class TestController:
         assert not controller.epi_model_ran
         assert controller.epi_model_status == "Model has not been run"
         for attr, new_value in [
-            ("clim_dataset_name", "data2"),
+            ("clim_example_name", "data2"),
             ("epi_example_name", "model2"),
             ("epi_model_option", "Custom temperature-dependent suitability model"),
             ("epi_temperature_range", (10, 20)),
@@ -1432,21 +1460,21 @@ class TestController:
         "climepi.app._app_classes_methods.climdata.EXAMPLES",
         {"data1": {"doc": "doc1"}, "data2": {"doc": "doc2"}, "data3": {}},
     )
-    def test_update_clim_dataset_doc(self):
+    def test_update_clim_example_name_doc(self):
         """
-        Unit test for the _update_clim_dataset_doc method.
+        Unit test for the _update_clim_example_name_doc method.
 
-        The method is triggered by changing the 'clim_dataset_name' parameter.
+        The method is triggered by changing the 'clim_example_name' parameter.
         """
         controller = app_classes_methods.Controller(
             clim_dataset_example_names=["data1", "data2"]
         )
-        assert controller.clim_dataset_doc == "doc1"
-        controller.clim_dataset_name = "data2"
-        assert controller.clim_dataset_doc == "doc2"
+        assert controller.clim_example_doc == "doc1"
+        controller.clim_example_name = "data2"
+        assert controller.clim_example_doc == "doc2"
         # Dataset without doc string
-        controller.clim_dataset_name = "data3"
-        assert controller.clim_dataset_doc == ""
+        controller.clim_example_name = "data3"
+        assert controller.clim_example_doc == ""
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     @patch.dict(
