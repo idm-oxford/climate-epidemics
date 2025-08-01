@@ -3,9 +3,10 @@
 import pathlib
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
-from climepi.epimod._model_classes import SuitabilityModel
+from climepi.epimod._base_classes import SuitabilityModel
 
 EXAMPLES = {
     "mordecai_ae_aegypti_niche": {
@@ -240,6 +241,44 @@ def get_example_model(name):
             "Please check the documentation for the expected format of example models."
         )
     return epi_model
+
+
+def get_example_temperature_response_data(name):
+    """
+    Get example temperature response data.
+
+    Available datasets are "mordecai_ae_aegypti" (data used to fit the Aedes aegypti
+    model in Mordecai et al., PLoS Negl Trop Dis 2017,
+    https://doi.org/10.1371/journal.pntd.0005568) and "mordecai_ae_albopictus" (data
+    used to fit the Aedes albopictus model in the same paper).
+
+    Parameters
+    ----------
+    name : str
+        The name of the example temperature response data to return. Available names
+        are "mordecai_ae_aegypti" and "mordecai_ae_albopictus".
+
+    Returns
+    -------
+    pandas.DataFrame
+        The temperature response data. The DataFrame has columns 'trait_name',
+        'temperature' (for the temperature values), 'trait_value' (for the corresponding
+        trait values), and 'reference' (giving original source information for the
+        data).
+    """
+    if name == "mordecai_ae_aegypti":
+        return pd.read_csv(
+            pathlib.Path(__file__).parent / "_example_data/mordecai_ae_aegypti_data.csv"
+        )
+    elif name == "mordecai_ae_albopictus":
+        return pd.read_csv(
+            pathlib.Path(__file__).parent
+            / "_example_data/mordecai_ae_albopictus_data.csv"
+        )
+    raise ValueError(
+        f"Example response data '{name}' not found. Available examples are: "
+        "'mordecai_ae_aegypti', 'mordecai_ae_albopictus'."
+    )
 
 
 def _get_example_details(name):

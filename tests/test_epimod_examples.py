@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 import numpy.testing as npt
+import pandas as pd
 import pytest
 import xarray as xr
 import xarray.testing as xrt
@@ -109,6 +110,46 @@ class TestGetExampleModel:
         """
         with pytest.raises(ValueError, match="does not have a recognised format"):
             epimod.get_example_model("test")
+
+
+@pytest.mark.parametrize(
+    "name", ["mordecai_ae_aegypti", "mordecai_ae_albopictus", "fake_example"]
+)
+def test_get_example_temperature_response_data(name):
+    """Test the get_example_temperature_response_data function."""
+    if name == "fake_example":
+        with pytest.raises(
+            ValueError, match="Example response data 'fake_example' not found."
+        ):
+            epimod.get_example_temperature_response_data(name)
+        return
+    response_data = epimod.get_example_temperature_response_data(name)
+    assert isinstance(response_data, pd.DataFrame)
+    assert dict(response_data.dtypes) == {
+        "trait_name": "object",
+        "temperature": "float64"
+        if name == "mordecai_ae_aegypti"
+        else "int64"
+        if name == "mordecai_ae_albopictus"
+        else "should not be here",
+        "trait_value": "float64",
+        "reference": "object",
+    }
+    trait_names = list(np.sort(response_data.trait_name.unique()))
+    assert trait_names == [
+        "adult_lifespan",
+        "biting_rate",
+        "egg_to_adult_development_rate",
+        "egg_to_adult_survival_probability",
+        "eggs_per_female_per_day"
+        if name == "mordecai_ae_aegypti"
+        else "eggs_per_female_per_cycle"
+        if name == "mordecai_ae_albopictus"
+        else "should not be here",
+        "extrinsic_incubation_rate",
+        "human_to_mosquito_transmission_probability",
+        "mosquito_to_human_transmission_probability",
+    ]
 
 
 @patch.dict(epimod._examples.EXAMPLES, {"googly": "back of the hand"})

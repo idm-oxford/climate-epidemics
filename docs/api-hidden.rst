@@ -18,5 +18,5 @@
    climepi.epimod.EpiModel.run
 
    climepi.epimod.SuitabilityModel.run
-   climepi.epimod.SuitabilityModel.plot_suitability_region
+   climepi.epimod.SuitabilityModel.plot_suitability
    climepi.epimod.SuitabilityModel.get_max_suitability
