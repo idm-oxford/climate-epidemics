@@ -267,6 +267,19 @@ def test_briere():
     )
 
 
+def test_get_curve_func():
+    """Test the _get_curve_func function."""
+    assert (
+        epimod._model_fitting._get_curve_func("quadratic")
+        == epimod._model_fitting._bounded_quadratic
+    )
+    assert (
+        epimod._model_fitting._get_curve_func("briere") == epimod._model_fitting._briere
+    )
+    with pytest.raises(ValueError, match="Invalid curve_type: 'kenobi'"):
+        epimod._model_fitting._get_curve_func("kenobi")
+
+
 class TestParameterizedSuitabilityModel:
     """Test the ParameterizedSuitabilityModel class."""
 
@@ -281,6 +294,7 @@ class TestParameterizedSuitabilityModel:
             parameters={
                 "general": {"curve_type": "hello"},
                 "kenobi": {"curve_type": "there"},
+                "bold": "one",
             },
             data=pd.DataFrame(
                 {
@@ -310,6 +324,7 @@ class TestParameterizedSuitabilityModel:
             model._parameters["kenobi"]["trait_data"],
             [3],
         )
+        assert model._parameters["bold"] == "one"
         assert model._suitability_function == "some_function"
         assert model._suitability_var_name == "suitability"
         assert model._suitability_var_long_name == "Suitability"
@@ -518,6 +533,15 @@ class TestParameterizedSuitabilityModel:
         assert suitability_table.suitability.attrs["long_name"] == "Grievous"
         assert suitability_table.temperature.attrs["long_name"] == "Temperature"
         assert suitability_table.precipitation.attrs["long_name"] == "Precipitation"
+
+        with pytest.raises(
+            ValueError, match="Invalid parameter entry for 'hello': there"
+        ):
+            epimod.ParameterizedSuitabilityModel(
+                parameters={
+                    "hello": "there",
+                }
+            ).construct_suitability_table()
 
 
 def test_get_posterior_min_optimal_max_temperature():
