@@ -1104,6 +1104,8 @@ class TestController:
             clim_dataset_example_base_dir="some/dir",
             clim_dataset_example_names=["data1", "data2", "data3"],
             epi_model_example_names=["model"],
+            enable_custom_clim_dataset=True,
+            custom_clim_data_dir="another/dir",
         )
 
         # Test loading the first dataset
@@ -1156,7 +1158,32 @@ class TestController:
         assert not controller.clim_plot_controller.plot_generated
         assert not controller.epi_plot_controller.plot_generated
 
+        # Test loading a custom dataset
+
+        controller.clim_data_option = "Custom dataset"
+        assert not controller.clim_data_loaded
+        assert controller.clim_data_status == "Data not loaded"
+
+        with patch(
+            "climepi.app._app_classes_methods._load_clim_data_func",
+            autospec=True,
+            return_value=ds1,
+        ) as mock_load_clim_data_func:
+            controller.param.trigger("clim_data_load_initiator")
+
+        mock_load_clim_data_func.assert_called_once_with(
+            "Custom dataset",
+            clim_example_name="data2",
+            clim_example_base_dir="some/dir",
+            custom_clim_data_dir="another/dir",
+        )
+        assert controller.clim_data_loaded
+        assert controller.clim_data_status == "Data loaded"
+        xrt.assert_identical(controller._ds_clim, ds1)
+        xrt.assert_identical(controller.clim_plot_controller._ds_base, ds1)
+
         # Check error handling
+        controller.clim_data_option = "Example dataset"
         controller.clim_example_name = "data3"
         with pytest.raises(ValueError, match="Dataset not available"):
             controller.param.trigger("clim_data_load_initiator")
@@ -1467,14 +1494,32 @@ class TestController:
         The method is triggered by changing the 'clim_example_name' parameter.
         """
         controller = app_classes_methods.Controller(
-            clim_dataset_example_names=["data1", "data2"]
+            clim_dataset_example_names=["data1", "data2"],
+            enable_custom_clim_dataset=True,
         )
         assert controller.clim_example_doc == "doc1"
+        assert controller.param.clim_example_name.precedence == 1
+        assert controller.param.clim_example_doc.precedence == 1
+        # Change to another dataset with doc string
         controller.clim_example_name = "data2"
         assert controller.clim_example_doc == "doc2"
-        # Dataset without doc string
+        assert controller.param.clim_example_name.precedence == 1
+        assert controller.param.clim_example_doc.precedence == 1
+        # Change to dataset without doc string
         controller.clim_example_name = "data3"
         assert controller.clim_example_doc == ""
+        assert controller.param.clim_example_name.precedence == 1
+        assert controller.param.clim_example_doc.precedence == 1
+        # Change to custom dataset
+        controller.clim_data_option = "Custom dataset"
+        assert controller.param.clim_example_name.precedence == -1
+        assert controller.param.clim_example_doc.precedence == -1
+        # Change back to example dataset
+        controller.clim_data_option = "Example dataset"
+        assert controller.clim_example_name == "data3"
+        assert controller.clim_example_doc == ""
+        assert controller.param.clim_example_name.precedence == 1
+        assert controller.param.clim_example_doc.precedence == 1
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     @patch.dict(
