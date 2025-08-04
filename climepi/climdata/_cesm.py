@@ -527,40 +527,40 @@ class GLENSDataGetter(CESMDataGetter):
         return super()._process_data()
 
 
-def _preprocess_glens_dataset(_ds, frequency=None, years=None, realizations=None):
+def _preprocess_glens_dataset(ds, frequency=None, years=None, realizations=None):
     member_ids = [f"{(i + 1):03d}" for i in realizations]
-    _member_id = _ds.attrs["case"].split(".")[-1]
-    assert _member_id in member_ids, f"Unexpected member_id {_member_id}"
-    _scenario_str = _ds.attrs["case"].split(".")[-2]
-    _scenario = (
+    member_id = ds.attrs["case"].split(".")[-1]
+    assert member_id in member_ids, f"Unexpected member_id {member_id}"
+    scenario_str = ds.attrs["case"].split(".")[-2]
+    scenario = (
         "rcp85"
-        if _scenario_str.lower() == "control"
+        if scenario_str.lower() == "control"
         else "sai"
-        if _scenario_str.lower() == "feedback"
+        if scenario_str.lower() == "feedback"
         else None
     )
-    if _scenario is None:
+    if scenario is None:
         raise ValueError(
-            f"Failed to parse scenario string '{_scenario_str}' from dataset"
+            f"Failed to parse scenario string '{scenario_str}' from dataset"
         )
-    _data_var = [
-        v for v in _ds.data_vars if v in ["TREFHT", "PRECC", "PRECL", "PRECT"]
-    ][0]
-    _ds = _ds[[_data_var]]  # drops time_bnds (avoids performance issues)
-    _ds[_data_var] = _ds[_data_var].expand_dims(
-        member_id=[_member_id],
-        scenario=np.array([_scenario], dtype="object"),
+    data_var = [v for v in ds.data_vars if v in ["TREFHT", "PRECC", "PRECL", "PRECT"]][
+        0
+    ]
+    ds = ds[[data_var]]  # drops time_bnds (avoids performance issues)
+    ds[data_var] = ds[data_var].expand_dims(
+        member_id=[member_id],
+        scenario=np.array([scenario], dtype="object"),
     )
     # Times seem to be at end of interval, so shift
-    _old_time = _ds["time"]
+    old_time = ds["time"]
     if frequency in ["monthly", "yearly"]:
-        _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="MS"))
+        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="MS"))
     elif frequency == "daily":
-        _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="D"))
+        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="D"))
     else:
         raise ValueError(f"Frequency {frequency} is not supported.")
-    _ds["time"].encoding = _old_time.encoding
-    _ds["time"].attrs = _old_time.attrs
+    ds["time"].encoding = old_time.encoding
+    ds["time"].attrs = old_time.attrs
     # Subset to requested years now to avoid concatenation/merging issues
-    _ds = _ds.isel(time=np.isin(_ds.time.dt.year, years))
-    return _ds
+    ds = ds.isel(time=np.isin(ds.time.dt.year, years))
+    return ds
