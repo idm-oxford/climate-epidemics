@@ -58,7 +58,6 @@ climepi = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.dependencies]
 ruff = "*"
-playwright = "==1.54.0" # windows tests failing with 1.54.1/1.54.2
 pytest = "*"
 pytest-cov = "*"
 pytest-playwright = "*"
