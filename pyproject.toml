@@ -60,7 +60,6 @@ climepi = { path = ".", editable = true }
 ruff = "*"
 pytest = "*"
 pytest-cov = "*"
-pytest-playwright = "*"
 mkdocs = "*"
 sphinx-book-theme = "*"
 sphinx-autosummary-accessors = "*"
@@ -68,6 +67,9 @@ ipykernel = "*"
 jupyter_bokeh = "*"
 pip = "*"                          # needed for notebooks
 versioneer = "==0.29"
+
+[tool.pixi.feature.dev.pypi-dependencies]
+pytest-playwright = "*" # conda version giving errors in Windows
 
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "default" }
