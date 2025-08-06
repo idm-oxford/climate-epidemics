@@ -4,6 +4,7 @@ Unit tests for the the _cesm.py module of the climdata subpackage.
 The CESMDataGetter class is tested.
 """
 
+import itertools
 import pathlib
 import tempfile
 from unittest.mock import patch
@@ -12,11 +13,18 @@ import intake_esm
 import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
 import numpy.testing as npt
+import pandas as pd
 import pytest
 import xarray as xr
 import xarray.testing as xrt
 
-from climepi.climdata._cesm import CESMDataGetter, LENS2DataGetter
+from climepi.climdata._cesm import (
+    ARISEDataGetter,
+    CESMDataGetter,
+    LENS2DataGetter,
+    _preprocess_arise_dataset,
+)
+from climepi.testing.fixtures import generate_dataset
 
 
 class TestCESMDataGetter:
@@ -430,3 +438,105 @@ class TestLENS2DataGetter:
                 member_id=[0, 2],
             ),
         )
+
+
+class TestARISEDataGetter:
+    """Class for testing the ARISEDataGetter class."""
+
+    @patch.object(xr, "open_mfdataset", autospec=True)
+    @pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
+    def test_find_remote_data(self, mock_open_mfdataset, frequency):
+        """Test the _find_remote_data method of the ARISEDataGetter class."""
+        data_getter = ARISEDataGetter(
+            frequency=frequency,
+            subset={"years": [2044, 2045, 2046], "realizations": [1, 5]},
+        )
+        data_getter._find_remote_data()
+        urls_expected = [
+            "s3://ncar-cesm2-arise/CESM2-WACCM-SSP245/metadata/fsspec/"
+            "b.e21.BWSSP245cmip6.f09_g17.CMIP6-SSP2-4.5-WACCM."
+            f"{member_id}.cam.{'h1' if frequency == 'daily' else 'h0'}.{data_var}."
+            f"{time_str}.json"
+            for member_id in ["002", "006"]
+            for data_var in ["TREFHT", "PRECT"]
+            for time_str in (
+                ["20350101-20441231", "20450101-20541231"]
+                if frequency == "daily"
+                else ["201501-206412"]
+            )
+        ] + [
+            "s3://ncar-cesm2-arise/ARISE-SAI-1.5/metadata/fsspec/"
+            "b.e21.BW.f09_g17.SSP245-TSMLT-GAUSS-DEFAULT."
+            f"{member_id}.cam.{'h1' if frequency == 'daily' else 'h0'}.{data_var}."
+            f"{time_str}.json"
+            for member_id in ["002", "006"]
+            for data_var in ["TREFHT", "PRECT"]
+            for time_str in (
+                ["20350101-20441231", "20450101-20541231"]
+                if frequency == "daily"
+                else ["203501-206912"]
+            )
+        ]
+        urls_called = mock_open_mfdataset.call_args.args[0]
+        for url in urls_called:
+            print(url)
+        assert sorted(urls_called) == sorted(urls_expected)
+
+    def test_find_remote_data_errors(self):
+        """Test cases where _find_remote_data should raise an error."""
+        with pytest.raises(ValueError, match="Frequency hourly is not supported."):
+            data_getter = ARISEDataGetter(frequency="hourly")
+            data_getter._find_remote_data()
+        with pytest.raises(ValueError, match="Scenario overcast is not supported."):
+            data_getter = ARISEDataGetter(
+                frequency="monthly", subset={"scenarios": ["overcast"]}
+            )
+            data_getter._find_remote_data()
+
+
+@pytest.mark.parametrize("frequency", ["daily", "monthly"])
+@pytest.mark.parametrize("scenario", ["ssp245", "sai15", "overcast"])
+def test_preprocess_arise_dataset(frequency, scenario):
+    """Test the _preprocess_arise_dataset function."""
+    ds_in = generate_dataset(data_var="TREFHT", frequency=frequency, has_bounds=True)
+    if frequency == "monthly":
+        # Set time to end of month for monthly data
+        time_attrs = ds_in["time"].attrs.copy()
+        time_encoding = ds_in["time"].encoding.copy()
+        ds_in = ds_in.assign_coords(
+            time=ds_in.time_bnds.isel(bnds=1).assign_attrs(time_attrs)
+        )
+        ds_in["time"].encoding = time_encoding
+    ds_in = ds_in.assign_attrs(
+        case=(
+            "b.e21.BW.f09_g17.SSP245-TSMLT-GAUSS-DEFAULT.002"
+            if scenario == "sai15"
+            else "b.e21.BWSSP245cmip6.f09_g17.CMIP6-SSP2-4.5-WACCM.002"
+            if scenario == "ssp245"
+            else "some_invalid_string_to_test_error"
+        ),
+    )
+    if scenario == "overcast":
+        with pytest.raises(
+            ValueError, match="Failed to parse scenario from case attribute"
+        ):
+            _preprocess_arise_dataset(ds_in, frequency=frequency, realizations=[1])
+        return
+    result = _preprocess_arise_dataset(ds_in, frequency=frequency, realizations=[0, 1])
+    npt.assert_equal(result.TREFHT.member_id.values, ["002"])
+    npt.assert_equal(result.TREFHT.scenario.values, [scenario])
+    npt.assert_equal(
+        result.TREFHT.squeeze(["member_id", "scenario"], drop=True).values,
+        ds_in.TREFHT.values,
+    )
+    assert "time_bnds" not in result
+    if frequency == "daily":
+        xrt.assert_identical(result["time"], ds_in["time"])
+    elif frequency == "monthly":
+        npt.assert_equal(result["time"].values, ds_in["time_bnds"].isel(bnds=0).values)
+        assert result["time"].encoding == ds_in["time"].encoding
+        assert result["time"].attrs == ds_in["time"].attrs
+    else:
+        raise ValueError(f"Unexpected frequency: {frequency}")
+    with pytest.raises(AssertionError, match="Unexpected member_id 002"):
+        _preprocess_arise_dataset(ds_in, frequency=frequency, realizations=[2])
