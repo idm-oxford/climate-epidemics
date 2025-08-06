@@ -264,36 +264,6 @@ class ARISEDataGetter(CESMDataGetter):
         else:
             raise ValueError(f"Frequency {frequency} is not supported.")
 
-        def _preprocess(_ds):
-            _member_id = _ds.attrs["case"].split(".")[-1]
-            assert _member_id in member_ids, f"Unexpected member_id {_member_id}"
-            _scenario = (
-                "sai15"
-                if _ds.attrs["case"].split(".")[-2] == "SSP245-TSMLT-GAUSS-DEFAULT"
-                else "ssp245"
-                if ".".join(_ds.attrs["case"].split(".")[-3:-1])
-                == "CMIP6-SSP2-4.5-WACCM"
-                else None
-            )
-            if _scenario is None:
-                raise ValueError(
-                    f"Failed to parse scenario from case attr '{_ds.attrs['case']}'"
-                )
-            _data_var = [v for v in _ds.data_vars if v in ["TREFHT", "PRECT"]][0]
-            _ds = _ds[[_data_var]]  # drops time_bnds (readded later)
-            _ds[_data_var] = _ds[_data_var].expand_dims(
-                member_id=[_member_id],
-                scenario=np.array([_scenario], dtype="object"),
-            )
-            # times seem to be at end of interval for monthly data, so shift
-            if frequency in ["monthly", "yearly"]:
-                _old_time = _ds["time"]
-                _ds = _ds.assign_coords(time=_ds.get_index("time").shift(-1, freq="MS"))
-                _ds["time"].encoding = _old_time.encoding
-                _ds["time"].attrs = _old_time.attrs
-
-            return _ds
-
         version = _get_data_version()
 
         urls = []
@@ -342,6 +312,11 @@ class ARISEDataGetter(CESMDataGetter):
                     )
                 ]
             )
+        _preprocess = functools.partial(
+            _preprocess_arise_dataset,
+            frequency=frequency,
+            realizations=realizations,
+        )
         ds_in = xr.open_mfdataset(
             urls,
             chunks={},
@@ -527,22 +502,58 @@ class GLENSDataGetter(CESMDataGetter):
         return super()._process_data()
 
 
-def _preprocess_glens_dataset(ds, frequency=None, years=None, realizations=None):
+def _preprocess_arise_dataset(ds, frequency=None, realizations=None):
+    try:
+        scenario = (
+            "sai15"
+            if ds.attrs["case"].split(".")[-2] == "SSP245-TSMLT-GAUSS-DEFAULT"
+            else "ssp245"
+            if ".".join(ds.attrs["case"].split(".")[-3:-1]) == "CMIP6-SSP2-4.5-WACCM"
+            else None
+        )
+    except (IndexError, KeyError):
+        scenario = None
+    if scenario is None:
+        raise ValueError(
+            f"Failed to parse scenario from case attribute '{ds.attrs['case']}'"
+        )
     member_ids = [f"{(i + 1):03d}" for i in realizations]
     member_id = ds.attrs["case"].split(".")[-1]
     assert member_id in member_ids, f"Unexpected member_id {member_id}"
-    scenario_str = ds.attrs["case"].split(".")[-2]
-    scenario = (
-        "rcp85"
-        if scenario_str.lower() == "control"
-        else "sai"
-        if scenario_str.lower() == "feedback"
-        else None
+    data_var = [v for v in ds.data_vars if v in ["TREFHT", "PRECT"]][0]
+    ds = ds[[data_var]]  # drops time_bnds (readded later)
+    ds[data_var] = ds[data_var].expand_dims(
+        member_id=[member_id],
+        scenario=np.array([scenario], dtype="object"),
     )
+    # times seem to be at end of interval for monthly data, so shift
+    if frequency in ["monthly", "yearly"]:
+        old_time = ds["time"]
+        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="MS"))
+        ds["time"].encoding = old_time.encoding
+        ds["time"].attrs = old_time.attrs
+    return ds
+
+
+def _preprocess_glens_dataset(ds, frequency=None, years=None, realizations=None):
+    try:
+        scenario_str = ds.attrs["case"].split(".")[-2]
+        scenario = (
+            "rcp85"
+            if scenario_str.lower() == "control"
+            else "sai"
+            if scenario_str.lower() == "feedback"
+            else None
+        )
+    except (IndexError, KeyError):
+        scenario = None
     if scenario is None:
         raise ValueError(
-            f"Failed to parse scenario string '{scenario_str}' from dataset"
+            f"Failed to parse scenario from case attribute '{ds.attrs['case']}'"
         )
+    member_ids = [f"{(i + 1):03d}" for i in realizations]
+    member_id = ds.attrs["case"].split(".")[-1]
+    assert member_id in member_ids, f"Unexpected member_id {member_id}"
     data_var = [v for v in ds.data_vars if v in ["TREFHT", "PRECC", "PRECL", "PRECT"]][
         0
     ]
