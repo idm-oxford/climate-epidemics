@@ -4,23 +4,24 @@ Unit tests for the the _cesm.py module of the climdata subpackage.
 The CESMDataGetter class is tested.
 """
 
-import itertools
 import pathlib
 import tempfile
-from unittest.mock import patch
+import types
+from unittest.mock import MagicMock, patch
 
 import intake_esm
 import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
 import numpy.testing as npt
-import pandas as pd
 import pytest
+import siphon.catalog
 import xarray as xr
 import xarray.testing as xrt
 
 from climepi.climdata._cesm import (
     ARISEDataGetter,
     CESMDataGetter,
+    GLENSDataGetter,
     LENS2DataGetter,
     _preprocess_arise_dataset,
 )
@@ -478,8 +479,6 @@ class TestARISEDataGetter:
             )
         ]
         urls_called = mock_open_mfdataset.call_args.args[0]
-        for url in urls_called:
-            print(url)
         assert sorted(urls_called) == sorted(urls_expected)
 
     def test_find_remote_data_errors(self):
@@ -540,3 +539,99 @@ def test_preprocess_arise_dataset(frequency, scenario):
         raise ValueError(f"Unexpected frequency: {frequency}")
     with pytest.raises(AssertionError, match="Unexpected member_id 002"):
         _preprocess_arise_dataset(ds_in, frequency=frequency, realizations=[2])
+
+
+class TestGLENSDataGetter:
+    """Class for testing the GLENSDataGetter class."""
+
+    @patch.object(xr, "open_mfdataset", autospec=True)
+    @patch.object(xr, "combine_by_coords", autospec=True)
+    @patch.object(siphon.catalog, "TDSCatalog")
+    @pytest.mark.parametrize("frequency", ["daily", "monthly"])
+    @pytest.mark.parametrize("full_download", [True, False])
+    def test_find_remote_data(
+        self,
+        mock_catalog,
+        mock_combine_by_coords,
+        mock_open_mfdataset,
+        frequency,
+        full_download,
+    ):
+        """Test the _find_remote_data method of the GLENSDataGetter class."""
+        data_vars = (
+            ["TREFHT", "PRECT"]
+            if frequency == "daily"
+            else ["TREFHT", "PRECC", "PRECL"]
+        )
+
+        def _mock_catalog(url):
+            _data_var = url.split(".")[-3]
+            _scenario_str = url.split(".")[6]
+            assert _data_var in data_vars
+            assert _scenario_str in ["Control", "Feedback"]
+            catalog = MagicMock()
+            catalog.datasets.values.return_value = [
+                types.SimpleNamespace(url_path=name)
+                for name in [
+                    f"datazone/glens/{_scenario_str}/atm/proc/tseries/"
+                    f"{frequency}/{_data_var}/b.e15.B5505C5WCCML45BGCR.f09_g16."
+                    f"{_scenario_str.lower()}.{_member_id}.cam.hX.{_data_var}."
+                    f"{_year_str}.nc"
+                    for _member_id in ["001", "002", "003"]
+                    for _year_str in (
+                        ["20100101-20191231", "20200101-20291231", "20300101-20391231"]
+                        if frequency == "daily"
+                        else ["201001-201912", "202001-202912", "203001-203912"]
+                    )
+                ]
+            ]
+            return catalog
+
+        mock_catalog.side_effect = _mock_catalog
+
+        data_getter = GLENSDataGetter(
+            frequency=frequency,
+            subset={"years": [2029, 2030], "realizations": [0, 2]},
+            api_token="test_token",
+            full_download=full_download,
+        )
+        data_getter._find_remote_data()
+
+        urls_expected = [
+            f"https://tds.ucar.edu/thredds/fileServer/datazone/glens/{_scenario_str}/atm/proc/"
+            f"tseries/{frequency}/{_data_var}/b.e15.B5505C5WCCML45BGCR.f09_g16."
+            f"{_scenario_str.lower()}.{_member_id}.cam.hX.{_data_var}."
+            f"{_year_str}.nc?api-token=test_token"
+            for _data_var in data_vars
+            for _scenario_str in ["Control", "Feedback"]
+            for _member_id in ["001", "003"]
+            for _year_str in (
+                ["20200101-20291231", "20300101-20391231"]
+                if frequency == "daily"
+                else ["202001-202912", "203001-203912"]
+            )
+        ]
+
+        if full_download:
+            mock_open_mfdataset.assert_not_called()
+            mock_combine_by_coords.assert_not_called()
+            assert data_getter._ds is None
+            assert sorted(data_getter._urls) == sorted(urls_expected)
+        else:
+            assert mock_open_mfdataset.call_count == len(urls_expected)
+            for call in mock_open_mfdataset.call_args_list:
+                assert call.args[0][0] in urls_expected
+            mock_combine_by_coords.assert_called_once()
+            assert data_getter._ds == mock_combine_by_coords.return_value
+            assert data_getter._urls is None
+
+    def test_find_remote_data_errors(self):
+        """Test cases where _find_remote_data should raise an error."""
+        with pytest.raises(ValueError, match="Frequency hourly is not supported."):
+            data_getter = ARISEDataGetter(frequency="hourly")
+            data_getter._find_remote_data()
+        with pytest.raises(ValueError, match="Scenario overcast is not supported."):
+            data_getter = ARISEDataGetter(
+                frequency="monthly", subset={"scenarios": ["overcast"]}
+            )
+            data_getter._find_remote_data()
