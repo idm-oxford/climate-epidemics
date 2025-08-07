@@ -6,6 +6,7 @@ The CESMDataGetter class is tested.
 
 import pathlib
 import tempfile
+import time
 import types
 from unittest.mock import MagicMock, patch
 
@@ -14,6 +15,7 @@ import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7
 import numpy as np
 import numpy.testing as npt
 import pytest
+import requests
 import siphon.catalog
 import xarray as xr
 import xarray.testing as xrt
@@ -24,6 +26,7 @@ from climepi.climdata._cesm import (
     GLENSDataGetter,
     LENS2DataGetter,
     _preprocess_arise_dataset,
+    _preprocess_glens_dataset,
 )
 from climepi.testing.fixtures import generate_dataset
 
@@ -547,10 +550,12 @@ class TestGLENSDataGetter:
     @patch.object(xr, "open_mfdataset", autospec=True)
     @patch.object(xr, "combine_by_coords", autospec=True)
     @patch.object(siphon.catalog, "TDSCatalog")
+    @patch.object(time, "sleep", autospec=True)
     @pytest.mark.parametrize("frequency", ["daily", "monthly"])
     @pytest.mark.parametrize("full_download", [True, False])
     def test_find_remote_data(
         self,
+        mock_sleep,
         mock_catalog,
         mock_combine_by_coords,
         mock_open_mfdataset,
@@ -565,6 +570,9 @@ class TestGLENSDataGetter:
         )
 
         def _mock_catalog(url):
+            if mock_catalog.call_count < 3:
+                # Simulate timeouts in the first two calls
+                raise requests.exceptions.HTTPError()
             _data_var = url.split(".")[-3]
             _scenario_str = url.split(".")[6]
             assert _data_var in data_vars
@@ -592,16 +600,17 @@ class TestGLENSDataGetter:
         data_getter = GLENSDataGetter(
             frequency=frequency,
             subset={"years": [2029, 2030], "realizations": [0, 2]},
-            api_token="test_token",
             full_download=full_download,
         )
         data_getter._find_remote_data()
 
+        assert mock_sleep.call_count == 2  # Two retries due to HTTPError
+
         urls_expected = [
-            f"https://tds.ucar.edu/thredds/fileServer/datazone/glens/{_scenario_str}/atm/proc/"
-            f"tseries/{frequency}/{_data_var}/b.e15.B5505C5WCCML45BGCR.f09_g16."
-            f"{_scenario_str.lower()}.{_member_id}.cam.hX.{_data_var}."
-            f"{_year_str}.nc?api-token=test_token"
+            f"https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/{_scenario_str}"
+            f"/atm/proc/tseries/{frequency}/{_data_var}/b.e15.B5505C5WCCML45BGCR."
+            f"f09_g16.{_scenario_str.lower()}.{_member_id}.cam.hX.{_data_var}."
+            f"{_year_str}.nc"
             for _data_var in data_vars
             for _scenario_str in ["Control", "Feedback"]
             for _member_id in ["001", "003"]
@@ -628,10 +637,61 @@ class TestGLENSDataGetter:
     def test_find_remote_data_errors(self):
         """Test cases where _find_remote_data should raise an error."""
         with pytest.raises(ValueError, match="Frequency hourly is not supported."):
-            data_getter = ARISEDataGetter(frequency="hourly")
+            data_getter = GLENSDataGetter(frequency="hourly")
             data_getter._find_remote_data()
-        with pytest.raises(ValueError, match="Scenario overcast is not supported."):
-            data_getter = ARISEDataGetter(
+        with pytest.raises(
+            ValueError,
+            match="Scenario overcast and/or frequency monthly not supported.",
+        ):
+            data_getter = GLENSDataGetter(
                 frequency="monthly", subset={"scenarios": ["overcast"]}
             )
             data_getter._find_remote_data()
+
+
+@pytest.mark.parametrize("frequency", ["daily", "monthly"])
+@pytest.mark.parametrize("scenario", ["rcp85", "sai", "overcast"])
+def test_preprocess_glens_dataset(frequency, scenario):
+    """Test the _preprocess_glens_dataset function."""
+    ds_in = generate_dataset(data_var="TREFHT", frequency=frequency, has_bounds=True)
+    # Set time to end of interval
+    time_attrs = ds_in["time"].attrs.copy()
+    time_encoding = ds_in["time"].encoding.copy()
+    ds_in = ds_in.assign_coords(
+        time=ds_in.time_bnds.isel(bnds=1).assign_attrs(time_attrs)
+    )
+    ds_in["time"].encoding = time_encoding
+    ds_in = ds_in.assign_attrs(
+        case=(
+            "b.e15.B5505C5WCCML45BGCR.f09_g16.Feedback.002"
+            if scenario == "sai"
+            else "b.e15.B5505C5WCCML45BGCR.f09_g16.Control.002"
+            if scenario == "rcp85"
+            else "some_invalid_string_to_test_error"
+        ),
+    )
+    if scenario == "overcast":
+        with pytest.raises(
+            ValueError, match="Failed to parse scenario from case attribute"
+        ):
+            _preprocess_glens_dataset(
+                ds_in, frequency=frequency, realizations=[1], years=list(range(3000))
+            )
+        return
+    result = _preprocess_glens_dataset(
+        ds_in, frequency=frequency, realizations=[0, 1], years=list(range(3000))
+    )
+    npt.assert_equal(result.TREFHT.member_id.values, ["002"])
+    npt.assert_equal(result.TREFHT.scenario.values, [scenario])
+    npt.assert_equal(
+        result.TREFHT.squeeze(["member_id", "scenario"], drop=True).values,
+        ds_in.TREFHT.values,
+    )
+    assert "time_bnds" not in result
+    npt.assert_equal(result["time"].values, ds_in["time_bnds"].isel(bnds=0).values)
+    assert result["time"].encoding == ds_in["time"].encoding
+    assert result["time"].attrs == ds_in["time"].attrs
+    with pytest.raises(AssertionError, match="Unexpected member_id 002"):
+        _preprocess_glens_dataset(
+            ds_in, frequency=frequency, realizations=[2], years=list(range(3000))
+        )
