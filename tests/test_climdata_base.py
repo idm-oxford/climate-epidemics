@@ -35,7 +35,6 @@ def test_get_climate_data(data_source):
         "download": download,
         "force_remake": force_remake,
         "max_subset_wait_time": max_subset_wait_time,
-        "api_token": api_token,
         "full_download": full_download,
     }
 
@@ -58,7 +57,6 @@ def test_get_climate_data(data_source):
                 frequency=frequency,
                 subset=subset,
                 save_dir=save_dir,
-                api_token=api_token,
                 full_download=full_download,
             )
         elif data_source == "isimip":
