@@ -13,7 +13,6 @@ def get_climate_data(
     force_remake=False,
     subset_check_interval=10,
     max_subset_wait_time=20,
-    api_token=None,
     full_download=False,
     **kwargs,
 ):
@@ -96,9 +95,6 @@ def get_climate_data(
         complete, in seconds, before timing out (default is 20). Server-side subsetting
         will continue to run after this function times out, and this function can be
         re-run to check if the subsetting has completed and retrieve the subsetted data.
-    api_token : str, optional
-        API token for accessing the data. Currently only required for GLENS data (API
-        keys can be obtained from https://www.earthsystemgrid.org/).
     full_download : bool, optional
         For GLENS data only; whether to download full data files rather than attempting
         to open the files via HTTP and download the relevant subset (default is False).
@@ -123,7 +119,6 @@ def get_climate_data(
         save_dir=save_dir,
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
-        api_token=api_token,
         full_download=full_download,
     )
     ds_clim = data_getter.get_data(
@@ -164,7 +159,6 @@ def _get_data_getter(
     *args,
     subset_check_interval=None,
     max_subset_wait_time=None,
-    api_token=None,
     full_download=None,
     **kwargs,
 ):
@@ -173,9 +167,7 @@ def _get_data_getter(
     elif data_source == "arise":
         data_getter = ARISEDataGetter(*args, **kwargs)
     elif data_source == "glens":
-        data_getter = GLENSDataGetter(
-            *args, api_token=api_token, full_download=full_download, **kwargs
-        )
+        data_getter = GLENSDataGetter(*args, full_download=full_download, **kwargs)
     elif data_source == "isimip":
         data_getter = ISIMIPDataGetter(
             *args,

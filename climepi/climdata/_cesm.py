@@ -355,7 +355,6 @@ class GLENSDataGetter(CESMDataGetter):
         realizations = self._subset["realizations"]
         member_ids = [f"{(i + 1):03d}" for i in realizations]
         scenarios = self._subset["scenarios"]
-        api_token = self._api_token
 
         if frequency in ["monthly", "yearly"]:
             data_vars = ["TREFHT", "PRECC", "PRECL"]
@@ -372,20 +371,36 @@ class GLENSDataGetter(CESMDataGetter):
                     "https://tds.ucar.edu/thredds/catalog/esgcet/343/ucar.cgd.ccsm4."
                     f"GLENS.Control.atm.proc.monthly_ave.{data_var}.v1.xml"
                 )
+                data_base_url = (
+                    "https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/"
+                    f"Control/atm/proc/tseries/monthly/{data_var}/"
+                )
             elif scenario == "rcp85" and frequency == "daily":
                 catalog_url = (
                     "https://tds.ucar.edu/thredds/catalog/esgcet/495/ucar.cgd.ccsm4."
                     f"GLENS.Control.atm.proc.daily.ave.{data_var}.v1.xml"
+                )
+                data_base_url = (
+                    "https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/"
+                    f"Control/atm/proc/tseries/daily/{data_var}/"
                 )
             elif scenario == "sai" and frequency in ["monthly", "yearly"]:
                 catalog_url = (
                     "https://tds.ucar.edu/thredds/catalog/esgcet/349/ucar.cgd.ccsm4."
                     f"GLENS.Feedback.atm.proc.monthly_ave.{data_var}.v1.xml"
                 )
+                data_base_url = (
+                    "https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/"
+                    f"Feedback/atm/proc/tseries/monthly/{data_var}/"
+                )
             elif scenario == "sai" and frequency == "daily":
                 catalog_url = (
                     "https://tds.ucar.edu/thredds/catalog/esgcet/352/ucar.cgd.ccsm4."
                     f"GLENS.Feedback.atm.proc.daily_ave.{data_var}.v1.xml"
+                )
+                data_base_url = (
+                    "https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/"
+                    f"Feedback/atm/proc/tseries/daily/{data_var}/"
                 )
             else:
                 raise ValueError(
@@ -399,11 +414,12 @@ class GLENSDataGetter(CESMDataGetter):
                     print(f"HTTP error opening catalog {catalog_url}: {e}")
                     print("Retrying in 10 seconds...")
                     time.sleep(10)
-            dataset_names = [dataset.url_path for dataset in catalog.datasets.values()]
+            dataset_names = [
+                dataset.url_path.split("/")[-1] for dataset in catalog.datasets.values()
+            ]
             datasets = [
                 {
-                    "url": f"https://tds.ucar.edu/thredds/fileServer/{name}"
-                    f"?api-token={api_token}",
+                    "url": data_base_url + name,
                     "start_year": int(name.split(".")[-2][:4]),
                     "end_year": int(name.split(".")[-2].split("-")[1][:4]),
                     "member_id": name.split(".")[5],
