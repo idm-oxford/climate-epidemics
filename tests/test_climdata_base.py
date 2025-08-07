@@ -24,7 +24,6 @@ def test_get_climate_data(data_source):
     download = "probably"
     force_remake = "perhaps"
     max_subset_wait_time = 30
-    api_token = "test_token"
     full_download = True
 
     kwargs_in = {
