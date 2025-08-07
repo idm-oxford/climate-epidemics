@@ -11,8 +11,8 @@ import numpy as np
 import pooch
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
-from climepi._version import get_versions
 from climepi.climdata._base import get_climate_data, get_climate_data_file_names
+from climepi.climdata._utils import _get_data_version
 
 # Dictionary of example datasets. Each key gives the example dataset name, and the
 # corresponding value should be a dictionary with the following keys/values:
@@ -180,13 +180,6 @@ def _get_data_dir(name, base_dir):
             base_dir = pooch.os_cache(f"climepi/{version}/examples")
     data_dir = pathlib.Path(base_dir) / name
     return data_dir
-
-
-def _get_data_version():
-    version = pooch.check_version(get_versions()["version"], fallback="main")
-    if version != "main":
-        version = "v" + version
-    return version
 
 
 def _fetch_formatted_example_dataset(name, data_dir):

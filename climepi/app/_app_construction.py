@@ -14,6 +14,8 @@ from climepi.app._dask_port_address import DASK_SCHEDULER_ADDRESS
 def run_app(
     clim_dataset_example_base_dir=None,
     clim_dataset_example_names=None,
+    enable_custom_clim_dataset=False,
+    custom_clim_data_dir=None,
     epi_model_example_names=None,
     enable_custom_epi_model=True,
     dask_distributed=False,
@@ -30,6 +32,14 @@ def run_app(
     clim_dataset_example_names: list of str
         List of example names for climate datasets, optional. If None, the default list
         in climdata.EXAMPLE_NAMES is used.
+    enable_custom_clim_dataset: bool
+        Whether to enable the option to load a custom climate dataset. Default is False.
+        If True, xarray.open_mfdataset will be called on the all netCDF files in the
+        directory specified by custom_clim_data_dir if the loading of custom data is
+        triggered.
+    custom_clim_data_dir: str or pathlib.Path
+        Directory containing the custom climate dataset. Must be specified if
+        enable_custom_clim_dataset is True.
     epi_model_example_names: list of str
         List of example names for epidemiological models, optional. If None, the default
         list in epimod.EXAMPLE_NAMES is used.
@@ -63,6 +73,8 @@ def run_app(
         return _session(
             clim_dataset_example_base_dir=clim_dataset_example_base_dir,
             clim_dataset_example_names=clim_dataset_example_names,
+            enable_custom_clim_dataset=enable_custom_clim_dataset,
+            custom_clim_data_dir=custom_clim_data_dir,
             epi_model_example_names=epi_model_example_names,
             enable_custom_epi_model=enable_custom_epi_model,
         )
@@ -136,6 +148,8 @@ def _setup_dask(dask_distributed):
 def _session(
     clim_dataset_example_base_dir=None,
     clim_dataset_example_names=None,
+    enable_custom_clim_dataset=None,
+    custom_clim_data_dir=None,
     epi_model_example_names=None,
     enable_custom_epi_model=None,
 ):
@@ -144,6 +158,8 @@ def _session(
     template, controller = _layout(
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
+        enable_custom_clim_dataset=enable_custom_clim_dataset,
+        custom_clim_data_dir=custom_clim_data_dir,
         epi_model_example_names=epi_model_example_names,
         enable_custom_epi_model=enable_custom_epi_model,
     )
@@ -164,6 +180,8 @@ def _session(
 def _layout(
     clim_dataset_example_base_dir=None,
     clim_dataset_example_names=None,
+    enable_custom_clim_dataset=None,
+    custom_clim_data_dir=None,
     epi_model_example_names=None,
     enable_custom_epi_model=None,
 ):
@@ -174,6 +192,8 @@ def _layout(
     controller = Controller(
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
+        enable_custom_clim_dataset=enable_custom_clim_dataset,
+        custom_clim_data_dir=custom_clim_data_dir,
         epi_model_example_names=epi_model_example_names,
         enable_custom_epi_model=enable_custom_epi_model,
     )
