@@ -759,11 +759,15 @@ class TestGLENSDataGetter:
             mock_subset_remote_data.assert_not_called()
 
 
-@pytest.mark.parametrize("frequency", ["daily", "monthly"])
+@pytest.mark.parametrize("frequency", ["daily", "monthly", "hourly"])
 @pytest.mark.parametrize("scenario", ["rcp85", "sai", "overcast"])
 def test_preprocess_glens_dataset(frequency, scenario):
     """Test the _preprocess_glens_dataset function."""
-    ds_in = generate_dataset(data_var="TREFHT", frequency=frequency, has_bounds=True)
+    ds_in = generate_dataset(
+        data_var="TREFHT",
+        frequency=("daily" if frequency == "hourly" else frequency),
+        has_bounds=True,
+    )
     # Set time to end of interval
     time_attrs = ds_in["time"].attrs.copy()
     time_encoding = ds_in["time"].encoding.copy()
@@ -786,6 +790,12 @@ def test_preprocess_glens_dataset(frequency, scenario):
         ):
             _preprocess_glens_dataset(
                 ds_in, frequency=frequency, realizations=[1], years=list(range(3000))
+            )
+        return
+    if frequency == "hourly":
+        with pytest.raises(ValueError, match="Frequency hourly is not supported"):
+            _preprocess_glens_dataset(
+                ds_in, frequency=frequency, realizations=[0, 1], years=list(range(3000))
             )
         return
     result = _preprocess_glens_dataset(
