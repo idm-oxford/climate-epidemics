@@ -656,6 +656,21 @@ class TestGLENSDataGetter:
             )
             data_getter._find_remote_data()
 
+    @patch.object(CESMDataGetter, "_subset_remote_data", autospec=True)
+    @pytest.mark.parametrize("full_download", [True, False])
+    def test_subset_remote_data(self, mock_parent_subset, full_download):
+        """
+        Test the _subset_remote_data function.
+
+        The parent method should be overriden if full_download is False.
+        """
+        data_getter = GLENSDataGetter(frequency="daily", full_download=full_download)
+        data_getter._subset_remote_data()
+        if full_download:
+            mock_parent_subset.assert_not_called()
+        else:
+            mock_parent_subset.assert_called_once()
+
     @patch.object(CESMDataGetter, "_download_remote_data", autospec=True)
     @patch.object(pooch, "create", autospec=True)
     @pytest.mark.parametrize("full_download", [True, False])
