@@ -14,6 +14,7 @@ import intake_esm
 import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
 import numpy.testing as npt
+import pooch
 import pytest
 import requests
 import siphon.catalog
@@ -215,7 +216,8 @@ class TestCESMDataGetter:
             data_getter._ds_temp.close()
 
     @pytest.mark.parametrize("frequency", ["monthly", "yearly"])
-    def test_process_data(self, frequency):
+    @pytest.mark.parametrize("ds_unprocessed_has_time_bnds", [True, False])
+    def test_process_data(self, frequency, ds_unprocessed_has_time_bnds):
         """Test the _process_data method of the CESMDataGetter class."""
         time_lb = xr.date_range(
             start="2001-01-01",
@@ -232,9 +234,11 @@ class TestCESMDataGetter:
             use_cftime=True,
         )
         time_bnds_in = xr.DataArray(
-            np.array([time_lb, time_rb]).T, dims=("time", "nbnd")
+            np.array([time_lb, time_rb]).T, dims=("time", "nbnd"), name="time_bnds"
         )
-        time_in = time_bnds_in.mean(dim="nbnd").assign_attrs(bounds="time_bnds")
+        time_in = time_bnds_in.mean(dim="nbnd")
+        if ds_unprocessed_has_time_bnds:
+            time_in = time_in.assign_attrs(bounds="time_bnds")
         time_in.encoding = {"calendar": "noleap", "units": "days since 2000-01-01"}
         ds_unprocessed = xr.Dataset(
             data_vars={
@@ -253,10 +257,10 @@ class TestCESMDataGetter:
             },
             coords={
                 "time": time_in,
-                "time_bnds": time_bnds_in,
                 "member_id": xr.DataArray(["id1", "id2"], dims="member_id"),
                 "lat": xr.DataArray([30], dims="lat"),
                 "lon": xr.DataArray([150], dims="lon"),
+                **({"time_bnds": time_bnds_in} if ds_unprocessed_has_time_bnds else {}),
             },
         )
         data_getter = CESMDataGetter(
@@ -317,6 +321,10 @@ class TestCESMDataGetter:
             "axis": "Y",
             "bounds": "lat_bnds",
         }
+        # Check time bounds match supplied bounds for monthly data (note for yearly
+        # data, bounds are regenerated after averaging)
+        if frequency == "monthly":
+            npt.assert_equal(ds_processed.time_bnds.values, time_bnds_in.values)
         # Check addition of longitude and latitude bounds using known grid spacing
         npt.assert_allclose(
             ds_processed.lon_bnds.values.squeeze(), [150 - 0.625, 150 + 0.625]
@@ -647,6 +655,93 @@ class TestGLENSDataGetter:
                 frequency="monthly", subset={"scenarios": ["overcast"]}
             )
             data_getter._find_remote_data()
+
+    @patch.object(CESMDataGetter, "_download_remote_data", autospec=True)
+    @patch.object(pooch, "create", autospec=True)
+    @pytest.mark.parametrize("full_download", [True, False])
+    def test_download_remote_data(
+        self, mock_pooch_create, mock_parent_download, full_download
+    ):
+        """
+        Test the _download_remote_data function.
+
+        The parent method should be overriden if full_download is False.
+        """
+        data_getter = GLENSDataGetter(frequency="daily", full_download=full_download)
+        data_getter._urls = [
+            "some/url.edu/path/file1.nc",
+            "some/url.edu/path/file2.nc",
+            "other/url.edu/another/path/file3.nc",
+        ]
+        temp_save_dir = pathlib.Path("some_dir")
+        data_getter._temp_save_dir = temp_save_dir
+        data_getter._download_remote_data()
+        if not full_download:
+            mock_parent_download.assert_called_once()
+            return
+        mock_parent_download.assert_not_called()
+        assert mock_pooch_create.call_count == 3
+        for kwargs in [
+            {
+                "base_url": "some/url.edu/path",
+                "path": temp_save_dir,
+                "registry": {"file1.nc": None},
+                "retry_if_failed": 5,
+            },
+            {
+                "base_url": "some/url.edu/path",
+                "path": temp_save_dir,
+                "registry": {"file2.nc": None},
+                "retry_if_failed": 5,
+            },
+            {
+                "base_url": "other/url.edu/another/path",
+                "path": temp_save_dir,
+                "registry": {"file3.nc": None},
+                "retry_if_failed": 5,
+            },
+        ]:
+            mock_pooch_create.assert_any_call(**kwargs)
+        assert data_getter._temp_file_names == [
+            "file1.nc",
+            "file2.nc",
+            "file3.nc",
+        ]
+
+    @patch.object(CESMDataGetter, "_open_temp_data", autospec=True)
+    @pytest.mark.parametrize("full_download", [True, False])
+    def test_open_temp_data(self, mock_parent_open_temp_data, full_download):
+        """
+        Test the _open_temp_data function.
+
+        The parent method should be overriden if full_download is False.
+        """
+        data_getter = GLENSDataGetter(frequency="daily", full_download=full_download)
+        data_getter._open_temp_data()
+        mock_parent_open_temp_data.assert_called_once()
+        if full_download:
+            assert "preprocess" in mock_parent_open_temp_data.call_args.kwargs
+        else:
+            assert "preprocess" not in mock_parent_open_temp_data.call_args.kwargs
+
+    @patch.object(GLENSDataGetter, "_subset_remote_data", autospec=True)
+    @patch.object(CESMDataGetter, "_process_data", autospec=True)
+    @pytest.mark.parametrize("full_download", [True, False])
+    def test_process_data(
+        self, mock_parent_process_data, mock_subset_remote_data, full_download
+    ):
+        """
+        Test the _process_data function.
+
+        The parent method should be extended if full_download is False.
+        """
+        data_getter = GLENSDataGetter(frequency="daily", full_download=full_download)
+        data_getter._process_data()
+        mock_parent_process_data.assert_called_once()
+        if full_download:
+            mock_subset_remote_data.assert_called_once()
+        else:
+            mock_subset_remote_data.assert_not_called()
 
 
 @pytest.mark.parametrize("frequency", ["daily", "monthly"])
