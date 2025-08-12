@@ -1,6 +1,6 @@
 """Module defining get_climate_data and get_climate_data_file_names functions."""
 
-from climepi.climdata._cesm import CESMDataGetter
+from climepi.climdata._cesm import ARISEDataGetter, GLENSDataGetter, LENS2DataGetter
 from climepi.climdata._isimip import ISIMIPDataGetter
 
 
@@ -13,23 +13,29 @@ def get_climate_data(
     force_remake=False,
     subset_check_interval=10,
     max_subset_wait_time=20,
+    full_download=False,
     **kwargs,
 ):
     """
     Retrieve and download climate projection data from a remote server.
 
-    Currently available data sources are CESM2 LENS (data_source='lens2') and ISIMIP
-    (data_source='isimip'). CESM2 LENS data are taken from an AWS server
-    (https://registry.opendata.aws/ncar-cesm2-lens/), and terms of use can be found at
-    https://www.ucar.edu/terms-of-use/data. ISIMIP data are taken from the ISIMIP
-    repository (https://data.isimip.org/), and terms of use can be found at
+    Currently available data sources are CESM2 LENS (data_source='lens2'), CESM2 ARISE
+    (data_source='arise'), CESM1 GLENS (data_source='glens'), and ISIMIP
+    (data_source='isimip'). CESM2 LENS 2 and ARISE data are taken from AWS servers
+    (https://registry.opendata.aws/ncar-cesm2-lens/ and
+    https://registry.opendata.aws/ncar-cesm2-arise/), while CESM1 GLENS data are taken
+    from the NSF NCAR Research Data archive (https://rda.ucar.edu/datasets/d651064/).
+    Terms of use for CESM data can be found at https://www.ucar.edu/terms-of-use/data.
+    ISIMIP data are taken from the ISIMIP repository (https://data.isimip.org/), and
+    terms of use can be found at
     https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
 
     Parameters
     ----------
     data_source : str
         Data source to retrieve data from. Currently supported sources are 'lens2' (for
-        CESM2 LENS data) and 'isimip' (for ISIMIP data).
+        CESM2 LENS data), 'arise' (CESM2 ARISE data), 'glens' (CESM1 GLENS data), and
+        'isimip' (ISIMIP data).
     frequency : str, optional
         Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
         'yearly' (default is 'monthly').
@@ -93,6 +99,14 @@ def get_climate_data(
         complete, in seconds, before timing out (default is 20). Server-side subsetting
         will continue to run after this function times out, and this function can be
         re-run to check if the subsetting has completed and retrieve the subsetted data.
+    full_download : bool, optional
+        For GLENS data only; whether to download full data files rather than attempting
+        to open the files via HTTP and download the relevant subset (default is False).
+        Setting to True can reduce the number of HTTP requests made to the data server,
+        but may incur a substantial disk space overhead (note full data files are
+        only cleared up after all data have been downloaded and processed - splitting
+        the data retrieval into multiple calls to this function may reduce the disk
+        space overhead).
     **kwargs
         Additional keyword arguments to pass to xarray.open_mfdataset when opening
         downloaded data files.
@@ -109,6 +123,7 @@ def get_climate_data(
         save_dir=save_dir,
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
+        full_download=full_download,
     )
     ds_clim = data_getter.get_data(
         download=download, force_remake=force_remake, **kwargs
@@ -125,8 +140,9 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
     Parameters
     ----------
     data_source : str, optional
-        Data source. Currently supported sources are 'lens2' (for CESM2 LENS data) and
-        'isimip' (for ISIMIP data).
+        Data source. Currently supported sources are 'lens2' (for CESM2 LENS data),
+        'arise' (CESM2 ARISE data), 'glens' (CESM1 GLENS data), and 'isimip' (ISIMIP
+        data).
     frequency : str, optional
         Frequency of the data. Should be one of 'daily', 'monthly' or 'yearly' (default
         is 'monthly').
@@ -144,10 +160,19 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
 
 
 def _get_data_getter(
-    data_source, *args, subset_check_interval=None, max_subset_wait_time=None, **kwargs
+    data_source,
+    *args,
+    subset_check_interval=None,
+    max_subset_wait_time=None,
+    full_download=None,
+    **kwargs,
 ):
     if data_source == "lens2":
-        data_getter = CESMDataGetter(*args, **kwargs)
+        data_getter = LENS2DataGetter(*args, **kwargs)
+    elif data_source == "arise":
+        data_getter = ARISEDataGetter(*args, **kwargs)
+    elif data_source == "glens":
+        data_getter = GLENSDataGetter(*args, full_download=full_download, **kwargs)
     elif data_source == "isimip":
         data_getter = ISIMIPDataGetter(
             *args,

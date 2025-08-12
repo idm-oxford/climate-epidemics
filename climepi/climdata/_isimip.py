@@ -218,8 +218,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             except TimeoutError as exc:
                 any_timeout_error = True
                 print(
-                    f"{exc}\nContinuing to initiate subsetting for remaining "
-                    "locations."
+                    f"{exc}\nContinuing to initiate subsetting for remaining locations."
                 )
         if any_timeout_error:
             raise TimeoutError("Subsetting for at least one location timed out.")
@@ -283,7 +282,11 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 + "correctly or not in requested data subset."
             )
             ds = ds.expand_dims(
-                {"scenario": [scenario], "model": [model], "realization": [0]}
+                {
+                    "scenario": np.array([scenario], dtype="object"),
+                    "model": np.array([model], dtype="object"),
+                    "realization": [0],
+                }
             )
             # Some data have time at beginning, some at middle - set all to middle
             centered_times = ds["time"].dt.floor("D") + pd.Timedelta("12h")

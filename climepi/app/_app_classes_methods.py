@@ -18,9 +18,28 @@ from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
 
 @pn.cache()
-def _load_clim_data_func(clim_dataset_name, base_dir):
-    # Load climate data from the data source.
-    ds_clim = climdata.get_example_dataset(clim_dataset_name, base_dir=base_dir)
+def _load_clim_data_func(
+    clim_data_option,
+    clim_example_name=None,
+    clim_example_base_dir=None,
+    custom_clim_data_dir=None,
+):
+    if clim_data_option == "Example dataset":
+        # Load climate data from the data source.
+        ds_clim = climdata.get_example_dataset(
+            clim_example_name, base_dir=clim_example_base_dir
+        )
+    elif clim_data_option == "Custom dataset":
+        # Load custom climate data from the specified directory.
+        ds_clim = xr.open_mfdataset(
+            f"{custom_clim_data_dir}/*.nc", data_vars="minimal", chunks={}
+        )
+        if "time_bnds" in ds_clim:
+            # Load time_bnds if present (otherwise issues in _compute_to_file_reopen as
+            # encoding is not set).
+            ds_clim.time_bnds.load()
+    else:
+        raise ValueError(f"Unrecognised climate data option: {clim_data_option}")
     return ds_clim
 
 
@@ -511,8 +530,13 @@ class _PlotController(param.Parameterized):
 class Controller(param.Parameterized):
     """Main controller class for the dashboard."""
 
-    clim_dataset_name = param.ObjectSelector(precedence=1)
-    clim_dataset_doc = param.String(precedence=1)
+    clim_data_option = param.ObjectSelector(
+        default="Example dataset",
+        objects=["Example dataset", "Custom dataset"],
+        precedence=-1,
+    )
+    clim_example_name = param.ObjectSelector(precedence=1)
+    clim_example_doc = param.String(precedence=1)
     clim_data_load_initiator = param.Event(default=False, precedence=1)
     clim_data_loaded = param.Boolean(default=False, precedence=-1)
     clim_data_status = param.String(default="Data not loaded", precedence=1)
@@ -551,17 +575,21 @@ class Controller(param.Parameterized):
         self,
         clim_dataset_example_base_dir=None,
         clim_dataset_example_names=None,
+        enable_custom_clim_dataset=False,
+        custom_clim_data_dir=None,
         epi_model_example_names=None,
         enable_custom_epi_model=True,
         **params,
     ):
         super().__init__(**params)
-        self.param.clim_dataset_name.objects = (
+        self.param.clim_example_name.objects = (
             clim_dataset_example_names or climdata.EXAMPLE_NAMES
         )
-        self.param.clim_dataset_name.default = self.param.clim_dataset_name.objects[0]
-        self.clim_dataset_name = self.param.clim_dataset_name.default
-        self._update_clim_dataset_doc()
+        self.param.clim_example_name.default = self.param.clim_example_name.objects[0]
+        self.clim_example_name = self.param.clim_example_name.default
+        if enable_custom_clim_dataset:
+            self.param.clim_data_option.precedence = 1
+        self._update_clim_example_name_doc()
         self.param.epi_example_name.objects = (
             epi_model_example_names or epimod.EXAMPLE_NAMES
         )
@@ -570,6 +598,7 @@ class Controller(param.Parameterized):
         if enable_custom_epi_model:
             self.param.epi_model_option.precedence = 1
         self._update_epi_example_doc()
+        self._custom_clim_data_dir = custom_clim_data_dir
         self._clim_dataset_example_base_dir = clim_dataset_example_base_dir
         self._ds_clim = None
         self._epi_model = None
@@ -578,8 +607,9 @@ class Controller(param.Parameterized):
             pathlib.Path(tempfile.mkdtemp(suffix="_climepi_app")) / "ds_epi.nc"
         )
         data_widgets = {
-            "clim_dataset_name": {"name": "Climate dataset"},
-            "clim_dataset_doc": {"widget_type": pn.widgets.StaticText, "name": ""},
+            "clim_data_option": {"name": "Climate data option"},
+            "clim_example_name": {"name": "Climate dataset"},
+            "clim_example_doc": {"widget_type": pn.widgets.StaticText, "name": ""},
             "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
             "clim_data_status": {
                 "widget_type": pn.widgets.StaticText,
@@ -637,7 +667,10 @@ class Controller(param.Parameterized):
         try:
             self.clim_data_status = "Loading data..."
             ds_clim = _load_clim_data_func(
-                self.clim_dataset_name, base_dir=self._clim_dataset_example_base_dir
+                self.clim_data_option,
+                clim_example_name=self.clim_example_name,
+                clim_example_base_dir=self._clim_dataset_example_base_dir,
+                custom_clim_data_dir=self._custom_clim_data_dir,
             )
             self._ds_clim = ds_clim
             self.clim_plot_controller.initialize(ds_clim)
@@ -708,14 +741,15 @@ class Controller(param.Parameterized):
             self.epi_model_status = f"Model run failed: {exc}"
             raise
 
-    @param.depends("clim_dataset_name", watch=True)
+    @param.depends("clim_data_option", "clim_example_name", watch=True)
     def _revert_clim_data_load_status(self):
         # Revert the climate data load status (but retain data for plotting).
         self.clim_data_status = "Data not loaded"
         self.clim_data_loaded = False
 
     @param.depends(
-        "clim_dataset_name",
+        "clim_data_option",
+        "clim_example_name",
         "epi_model_option",
         "epi_example_name",
         "epi_temperature_range",
@@ -728,10 +762,22 @@ class Controller(param.Parameterized):
         self.epi_model_status = "Model has not been run"
         self.epi_model_ran = False
 
-    @param.depends("clim_dataset_name", watch=True)
-    def _update_clim_dataset_doc(self):
-        # Details of the climate dataset.
-        self.clim_dataset_doc = climdata.EXAMPLES[self.clim_dataset_name].get("doc", "")
+    @param.depends("clim_data_option", "clim_example_name", watch=True)
+    def _update_clim_example_name_doc(self):
+        # Name and details of the climate dataset.
+        if self.clim_data_option == "Example dataset":
+            self.param.clim_example_name.precedence = 1
+            self.clim_example_doc = climdata.EXAMPLES[self.clim_example_name].get(
+                "doc", ""
+            )
+            self.param.clim_example_doc.precedence = 1
+        elif self.clim_data_option == "Custom dataset":
+            self.param.clim_example_name.precedence = -1
+            self.param.clim_example_doc.precedence = -1
+        else:
+            raise ValueError(
+                f"Unrecognised climate data option: {self.clim_data_option}"
+            )
 
     @param.depends("epi_model_option", "epi_example_name", watch=True)
     def _update_epi_example_doc(self):

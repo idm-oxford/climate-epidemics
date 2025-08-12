@@ -701,7 +701,7 @@ class ClimEpiDatasetAccessor:
         plot_obj = da_plot.hvplot.line(**kwargs_hvplot)
         return plot_obj
 
-    def plot_map(self, data_var=None, include_ocean=False, **kwargs):
+    def plot_map(self, data_var=None, mask_ocean=True, **kwargs):
         """
         Generate a map plot of a data variable.
 
@@ -712,8 +712,9 @@ class ClimEpiDatasetAccessor:
         data_var : str, optional
             Name of the data variable to plot. If not provided, the function
             will attempt to automatically select a suitable variable.
-        include_ocean : bool, optional
-            Whether or not to include ocean data in the plot. Default is False.
+        mask_ocean : bool, optional
+            Whether to show only land data, plotting ocean data as white. Default is
+            True.
         **kwargs : dict, optional
             Additional keyword arguments to pass to hvplot.quadmesh.
 
@@ -731,12 +732,12 @@ class ClimEpiDatasetAccessor:
             "project": True,
             "geo": True,
             "rasterize": True,
-            "coastline": True,
+            "features": ["borders", "coastline"],
             "dynamic": False,
             **kwargs,
         }
         plot_obj = da_plot.hvplot.quadmesh(**kwargs_hvplot)
-        if not include_ocean:
+        if mask_ocean:
             plot_obj *= gf.ocean.options(fill_color="white")
         return plot_obj
 

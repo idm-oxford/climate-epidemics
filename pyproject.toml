@@ -19,8 +19,8 @@ classifiers = [
 "Homepage" = "https://github.com/idm-oxford/climate-epidemics"
 "Bug Tracker" = "https://github.com/idm-oxford/climate-epidemics/issues"
 
-[tool.pixi.project]
-channels = ["conda-forge"]
+[tool.pixi.workspace]
+channels = ["conda-forge", "microsoft"]
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 
 [tool.pixi.dependencies]
@@ -31,9 +31,11 @@ datashader = "*"                 #explicit import appears to be needed with hvpl
 flox = "*"
 geopy = "*"
 geoviews = "*"
+h5netcdf = ">=1.6.1,<2"
 hvplot = "*"
 intake = "*"
 intake-esm = "*"
+kerchunk = "<0.2.8" # https://github.com/fsspec/kerchunk/issues/566
 nc-time-axis = "*"
 numpy = "*"
 pandas = "*"
@@ -42,29 +44,32 @@ param = "*"
 pooch = "*"
 pymc = "*"
 requests = "*"
-s3fs = "*"                       # needed when using intake-esm to access CESM data on AWS server
+s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS server
 scipy = "*"
+siphon = "*"
+tqdm = "*"
 urllib3 = "*"
 xarray = "!=2025.7.0,!=2025.7.1" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
+zarr = "<3" # https://github.com/fsspec/kerchunk/issues/566
 
 [tool.pixi.pypi-dependencies]
 climepi = { path = ".", editable = true }
 
-[dependency-groups]
-dev = [
-  "ruff",
-  "pytest",
-  "pytest-cov",
-  "pytest-playwright",
-  "mkdocs",
-  "sphinx-book-theme",
-  "sphinx-autosummary-accessors",
-  "ipykernel",
-  "jupyter_bokeh",
-  "pip",                          # needed for notebooks
-  "versioneer==0.29",
-]
+[tool.pixi.feature.dev.dependencies]
+ruff = "*"
+pytest = "*"
+pytest-cov = "*"
+mkdocs = "*"
+sphinx-book-theme = "*"
+sphinx-autosummary-accessors = "*"
+ipykernel = "*"
+jupyter_bokeh = "*"
+pip = "*"                          # needed for notebooks
+versioneer = "==0.29"
+
+[tool.pixi.feature.dev.pypi-dependencies]
+pytest-playwright = "*" # conda version giving errors in Windows
 
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "default" }

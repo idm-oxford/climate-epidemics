@@ -7,7 +7,7 @@ import pytest
 from climepi import climdata
 
 
-@pytest.mark.parametrize("data_source", ["test", "lens2", "isimip"])
+@pytest.mark.parametrize("data_source", ["test", "lens2", "arise", "glens", "isimip"])
 def test_get_climate_data(data_source):
     """Unit test for the get_climate_data function."""
     frequency = "hourly"
@@ -24,6 +24,7 @@ def test_get_climate_data(data_source):
     download = "probably"
     force_remake = "perhaps"
     max_subset_wait_time = 30
+    full_download = True
 
     kwargs_in = {
         "data_source": data_source,
@@ -33,6 +34,7 @@ def test_get_climate_data(data_source):
         "download": download,
         "force_remake": force_remake,
         "max_subset_wait_time": max_subset_wait_time,
+        "full_download": full_download,
     }
 
     if data_source == "test":
@@ -40,17 +42,21 @@ def test_get_climate_data(data_source):
             climdata.get_climate_data(**kwargs_in)
         return
 
-    if data_source == "lens2":
-        to_patch = "climepi.climdata._base.CESMDataGetter"
-    elif data_source == "isimip":
-        to_patch = "climepi.climdata._base.ISIMIPDataGetter"
+    to_patch = f"climepi.climdata._base.{data_source.upper()}DataGetter"
     with patch(to_patch, autospec=True) as mock_data_getter:
         result = climdata.get_climate_data(**kwargs_in)
-        if data_source == "lens2":
+        if data_source in ["lens2", "arise"]:
             mock_data_getter.assert_called_once_with(
                 frequency=frequency,
                 subset=subset,
                 save_dir=save_dir,
+            )
+        elif data_source == "glens":
+            mock_data_getter.assert_called_once_with(
+                frequency=frequency,
+                subset=subset,
+                save_dir=save_dir,
+                full_download=full_download,
             )
         elif data_source == "isimip":
             mock_data_getter.assert_called_once_with(

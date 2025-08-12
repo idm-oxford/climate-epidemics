@@ -441,12 +441,16 @@ def test_open_temp_data(mock_xr_open_mfdataset, include_data_vars_kwarg):
     if include_data_vars_kwarg:
         data_getter._open_temp_data(data_vars="all")
         mock_xr_open_mfdataset.assert_called_once_with(
-            open_paths_expected, data_vars="all", chunks={}
+            open_paths_expected,
+            data_vars="all",
+            chunks={"realization": 1, "model": 1, "scenario": 1, "location": 1},
         )
     else:
         data_getter._open_temp_data()
         mock_xr_open_mfdataset.assert_called_once_with(
-            open_paths_expected, data_vars="minimal", chunks={}
+            open_paths_expected,
+            data_vars="minimal",
+            chunks={"realization": 1, "model": 1, "scenario": 1, "location": 1},
         )
 
     assert data_getter._ds_temp == mock_xr_open_mfdataset.return_value
@@ -552,9 +556,9 @@ def test_process_data(location_mode, lon_res_set):
 
 
 @patch.object(pathlib.Path, "mkdir", autospec=True)
-@patch.object(xr.Dataset, "to_netcdf", autospec=True)
+@patch.object(xr, "save_mfdataset", autospec=True)
 @pytest.mark.parametrize("named_locations", [True, False])
-def test_save_processed_data(mock_to_netcdf, mock_mkdir, named_locations):
+def test_save_processed_data(mock_save_mfdataset, mock_mkdir, named_locations):
     """Test the _save_processed_data method of the ClimateDataGetter class."""
     scenarios = ["overcast", "sunny"]
     models = ["inswinger", "length"]
@@ -594,32 +598,38 @@ def test_save_processed_data(mock_to_netcdf, mock_mkdir, named_locations):
     )
 
     if named_locations:
-        for scenario, model, realization, location in itertools.product(
-            scenarios, models, realizations, locations
-        ):
-            mock_to_netcdf.assert_any_call(
-                ds.sel(
-                    scenario=[scenario],
-                    model=[model],
-                    realization=[realization],
-                    location=[location],
-                ),
+        mock_save_mfdataset.assert_called_once_with(
+            [
+                ds.sel(scenario=[s], model=[m], realization=[r], location=[ll])
+                for s, m, r, ll in itertools.product(
+                    scenarios, models, realizations, locations
+                )
+            ],
+            [
                 pathlib.Path(
                     "outside/edge/broad_monthly_2015_2016_2018_2100_"
-                    + f"{location}_{scenario}_{model}_{realization}.nc"
-                ),
-            )
+                    f"{ll}_{s}_{m}_{r}.nc"
+                )
+                for s, m, r, ll in itertools.product(
+                    scenarios, models, realizations, locations
+                )
+            ],
+            compute=False,
+        )
     else:
-        for scenario, model, realization in itertools.product(
-            scenarios, models, realizations
-        ):
-            mock_to_netcdf.assert_any_call(
-                ds.sel(scenario=[scenario], model=[model], realization=[realization]),
+        mock_save_mfdataset.assert_called_once_with(
+            [
+                ds.sel(scenario=[s], model=[m], realization=[r])
+                for s, m, r in itertools.product(scenarios, models, realizations)
+            ],
+            [
                 pathlib.Path(
-                    "outside/edge/broad_monthly_2015_2016_2018_2100_"
-                    + f"all_{scenario}_{model}_{realization}.nc"
-                ),
-            )
+                    f"outside/edge/broad_monthly_2015_2016_2018_2100_all_{s}_{m}_{r}.nc"
+                )
+                for s, m, r in itertools.product(scenarios, models, realizations)
+            ],
+            compute=False,
+        )
 
 
 def test_delete_temporary():

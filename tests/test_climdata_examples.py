@@ -77,7 +77,7 @@ def test_get_example_details():
         climdata._examples._get_example_details("googly")
 
 
-@patch.object(climdata._examples, "get_versions", return_value={"version": "4.2.0"})
+@patch.object(pooch, "check_version", return_value="4.2.0")
 def test_get_data_dir(_):
     """Test the _get_data_dir method."""
     assert climdata._examples._get_data_dir("leave", "not/a/real/dir") == pathlib.Path(
@@ -94,22 +94,6 @@ def test_get_data_dir(_):
             climdata._examples._get_data_dir("leave", None)
             == pooch.os_cache("climepi/v4.2.0/examples/") / "leave"
         )
-
-
-def test_get_data_version():
-    """
-    Test the _get_data_version method.
-
-    Should default to "main" for development versions.
-    """
-    with patch.object(
-        climdata._examples, "get_versions", return_value={"version": "4.2.0"}
-    ):
-        assert climdata._examples._get_data_version() == "v4.2.0"
-    with patch.object(
-        climdata._examples, "get_versions", return_value={"version": "4.2.0+10.8dl8dh9"}
-    ):
-        assert climdata._examples._get_data_version() == "main"
 
 
 @patch.dict(
@@ -131,7 +115,7 @@ def test_get_data_version():
     clear=True,
 )
 @patch("pooch.core.Pooch", autospec=True)
-@patch.object(climdata._examples, "get_versions", return_value={"version": "4.2.0"})
+@patch.object(pooch, "check_version", return_value="4.2.0")
 def test_fetch_formatted_example_dataset(_, mock_pooch):
     """Test the _fetch_formatted_example_dataset method."""
     name = "leave"
