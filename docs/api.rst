@@ -108,8 +108,8 @@ A method to run the front-end application is contained in the ``app`` subpackage
     from climepi import app
     app.run_app()
 
-See :ref:`usage:Front-end application` for information on how to run the application
-from the command line.
+See :ref:`getting-started:Front-end application` for information on how to run the
+application from the command line.
 
 Methods
 ~~~~~~~

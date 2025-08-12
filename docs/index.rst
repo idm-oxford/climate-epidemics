@@ -7,23 +7,11 @@ climepi documentation
 =====================
 
 **climepi** is a Python package for integrating climate projection data into
-climate-sensitive epidemiological models. See also the project's `homepage
-<https://idm-oxford.github.io/climate-epidemics/>`_.
-
-.. note::
-
-   This project is under active development.
+climate-sensitive epidemiological models.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
-   usage
-   api
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   Getting Started <getting-started>
+   API Reference <api>
+   Project Homepage <https://idm-oxford.github.io/climate-epidemics/>
