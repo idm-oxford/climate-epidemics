@@ -26,12 +26,12 @@ platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 [tool.pixi.dependencies]
 arviz = "*"
 bottleneck = "*"
-dask = ">=2024.11.2"             # non-GIL-blocking quantile method from here
-datashader = "*"                 #explicit import appears to be needed with hvplot v0.11.1
+dask = "*"
+datashader = "*"                 #dependency of hvplot but not always installed automatically
 flox = "*"
 geopy = "*"
 geoviews = "*"
-h5netcdf = ">=1.6.1,<2"
+h5netcdf = "*"
 hvplot = "*"
 intake = "*"
 intake-esm = "*"
@@ -52,6 +52,7 @@ urllib3 = "*"
 xarray = "!=2025.7.0,!=2025.7.1" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
 zarr = "<3" # https://github.com/fsspec/kerchunk/issues/566
+xesmf = "*" # dependency of more recent xcdat versions, explicitly adding here sometimes seems needed to ensure recent xcdat
 
 [tool.pixi.pypi-dependencies]
 climepi = { path = ".", editable = true }
@@ -61,7 +62,7 @@ ruff = "*"
 pytest = "*"
 pytest-cov = "*"
 mkdocs = "*"
-sphinx-book-theme = "*"
+pydata-sphinx-theme = "*"
 sphinx-autosummary-accessors = "*"
 ipykernel = "*"
 jupyter_bokeh = "*"
