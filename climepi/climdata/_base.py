@@ -20,18 +20,22 @@ def get_climate_data(
     Retrieve and download climate projection data from a remote server.
 
     Currently available data sources are CESM2 LENS (data_source='lens2'), CESM2 ARISE
-    (data_source='arise'), and ISIMIP (data_source='isimip'). CESM2 LENS 2 and ARISE
-    data are taken from AWS servers (https://registry.opendata.aws/ncar-cesm2-lens/
-    and https://registry.opendata.aws/ncar-cesm2-arise/), and terms of use can be
-    found at https://www.ucar.edu/terms-of-use/data. ISIMIP data are taken from the
-    ISIMIP repository (https://data.isimip.org/), and terms of use can be found at
+    (data_source='arise'), CESM1 GLENS (data_source='glens'), and ISIMIP
+    (data_source='isimip'). CESM2 LENS 2 and ARISE data are taken from AWS servers
+    (https://registry.opendata.aws/ncar-cesm2-lens/ and
+    https://registry.opendata.aws/ncar-cesm2-arise/), while CESM1 GLENS data are taken
+    from the NSF NCAR Research Data archive (https://rda.ucar.edu/datasets/d651064/).
+    Terms of use for CESM data can be found at https://www.ucar.edu/terms-of-use/data.
+    ISIMIP data are taken from the ISIMIP repository (https://data.isimip.org/), and
+    terms of use can be found at
     https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
 
     Parameters
     ----------
     data_source : str
         Data source to retrieve data from. Currently supported sources are 'lens2' (for
-        CESM2 LENS data), 'arise' (CESM2 ARISE data) and 'isimip' (for ISIMIP data).
+        CESM2 LENS data), 'arise' (CESM2 ARISE data), 'glens' (CESM1 GLENS data), and
+        'isimip' (ISIMIP data).
     frequency : str, optional
         Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
         'yearly' (default is 'monthly').
@@ -137,7 +141,8 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
     ----------
     data_source : str, optional
         Data source. Currently supported sources are 'lens2' (for CESM2 LENS data),
-        'arise' (CESM2 ARISE data) and 'isimip' (for ISIMIP data).
+        'arise' (CESM2 ARISE data), 'glens' (CESM1 GLENS data), and 'isimip' (ISIMIP
+        data).
     frequency : str, optional
         Frequency of the data. Should be one of 'daily', 'monthly' or 'yearly' (default
         is 'monthly').
