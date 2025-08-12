@@ -1520,6 +1520,14 @@ class TestController:
         assert controller.clim_example_doc == ""
         assert controller.param.clim_example_name.precedence == 1
         assert controller.param.clim_example_doc.precedence == 1
+        # Change to unsupported option (n.b. maybe this catch not needed as param
+        # already notices when we try to change clim_data_option to an unsupported
+        # value)
+        controller.param.clim_data_option.objects.append("Short of a length")
+        with pytest.raises(
+            ValueError, match="Unrecognised climate data option: Short of a length"
+        ):
+            controller.clim_data_option = "Short of a length"
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     @patch.dict(
