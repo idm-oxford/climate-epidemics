@@ -15,3 +15,4 @@ climate-sensitive epidemiological models.
    Getting Started <getting-started>
    API Reference <api>
    Project Homepage <https://idm-oxford.github.io/climate-epidemics/>
+   Development <development/index>
