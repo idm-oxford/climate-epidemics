@@ -5,7 +5,7 @@
 
 # Data files
 /data/examples/*
-!/data/examples/isimip_cities_daily
+!/data/examples/lens2_2020_2100_monthly
 !/data/examples/isimip_cities_monthly
 
 # Byte-compiled / optimized / DLL files
