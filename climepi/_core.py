@@ -724,7 +724,14 @@ class ClimEpiDatasetAccessor:
             The resulting map plot.
         """
         data_var = self._process_data_var_argument(data_var)
-        da_plot = self._obj[data_var].squeeze()
+        da_plot = (
+            self._obj[data_var]
+            .squeeze()
+            .astype(
+                # quadmesh with project=True seems to require float dtype
+                float
+            )
+        )
         kwargs_hvplot = {
             "x": "lon",
             "y": "lat",
@@ -738,7 +745,7 @@ class ClimEpiDatasetAccessor:
         }
         plot_obj = da_plot.hvplot.quadmesh(**kwargs_hvplot)
         if mask_ocean:
-            plot_obj *= gf.ocean.options(fill_color="white")
+            plot_obj *= gf.ocean().options(fill_color="white")
         return plot_obj
 
     def plot_variance_decomposition(
