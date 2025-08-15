@@ -28,10 +28,11 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
     parameters : dict, optional
         Dictionary of model parameters. Each key is a parameter name, and the value
         is either a number (constant parameter), a callable (function which takes
-        keyword arguments `temperature` and, if the model is dependent on
-        precipitation, `precipitation`, which should be able to handle xarray DataArrays
-        as inputs), or, for temperature-dependent parameters that
-        are to be fitted, a dictionary with the following keys:
+        keyword arguments 'temperature' and, if the model is dependent on precipitation,
+        'precipitation', which should be able to handle xarray DataArrays as inputs),
+        or, for temperature-dependent parameters that are to be fitted, a dictionary
+        with the following keys:
+
             curve_type : str
                 The type of curve to fit. Options are 'quadratic' (response =
                 a*(T-T_min)*(T-T_max) for T_min < T < T_max, where T is temperature, and
@@ -40,9 +41,11 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                 cases, a is the scale parameter, T_min is the minimum temperature,
                 and T_max is the maximum temperature, and normally distributed noise is
                 assumed on the response.
+
             probability : bool, optional
                 If True, the fitted curve is constrained to be between 0 and 1. Default
                 is False.
+
             priors : dict, optional
                 Dictionary of priors for the parameters of the model. The keys should be
                 the parameter names ('scale', 'temperature_min', 'temperature_max',
@@ -50,27 +53,35 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                 'curve_type' above) and the values should callable functions that return
                 pymc distributions. Where not specified, default priors are used based
                 on the curve type (as used by Mordecai et al., PLoS Negl Trop Dis 2017).
+
             attrs : dict, optional
                 Additional attributes to assign to the trait variable in the posterior
                 response DataArray (in particular, the 'long_name' and 'units'
                 attributes are used by hvplot to automatically label axes in the
                 plot_fitted_temperature_responses() method).
+
         Additionally, the following can either be provided as part of the parameter
         dictionary, or will be automatically extracted from the `data` argument if
         provided:
+
             temperature_data: array-like
                 Vector of temperature values for which response data are available.
+
             trait_data: array-like
                 Vector of trait values corresponding to the temperature data.
-        data : pandas.DataFrame, optional
-            A DataFrame containing the temperature and trait data for the parameters to
-            be fitted. The DataFrame should have columns "trait_name", "temperature",
-            and "trait_value".
+
+    data : pandas.DataFrame, optional
+        A DataFrame containing the temperature and trait data for the parameters to be
+        fitted. The DataFrame should have columns "trait_name", "temperature", and
+        "trait_value".
     suitability_function : callable
         A callable that takes the model parameters as keyword arguments and returns a
         suitability metric (e.g., the basic reproduction number). The callable should
         be able to handle xarray DataArrays as inputs.
-
+    suitability_var_name : str, optional
+        The name of the suitability variable. Default is "suitability".
+    suitability_var_long_name : str, optional
+        The long name of the suitability variable. Default is "Suitability".
     """
 
     def __init__(
@@ -102,6 +113,13 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             Only keep one in every `thin` samples. Default is 1 (no thinning).
         **kwargs_sample : dict, optional
             Keyword arguments to pass to pymc.sample().
+
+        Returns
+        -------
+        dict
+            A dictionary with fitted trait names as keys, and arviz.InferenceData
+            objects giving posterior distributions of response curve parameters for
+            that trait as corresponding values.
         """
         parameters = self._parameters
         idata_dict = {}
@@ -125,7 +143,12 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         return idata_dict
 
     def plot_fitted_temperature_responses(
-        self, parameter_names=None, temperature_vals=None
+        self,
+        parameter_names=None,
+        temperature_vals=None,
+        kwargs_scatter=None,
+        kwargs_area=None,
+        **kwargs,
     ):
         """
         Plot the fitted temperature responses.
@@ -143,6 +166,14 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             If not provided, a default range is generated on a per-parameter basis
             based on the minimum and maximum temperature values in the posterior
             distribution.
+        kwargs_scatter : dict, optional
+            Keyword arguments to pass to hvplot.scatter() when plotting the response
+            data.
+        kwargs_area : dict, optional
+            Keyword arguments to pass to hvplot.area() when plotting the credible
+            intervals.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to hvplot.line().
 
         Returns
         -------
@@ -171,6 +202,9 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                     probability=parameter_dict.get("probability", False),
                     trait_name=parameter_name,
                     trait_attrs=parameter_dict.get("attrs", None),
+                    kwargs_scatter=kwargs_scatter,
+                    kwargs_area=kwargs_area,
+                    **kwargs,
                 )
             )
         return hv.Layout(plots).opts(shared_axes=False)
@@ -185,7 +219,10 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         Construct a suitability table based on the fitted parameters.
 
         Note that this method requires that the model has been fitted to data
-        using fit_temperature_responses() before it can be called.
+        using fit_temperature_responses() before it can be called. The suitability
+        table is retained as an attribute of the ParameterizedSuitabilityModel instance
+        (which can be accessed via the `suitability_table` attribute), and a copy is
+        also returned.
 
         Parameters
         ----------
@@ -198,6 +235,12 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         num_samples : int, optional
             Number of samples to draw from the posterior distribution of the fitted
             parameters. If None, all samples are used.
+
+        Returns
+        -------
+        xarray.Dataset
+            A dataset containing the suitability values for the specified temperature
+            and precipitation values, and for each posterior sample.
         """
         self._check_fitting()
         parameter_vals = {}
@@ -595,9 +638,14 @@ def plot_fitted_temperature_response(
     probability=False,
     trait_name=None,
     trait_attrs=None,
+    kwargs_scatter=None,
+    kwargs_area=None,
+    **kwargs,
 ):
     """
-    Plot the posterior distribution of the fitted temperature response.
+    Plot a fitted temperature response curve.
+
+    The median response is plotted along with the 95% credible interval.
 
     Parameters
     ----------
@@ -619,6 +667,17 @@ def plot_fitted_temperature_response(
         The name of the trait variable.
     trait_attrs : dict, optional
         Additional attributes to assign to the trait variable in the plotted dataset.
+    kwargs_scatter : dict, optional
+        Keyword arguments to pass to hvplot.scatter() when plotting the response data.
+    kwargs_area : dict, optional
+        Keyword arguments to pass to hvplot.area() when plotting the credible interval.
+    **kwargs : dict, optional
+        Additional keyword arguments to pass to hvplot.line().
+
+    Returns
+    -------
+    holoviews.Overlay
+        The plot object containing the fitted temperature response curve.
     """
     da_posterior_response = get_posterior_temperature_response(
         idata=idata,
@@ -633,18 +692,21 @@ def plot_fitted_temperature_response(
     ).assign_coords(quantile=["lower", "median", "upper"])
     return (
         da_response_quantiles.sel(quantile="median", drop=True).hvplot.line(
-            label="Median response"
+            label="Median response", **kwargs
         )
         * da_response_quantiles.to_dataset(dim="quantile").hvplot.area(
-            y="lower",
-            y2="upper",
-            alpha=0.2,
-            label="95% credible interval",
+            **{
+                "y": "lower",
+                "y2": "upper",
+                "alpha": 0.2,
+                "label": "95% credible interval",
+                **(kwargs_area or {}),
+            },
         )
         * xr.Dataset(
             {"trait": ("temperature", trait_data)},
             coords={"temperature": temperature_data},
-        ).hvplot.scatter()
+        ).hvplot.scatter(**(kwargs_scatter or {}))
     )
 
 
