@@ -89,6 +89,7 @@ Classes
 
    epimod.EpiModel
    epimod.SuitabilityModel
+   epimod.ParameterizedSuitabilityModel
 
 Methods
 ~~~~~~~
@@ -97,6 +98,9 @@ Methods
    :toctree: generated/
 
    epimod.get_example_model
+   epimod.get_example_temperature_response_data
+   epimod.fit_temperature_response
+   epimod.get_posterior_temperature_response
 
 Front-end application subpackage
 --------------------------------
