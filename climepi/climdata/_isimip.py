@@ -294,7 +294,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             ds["time"] = centered_times
             return ds
 
-        kwargs = {"chunks": "auto", "preprocess": _preprocess, **kwargs}
+        kwargs = {"preprocess": _preprocess, "join": "outer", **kwargs}
         super()._open_temp_data(**kwargs)
 
     def _process_data(self):

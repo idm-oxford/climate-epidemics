@@ -325,6 +325,8 @@ class ARISEDataGetter(CESMDataGetter):
             data_vars="minimal",
             parallel=True,
             join="inner",
+            coords="minimal",  # will become xarray default
+            compat="override",  # will become xarray default
             storage_options={
                 "remote_options": {"anon": True},
                 "target_options": {"anon": True},
@@ -456,6 +458,8 @@ class GLENSDataGetter(CESMDataGetter):
                 xr.open_mfdataset(
                     [url],
                     chunks={},
+                    coords="minimal",  # will become xarray default
+                    compat="override",  # will become xarray default
                     preprocess=_preprocess,
                     engine="h5netcdf",
                 )
