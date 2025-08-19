@@ -6,7 +6,7 @@
 # Data files
 /data/examples/*
 !/data/examples/lens2_2020_2100_monthly
-!/data/examples/isimip_cities_monthly
+!/data/examples/isimip_cities_daily
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
