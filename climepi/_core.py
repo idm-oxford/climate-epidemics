@@ -173,7 +173,8 @@ class ClimEpiDatasetAccessor:
                 [
                     self.temporal_group_average(data_var_curr, frequency, **kwargs)
                     for data_var_curr in data_var_list
-                ]
+                ],
+                compat="no_conflicts",  # will become xarray default
             )
         if np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(
             self._obj[data_var].dtype, bool
