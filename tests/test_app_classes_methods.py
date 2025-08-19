@@ -77,7 +77,11 @@ def test_load_clim_data_func(mock_get_example_dataset, mock_open_mfdataset):
     assert result_custom == mock_open_mfdataset.return_value
     assert not result_custom.chunks  # method loads time_bnds into memory
     mock_open_mfdataset.assert_called_once_with(
-        "path/to/custom/data/*.nc", data_vars="minimal", chunks={}
+        "path/to/custom/data/*.nc",
+        data_vars="minimal",
+        chunks={},
+        coords="minimal",
+        compat="override",
     )
     # Test with invalid dataset option
     with pytest.raises(ValueError, match="Unrecognised climate data option"):

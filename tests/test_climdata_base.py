@@ -24,7 +24,6 @@ def test_get_climate_data(data_source):
     download = "probably"
     force_remake = "perhaps"
     max_subset_wait_time = 30
-    full_download = True
 
     kwargs_in = {
         "data_source": data_source,
@@ -34,7 +33,6 @@ def test_get_climate_data(data_source):
         "download": download,
         "force_remake": force_remake,
         "max_subset_wait_time": max_subset_wait_time,
-        "full_download": full_download,
     }
 
     if data_source == "test":
@@ -56,7 +54,6 @@ def test_get_climate_data(data_source):
                 frequency=frequency,
                 subset=subset,
                 save_dir=save_dir,
-                full_download=full_download,
             )
         elif data_source == "isimip":
             mock_data_getter.assert_called_once_with(

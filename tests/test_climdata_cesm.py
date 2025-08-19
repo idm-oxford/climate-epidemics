@@ -391,7 +391,13 @@ class TestLENS2DataGetter:
                 for var in ["TREFHT", "PRECC", "PRECL"]
             ]
         )
-        assert call_kwargs == {"storage_options": {"anon": True}}
+        assert call_kwargs == {
+            "storage_options": {"anon": True},
+            "xarray_combine_by_coords_kwargs": {
+                "coords": "minimal",
+                "compat": "override",
+            },
+        }
         xrt.assert_identical(data_getter._ds, ds)
 
     def test_subset_remote_data(self):
@@ -555,12 +561,67 @@ def test_preprocess_arise_dataset(frequency, scenario):
 class TestGLENSDataGetter:
     """Class for testing the GLENSDataGetter class."""
 
+    @patch.object(GLENSDataGetter, "_open_local_data", autospec=True)
+    @patch.object(GLENSDataGetter, "_find_remote_data", autospec=True)
+    @patch.object(GLENSDataGetter, "_subset_remote_data", autospec=True)
+    @patch.object(GLENSDataGetter, "_download_remote_data", autospec=True)
+    @patch.object(GLENSDataGetter, "_open_temp_data", autospec=True)
+    @patch.object(GLENSDataGetter, "_process_data", autospec=True)
+    @patch.object(GLENSDataGetter, "_save_processed_data", autospec=True)
+    @patch.object(GLENSDataGetter, "_delete_temporary", autospec=True)
+    @pytest.mark.parametrize("single_scenario", [True, False])
+    @pytest.mark.parametrize("already_downloaded", [True, False])
+    def test_get_data(
+        self,
+        mock_delete_temporary,
+        mock_save_processed_data,
+        mock_process_data,
+        mock_open_temp_data,
+        mock_download_remote_data,
+        mock_subset_remote_data,
+        mock_find_remote_data,
+        mock_open_local_data,
+        single_scenario,
+        already_downloaded,
+    ):
+        """Test the get_data method."""
+
+        def _mock_open_local_data(*args, **kwargs):
+            if already_downloaded or mock_save_processed_data.call_count:
+                if mock_process_data.call_count < 2:
+                    # If retrieving both scenarios, reset the mock after the first
+                    # scenario so FileNotFound error is raised on second scenario (but
+                    # don't reset after second scenario to avoid interfering with final
+                    # call to _open_local_data)
+                    mock_save_processed_data.reset_mock()
+                return MagicMock()
+            raise FileNotFoundError("File not found")
+
+        mock_open_local_data.side_effect = _mock_open_local_data
+
+        data_getter = GLENSDataGetter(
+            frequency="monthly",
+            subset={"scenarios": ["rcp85"]} if single_scenario else None,
+        )
+        data_getter.get_data()
+
+        if already_downloaded:
+            mock_open_local_data.assert_called_once()
+            mock_process_data.assert_not_called()
+        elif single_scenario:
+            assert mock_open_local_data.call_count == 2
+            mock_process_data.assert_called_once()
+        else:
+            # _open_local_data() should be called once at start, twice for separate
+            # get_data() calls for each of the two scenarios, and again at the end
+            assert mock_open_local_data.call_count == 6
+            assert mock_process_data.call_count == 2
+
     @patch.object(xr, "open_mfdataset", autospec=True)
     @patch.object(xr, "combine_by_coords", autospec=True)
     @patch.object(siphon.catalog, "TDSCatalog")
     @patch.object(time, "sleep", autospec=True)
     @pytest.mark.parametrize("frequency", ["daily", "monthly"])
-    @pytest.mark.parametrize("full_download", [True, False])
     def test_find_remote_data(
         self,
         mock_sleep,
@@ -568,7 +629,6 @@ class TestGLENSDataGetter:
         mock_combine_by_coords,
         mock_open_mfdataset,
         frequency,
-        full_download,
     ):
         """Test the _find_remote_data method of the GLENSDataGetter class."""
         data_vars = (
@@ -607,20 +667,22 @@ class TestGLENSDataGetter:
 
         data_getter = GLENSDataGetter(
             frequency=frequency,
-            subset={"years": [2029, 2030], "realizations": [0, 2]},
-            full_download=full_download,
+            subset={
+                "years": [2029, 2030],
+                "realizations": [0, 2],
+                "scenarios": ["rcp85"],
+            },
         )
         data_getter._find_remote_data()
 
         assert mock_sleep.call_count == 2  # Two retries due to HTTPError
 
         urls_expected = [
-            f"https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/{_scenario_str}"
+            f"https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/Control"
             f"/atm/proc/tseries/{frequency}/{_data_var}/b.e15.B5505C5WCCML45BGCR."
-            f"f09_g16.{_scenario_str.lower()}.{_member_id}.cam.hX.{_data_var}."
+            f"f09_g16.control.{_member_id}.cam.hX.{_data_var}."
             f"{_year_str}.nc"
             for _data_var in data_vars
-            for _scenario_str in ["Control", "Feedback"]
             for _member_id in ["001", "003"]
             for _year_str in (
                 ["20200101-20291231", "20300101-20391231"]
@@ -628,24 +690,22 @@ class TestGLENSDataGetter:
                 else ["202001-202912", "203001-203912"]
             )
         ]
-
-        if full_download:
-            mock_open_mfdataset.assert_not_called()
-            mock_combine_by_coords.assert_not_called()
-            assert data_getter._ds is None
-            assert sorted(data_getter._urls) == sorted(urls_expected)
-        else:
-            assert mock_open_mfdataset.call_count == len(urls_expected)
-            for call in mock_open_mfdataset.call_args_list:
-                assert call.args[0][0] in urls_expected
-            mock_combine_by_coords.assert_called_once()
-            assert data_getter._ds == mock_combine_by_coords.return_value
-            assert data_getter._urls is None
+        mock_open_mfdataset.assert_not_called()
+        mock_combine_by_coords.assert_not_called()
+        assert data_getter._ds is None
+        assert sorted(data_getter._urls) == sorted(urls_expected)
 
     def test_find_remote_data_errors(self):
         """Test cases where _find_remote_data should raise an error."""
+        with pytest.raises(
+            ValueError, match="can only convert an array of size 1 to a Python scalar"
+        ):
+            data_getter = GLENSDataGetter(frequency="daily")
+            data_getter._find_remote_data()
         with pytest.raises(ValueError, match="Frequency hourly is not supported."):
-            data_getter = GLENSDataGetter(frequency="hourly")
+            data_getter = GLENSDataGetter(
+                frequency="hourly", subset={"scenarios": ["rcp85"]}
+            )
             data_getter._find_remote_data()
         with pytest.raises(
             ValueError,
@@ -657,32 +717,21 @@ class TestGLENSDataGetter:
             data_getter._find_remote_data()
 
     @patch.object(CESMDataGetter, "_subset_remote_data", autospec=True)
-    @pytest.mark.parametrize("full_download", [True, False])
-    def test_subset_remote_data(self, mock_parent_subset, full_download):
-        """
-        Test the _subset_remote_data function.
-
-        The parent method should be overriden if full_download is False.
-        """
-        data_getter = GLENSDataGetter(frequency="daily", full_download=full_download)
+    def test_subset_remote_data(self, mock_parent_subset):
+        """Test the _subset_remote_data function."""
+        data_getter = GLENSDataGetter(frequency="daily")
         data_getter._subset_remote_data()
-        if full_download:
-            mock_parent_subset.assert_not_called()
-        else:
-            mock_parent_subset.assert_called_once()
+        mock_parent_subset.assert_not_called()
 
     @patch.object(CESMDataGetter, "_download_remote_data", autospec=True)
     @patch.object(pooch, "create", autospec=True)
-    @pytest.mark.parametrize("full_download", [True, False])
-    def test_download_remote_data(
-        self, mock_pooch_create, mock_parent_download, full_download
-    ):
+    def test_download_remote_data(self, mock_pooch_create, mock_parent_download):
         """
         Test the _download_remote_data function.
 
         The parent method should be overriden if full_download is False.
         """
-        data_getter = GLENSDataGetter(frequency="daily", full_download=full_download)
+        data_getter = GLENSDataGetter(frequency="daily")
         data_getter._urls = [
             "some/url.edu/path/file1.nc",
             "some/url.edu/path/file2.nc",
@@ -691,9 +740,6 @@ class TestGLENSDataGetter:
         temp_save_dir = pathlib.Path("some_dir")
         data_getter._temp_save_dir = temp_save_dir
         data_getter._download_remote_data()
-        if not full_download:
-            mock_parent_download.assert_called_once()
-            return
         mock_parent_download.assert_not_called()
         assert mock_pooch_create.call_count == 3
         for kwargs in [
@@ -724,39 +770,21 @@ class TestGLENSDataGetter:
         ]
 
     @patch.object(CESMDataGetter, "_open_temp_data", autospec=True)
-    @pytest.mark.parametrize("full_download", [True, False])
-    def test_open_temp_data(self, mock_parent_open_temp_data, full_download):
-        """
-        Test the _open_temp_data function.
-
-        The parent method should be overriden if full_download is False.
-        """
-        data_getter = GLENSDataGetter(frequency="daily", full_download=full_download)
+    def test_open_temp_data(self, mock_parent_open_temp_data):
+        """Test the _open_temp_data function."""
+        data_getter = GLENSDataGetter(frequency="daily")
         data_getter._open_temp_data()
         mock_parent_open_temp_data.assert_called_once()
-        if full_download:
-            assert "preprocess" in mock_parent_open_temp_data.call_args.kwargs
-        else:
-            assert "preprocess" not in mock_parent_open_temp_data.call_args.kwargs
+        assert "preprocess" in mock_parent_open_temp_data.call_args.kwargs
 
-    @patch.object(GLENSDataGetter, "_subset_remote_data", autospec=True)
+    @patch.object(CESMDataGetter, "_subset_remote_data", autospec=True)
     @patch.object(CESMDataGetter, "_process_data", autospec=True)
-    @pytest.mark.parametrize("full_download", [True, False])
-    def test_process_data(
-        self, mock_parent_process_data, mock_subset_remote_data, full_download
-    ):
-        """
-        Test the _process_data function.
-
-        The parent method should be extended if full_download is False.
-        """
-        data_getter = GLENSDataGetter(frequency="daily", full_download=full_download)
+    def test_process_data(self, mock_parent_process_data, mock_parent_subset_data):
+        """Test the _process_data function."""
+        data_getter = GLENSDataGetter(frequency="daily")
         data_getter._process_data()
+        mock_parent_subset_data.assert_called_once()
         mock_parent_process_data.assert_called_once()
-        if full_download:
-            mock_subset_remote_data.assert_called_once()
-        else:
-            mock_subset_remote_data.assert_not_called()
 
 
 @pytest.mark.parametrize("frequency", ["daily", "monthly", "hourly"])
