@@ -197,7 +197,10 @@ class LENS2DataGetter(CESMDataGetter):
         catalog_subset = catalog.search(
             variable=["TREFHT", "PRECC", "PRECL"], frequency=frequency
         )
-        ds_dict_in = catalog_subset.to_dataset_dict(storage_options={"anon": True})
+        ds_dict_in = catalog_subset.to_dataset_dict(
+            storage_options={"anon": True},
+            xarray_combine_by_coords_kwargs={"coords": "minimal", "compat": "override"},
+        )
         print("\n")
         ds_cmip6_in = xr.concat(
             [
@@ -471,12 +474,13 @@ class GLENSDataGetter(CESMDataGetter):
         frequency = self._frequency
         years = self._subset["years"]
         realizations = self._subset["realizations"]
-        kwargs["preprocess"] = functools.partial(
+        preprocess = functools.partial(
             _preprocess_glens_dataset,
             frequency=frequency,
             years=years,
             realizations=realizations,
         )
+        kwargs = {"preprocess": preprocess, "join": "inner", **kwargs}
         super()._open_temp_data(**kwargs)
 
     def _process_data(self):
