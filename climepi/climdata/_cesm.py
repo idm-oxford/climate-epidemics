@@ -346,9 +346,8 @@ class GLENSDataGetter(CESMDataGetter):
     available_scenarios = ["rcp85", "sai"]
     available_realizations = np.arange(20)
 
-    def __init__(self, *args, full_download=False, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._full_download = full_download
         self._urls = None
 
     def _find_remote_data(self):
@@ -439,87 +438,50 @@ class GLENSDataGetter(CESMDataGetter):
                     )
                 ]
             )
+        self._urls = urls
 
-        if self._full_download:
-            self._urls = urls
-            return
+    def _subset_remote_data(self):
+        pass
 
-        _preprocess = functools.partial(
+    def _download_remote_data(self):
+        # Download the remote data files to a temporary directory.
+        urls = self._urls
+        temp_save_dir = self._temp_save_dir
+        temp_file_names = []
+
+        for url in urls:
+            url_parts = url.split("/")
+            download_file_name = url_parts[-1]
+            base_url = "/".join(url_parts[:-1])
+            pup = pooch.create(
+                base_url=base_url,
+                path=temp_save_dir,
+                registry={download_file_name: None},
+                retry_if_failed=5,
+            )
+            pup.fetch(
+                download_file_name,
+                progressbar=True,
+            )
+            temp_file_names.append(download_file_name)
+        self._temp_file_names = temp_file_names
+
+    def _open_temp_data(self, **kwargs):
+        # Need to preprocess the downloaded data files.
+        frequency = self._frequency
+        years = self._subset["years"]
+        realizations = self._subset["realizations"]
+        kwargs["preprocess"] = functools.partial(
             _preprocess_glens_dataset,
             frequency=frequency,
             years=years,
             realizations=realizations,
         )
-
-        print("Opening data files...")
-        ds_list = []
-        for url in tqdm.tqdm(urls):
-            ds_list.append(
-                xr.open_mfdataset(
-                    [url],
-                    chunks={},
-                    coords="minimal",  # will become xarray default
-                    compat="override",  # will become xarray default
-                    preprocess=_preprocess,
-                    engine="h5netcdf",
-                )
-            )
-        ds_in = xr.combine_by_coords(
-            ds_list, data_vars="minimal", join="inner", combine_attrs="drop_conflicts"
-        )
-        self._ds = ds_in
-
-    def _subset_remote_data(self):
-        if self._full_download:
-            # If full download is requested, we can't subset until after download.
-            return
-        super()._subset_remote_data()
-
-    def _download_remote_data(self):
-        if self._full_download:
-            # Download the remote data files to a temporary directory.
-            urls = self._urls
-            temp_save_dir = self._temp_save_dir
-            temp_file_names = []
-
-            for url in urls:
-                url_parts = url.split("/")
-                download_file_name = url_parts[-1]
-                base_url = "/".join(url_parts[:-1])
-                pup = pooch.create(
-                    base_url=base_url,
-                    path=temp_save_dir,
-                    registry={download_file_name: None},
-                    retry_if_failed=5,
-                )
-                pup.fetch(
-                    download_file_name,
-                    progressbar=True,
-                )
-                temp_file_names.append(download_file_name)
-            self._temp_file_names = temp_file_names
-            return
-        super()._download_remote_data()
-
-    def _open_temp_data(self, **kwargs):
-        if self._full_download:
-            # Need to preprocess the downloaded data files.
-            frequency = self._frequency
-            years = self._subset["years"]
-            realizations = self._subset["realizations"]
-            kwargs["preprocess"] = functools.partial(
-                _preprocess_glens_dataset,
-                frequency=frequency,
-                years=years,
-                realizations=realizations,
-            )
-        return super()._open_temp_data(**kwargs)
+        super()._open_temp_data(**kwargs)
 
     def _process_data(self):
-        if self._full_download:
-            # Subset data now that it has been downloaded.
-            self._subset_remote_data()
-        return super()._process_data()
+        super()._subset_remote_data()
+        super()._process_data()
 
 
 def _preprocess_arise_dataset(ds, frequency=None, realizations=None):

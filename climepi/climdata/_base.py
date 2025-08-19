@@ -13,7 +13,6 @@ def get_climate_data(
     force_remake=False,
     subset_check_interval=10,
     max_subset_wait_time=20,
-    full_download=False,
     **kwargs,
 ):
     """
@@ -29,6 +28,11 @@ def get_climate_data(
     ISIMIP data are taken from the ISIMIP repository (https://data.isimip.org/), and
     terms of use can be found at
     https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
+
+    Note that for GLENS data, no server-side subsetting is performed, and downloaded
+    full data files are only cleared up after all data have been downloaded and
+    processed; splitting the data retrieval into multiple calls to this function may
+    reduce the disk space overhead.
 
     Parameters
     ----------
@@ -99,14 +103,6 @@ def get_climate_data(
         complete, in seconds, before timing out (default is 20). Server-side subsetting
         will continue to run after this function times out, and this function can be
         re-run to check if the subsetting has completed and retrieve the subsetted data.
-    full_download : bool, optional
-        For GLENS data only; whether to download full data files rather than attempting
-        to open the files via HTTP and download the relevant subset (default is False).
-        Setting to True can reduce the number of HTTP requests made to the data server,
-        but may incur a substantial disk space overhead (note full data files are
-        only cleared up after all data have been downloaded and processed - splitting
-        the data retrieval into multiple calls to this function may reduce the disk
-        space overhead).
     **kwargs
         Additional keyword arguments to pass to xarray.open_mfdataset when opening
         downloaded data files.
@@ -123,7 +119,6 @@ def get_climate_data(
         save_dir=save_dir,
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
-        full_download=full_download,
     )
     ds_clim = data_getter.get_data(
         download=download, force_remake=force_remake, **kwargs
@@ -164,7 +159,6 @@ def _get_data_getter(
     *args,
     subset_check_interval=None,
     max_subset_wait_time=None,
-    full_download=None,
     **kwargs,
 ):
     if data_source == "lens2":
@@ -172,7 +166,7 @@ def _get_data_getter(
     elif data_source == "arise":
         data_getter = ARISEDataGetter(*args, **kwargs)
     elif data_source == "glens":
-        data_getter = GLENSDataGetter(*args, full_download=full_download, **kwargs)
+        data_getter = GLENSDataGetter(*args, **kwargs)
     elif data_source == "isimip":
         data_getter = ISIMIPDataGetter(
             *args,
