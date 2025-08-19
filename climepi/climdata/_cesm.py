@@ -1,8 +1,8 @@
 """Module for accessing and downloading CESM LENS2 data."""
 
 import functools
-import itertools
 import time
+from copy import deepcopy
 
 import dask.diagnostics
 import intake
@@ -10,7 +10,6 @@ import numpy as np
 import pooch
 import requests
 import siphon.catalog
-import tqdm
 import xarray as xr
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
@@ -29,7 +28,6 @@ class CESMDataGetter(ClimateDataGetter):
     further details.
     """
 
-    remote_open_possible = True
     lon_res = 1.25
     lat_res = 180 / 191
 
@@ -181,6 +179,7 @@ class LENS2DataGetter(CESMDataGetter):
     available_years = np.arange(1850, 2101)
     available_scenarios = ["ssp370"]
     available_realizations = np.arange(100)
+    remote_open_possible = True
 
     def _find_remote_data(self):
         # Use intake to find and (lazily) open the remote data, then combine into a
@@ -251,6 +250,7 @@ class ARISEDataGetter(CESMDataGetter):
     available_years = np.arange(2035, 2070)
     available_scenarios = ["ssp245", "sai15"]
     available_realizations = np.arange(10)
+    remote_open_possible = True
 
     def _find_remote_data(self):
         # Running to_datset_dict() on the catalog subset doesn't seem to work for
@@ -353,12 +353,34 @@ class GLENSDataGetter(CESMDataGetter):
         super().__init__(*args, **kwargs)
         self._urls = None
 
+    def get_data(self, *args, **kwargs):
+        scenarios = self._subset["scenarios"]
+        if len(scenarios) == 1:
+            return super().get_data(*args, **kwargs)
+        try:
+            # Will raise an error unless data have been downloaded and force_remake is
+            # false (allowing us to avoid the below loop over scenarios when we don't
+            # need to download the data)
+            return super().get_data(*args, **{**kwargs, "download": False})
+        except ValueError:
+            pass
+        for scenario in scenarios:
+            print(f"Getting data for scenario {scenario}...")
+            data_getter_curr = deepcopy(self)
+            data_getter_curr._subset["scenarios"] = [scenario]
+            data_getter_curr._file_names = None
+            data_getter_curr._file_name_da = None
+            data_getter_curr.get_data(*args, **kwargs)
+        return super().get_data(
+            *args, **{**kwargs, "force_remake": False, "download": False}
+        )
+
     def _find_remote_data(self):
         frequency = self._frequency
         years = self._subset["years"]
         realizations = self._subset["realizations"]
         member_ids = [f"{(i + 1):03d}" for i in realizations]
-        scenarios = self._subset["scenarios"]
+        scenario = np.array(self._subset["scenarios"]).item()
 
         if frequency in ["monthly", "yearly"]:
             data_vars = ["TREFHT", "PRECC", "PRECL"]
@@ -369,7 +391,7 @@ class GLENSDataGetter(CESMDataGetter):
 
         urls = []
 
-        for scenario, data_var in itertools.product(scenarios, data_vars):
+        for data_var in data_vars:
             if scenario == "rcp85" and frequency in ["monthly", "yearly"]:
                 catalog_url = (
                     "https://tds.ucar.edu/thredds/catalog/esgcet/343/ucar.cgd.ccsm4."
