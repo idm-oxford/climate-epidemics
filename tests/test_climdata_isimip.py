@@ -154,15 +154,9 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
     def mock_json():
         json = mock_session.return_value.post.call_args[1]["json"]
         paths = json["paths"]
-        operation = json["operations"][0]
-        if operation["operation"] == "cutout_bbox":
-            bbox = operation["bbox"]
-            id_ = f"{paths[0]}_to_{paths[-1]}_bbox_{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}"
-        elif operation["operation"] == "cutout_point":
-            point = operation["point"]
-            id_ = f"{paths[0]}_to_{paths[-1]}_point_{point[0]}_{point[1]}"
-        else:
-            raise ValueError(f"Unexpected operation {operation['operation']}.")
+        bbox = json["bbox"]
+        id_ = f"{paths[0]}_to_{paths[-1]}_bbox_{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}"
+
         if time.time() - st > time_to_finish:
             status = "finished"
         else:
@@ -198,7 +192,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = -27
         lat_range = None
         lon_range = None
-        id_suffixes_expected = ["point_153_-27"]
+        id_suffixes_expected = ["bbox_-27_-27_153_153"]
     elif location_mode == "multiple_named":
         # Use multiple named locations with geocoding to get lon and lat
         locations = ["Los Angeles", "Melbourne"]
@@ -206,7 +200,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = None
         lat_range = None
         lon_range = None
-        id_suffixes_expected = ["point_-118_34", "point_144_-37"]
+        id_suffixes_expected = ["bbox_34_34_-118_-118", "bbox_-37_-37_144_144"]
     elif location_mode == "grid_lon_0_360":
         # Use a grid of lon/lat values with lon in 0-360 range
         locations = None
@@ -214,7 +208,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = None
         lat_range = [10, 60]
         lon_range = [15, 240]
-        id_suffixes_expected = ["bbox_15_-120_10_60"]
+        id_suffixes_expected = ["bbox_10_60_15_-120"]
     elif location_mode == "grid_lon_180_180":
         # Use a grid of lon/lat values with lon in -180-180 range
         locations = None
@@ -222,7 +216,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = None
         lat_range = None
         lon_range = [-30, 60]
-        id_suffixes_expected = ["bbox_-30_60_-90_90"]
+        id_suffixes_expected = ["bbox_-90_90_-30_60"]
     elif location_mode == "global":
         # Use all global data
         locations = None
