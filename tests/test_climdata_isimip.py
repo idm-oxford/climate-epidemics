@@ -152,14 +152,20 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
     st = None  # start time to set below
 
     def mock_json():
-        paths = mock_session.return_value.post.call_args[1]["json"]["paths"]
-        bbox = mock_session.return_value.post.call_args[1]["json"]["bbox"]
+        json = mock_session.return_value.post.call_args[1]["json"]
+        paths = json["paths"]
+        bbox = json["bbox"]
         id_ = f"{paths[0]}_to_{paths[-1]}_bbox_{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}"
+
         if time.time() - st > time_to_finish:
             status = "finished"
         else:
             status = "waiting"
-        response = {"id": id_, "status": status}
+        response = {
+            "id": id_,
+            "status": status,
+            "job_url": f"https://files.isimip.org/api/v2/{id_}",
+        }
         return response
 
     mock_session.return_value.post.return_value.json = mock_json
@@ -186,7 +192,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = -27
         lat_range = None
         lon_range = None
-        bbox_expected_list = [[-27, -27, 153, 153]]
+        id_suffixes_expected = ["bbox_-27_-27_153_153"]
     elif location_mode == "multiple_named":
         # Use multiple named locations with geocoding to get lon and lat
         locations = ["Los Angeles", "Melbourne"]
@@ -194,10 +200,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = None
         lat_range = None
         lon_range = None
-        bbox_expected_list = [
-            [34, 34, -118, -118],
-            [-37, -37, 144, 144],
-        ]
+        id_suffixes_expected = ["bbox_34_34_-118_-118", "bbox_-37_-37_144_144"]
     elif location_mode == "grid_lon_0_360":
         # Use a grid of lon/lat values with lon in 0-360 range
         locations = None
@@ -205,7 +208,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = None
         lat_range = [10, 60]
         lon_range = [15, 240]
-        bbox_expected_list = [["10", "60", "15", "-120"]]
+        id_suffixes_expected = ["bbox_10_60_15_-120"]
     elif location_mode == "grid_lon_180_180":
         # Use a grid of lon/lat values with lon in -180-180 range
         locations = None
@@ -213,7 +216,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = None
         lat_range = None
         lon_range = [-30, 60]
-        bbox_expected_list = [["-90", "90", "-30", "60"]]
+        id_suffixes_expected = ["bbox_-90_90_-30_60"]
     elif location_mode == "global":
         # Use all global data
         locations = None
@@ -221,9 +224,15 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat = None
         lat_range = None
         lon_range = None
-        bbox_expected_list = [["-90", "90", "-180", "180"]]
+        id_suffixes_expected = ["should_not_subset"]
     else:
         raise ValueError(f"Unexpected location_mode {location_mode}.")
+
+    job_ids_expected = [
+        f"{x}_to_{y}_{id_suffix}"
+        for id_suffix in id_suffixes_expected
+        for x, y in zip([0, 300, 600, 900], [299, 599, 899, 999], strict=True)
+    ]
 
     # Set up DataGetter
 
@@ -241,34 +250,33 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
     )
-    data_getter._client_results = [{"path": x} for x in range(1000)]
+    client_results_in = [{"path": x} for x in range(1000)]
+    data_getter._client_results = client_results_in
 
     # Run _subset_remote_data and check results
-
-    job_ids_expected = [
-        f"{x}_to_{y}_bbox_{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}"
-        for bbox in bbox_expected_list
-        for x, y in zip([0, 300, 600, 900], [299, 599, 899, 999], strict=True)
-    ]
     st = time.time()
-    if times_out:
+    if times_out and location_mode != "global":
         if location_mode == "multiple_named":
             match = "Subsetting for at least one location timed out."
         else:
             match = "\n".join(
-                [f"https://data.isimip.org/download/{x}" for x in job_ids_expected]
+                [f"https://files.isimip.org/api/v2/{x}" for x in job_ids_expected]
             )
         with pytest.raises(TimeoutError, match=match):
             data_getter._subset_remote_data()
     else:
         data_getter._subset_remote_data()
-        assert data_getter._client_results == [
-            {"id": x, "status": "finished"} for x in job_ids_expected
-        ]
+        assert (
+            data_getter._client_results == client_results_in
+            if location_mode == "global"
+            else [{"id": x, "status": "finished"} for x in job_ids_expected]
+        )
 
     # Check that requests sessions are closed
 
-    if location_mode == "multiple_named":
+    if location_mode == "global":
+        mock_session.assert_not_called()
+    elif location_mode == "multiple_named":
         assert mock_session.return_value.close.call_count == 2
     else:
         mock_session.return_value.close.assert_called_once()
