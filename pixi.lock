@@ -4306,7 +4306,7 @@ packages:
   timestamp: 1747811467132
 - pypi: ./
   name: climepi
-  version: 0.5.3+213.ged0ae15.dirty
+  version: 0.5.3+214.g8567c5d.dirty
   sha256: 321e9e0e5f0ecbc16bf1112745ea0768c19a0fea5de6286738e5f40a6e27c113
   requires_python: '>=3.10'
   editable: true

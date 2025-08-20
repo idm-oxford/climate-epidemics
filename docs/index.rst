@@ -12,7 +12,7 @@ climate-sensitive epidemiological models.
 .. toctree::
    :maxdepth: 2
 
-   Getting Started <getting-started>
+   Getting Started <getting-started/index>
    Gallery <gallery>
    API Reference <api>
    Project Homepage <https://idm-oxford.github.io/climate-epidemics/>
