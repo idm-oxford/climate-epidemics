@@ -13,6 +13,7 @@ climate-sensitive epidemiological models.
    :maxdepth: 2
 
    Getting Started <getting-started>
+   Gallery <gallery>
    API Reference <api>
    Project Homepage <https://idm-oxford.github.io/climate-epidemics/>
    Development <development/index>

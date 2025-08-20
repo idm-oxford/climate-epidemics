@@ -61,9 +61,11 @@ climepi = { path = ".", editable = true }
 ruff = "*"
 pytest = "*"
 pytest-cov = "*"
-mkdocs = "*"
+jupyter_sphinx = "*"
+nbsphinx = "*"
 pydata-sphinx-theme = "*"
 sphinx-autosummary-accessors = "*"
+sphinx-copybutton = "*"
 ipykernel = "*"
 jupyter_bokeh = "*"
 pip = "*"                          # needed for notebooks
