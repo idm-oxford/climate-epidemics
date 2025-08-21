@@ -1,8 +1,7 @@
 Installation
 ============
 
-``climepi`` is distributed through ``conda-forge``, and can be installed using
-``conda``:
+climepi is distributed through ``conda-forge``, and can be installed using ``conda``:
 
 .. code-block:: console
 

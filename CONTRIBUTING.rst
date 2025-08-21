@@ -33,6 +33,7 @@ way in making climepi more user-friendly.
 
 Bug reports
 ~~~~~~~~~~~
+
 Bug reports are an important part of making climepi more stable. Having a complete bug
 report will allow others to reproduce the bug and provide insight into fixing.
 
@@ -42,6 +43,7 @@ and pull requests to see if the issue has already been reported and/or fixed.
 
 Enhancement requests
 ~~~~~~~~~~~~~~~~~~~~
+
 Enhancements are a great way to improve climepi's capabilities for the broader
 scientific community.
 

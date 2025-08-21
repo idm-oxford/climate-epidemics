@@ -3,7 +3,7 @@ Getting Started
 ===============
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
+   overview
    installation
-   front-end-application
