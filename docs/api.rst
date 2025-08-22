@@ -1,8 +1,8 @@
 API reference
 =============
 
-Dataset accessor
-----------------
+Accessor class for xarray datasets
+----------------------------------
 
 The ``climepi`` accessor class for ``xarray.Dataset`` objects can be used by chaining
 the ``climepi`` attribute to a ``Dataset`` (e.g., ``ds.climepi.sel_geo("London")``; see

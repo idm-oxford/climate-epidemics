@@ -2,8 +2,10 @@ Overview
 ========
 
 climepi is a Python package for combining ensemble climate projections with models of
-climate suitability for vector-borne diseases to analyze the impacts of climate change
-and its uncertainties on disease risks.
+climate suitability for vector-borne diseases (VBDs) to analyze the impacts of climate
+change and its uncertainties on VBD risks. climepi is designed with a modular
+architecture, allowing users to apply and extend its functionality to a wide range of
+climate datasets and climate-sensitive epidemiological models.
 
 Core dependencies
 -----------------
@@ -26,10 +28,8 @@ Other key dependencies include:
 Conventions
 -----------
 
-climepi is designed with a modular architecture, allowing users to apply and extend its
-functionality to a wide range of climate datasets and climate-sensitive epidemiological
-models. To ensure smooth uses, its features assume that climate datasets are represented
-as ``xarray.Dataset`` objects and follow certain naming conventions:
+climepi's features assume that climate datasets are represented as ``xarray.Dataset``
+objects and follow certain naming conventions:
 
 - Data variables describing temperature and precipitation values (where present) should
   be named "temperature" and "precipitation", respectively. Inbuilt example
@@ -41,9 +41,9 @@ as ``xarray.Dataset`` objects and follow certain naming conventions:
   that some climepi methods return datasets with a dimension "location" indexing
   named locations.
 - For ensemble datasets, multiple realizations of a single climate model under a single
-  scenario should be indexed by a dimension named "realization". If multiple models
-  and/or scenarios are included, they should be indexed by dimensions named "model"
-  and "scenario", respectively.
+  scenario should be indexed by a dimension named "realization" (typically provided
+  as integer values starting from 0). If multiple models and/or scenarios are included,
+  they should be indexed by dimensions named "model" and "scenario", respectively.
 - If temporal bounds are present, they should be included as a data variable named
   "time_bnds", with dimensions "time" and "bnds".
 
@@ -61,30 +61,56 @@ Climate data subpackage
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``climdata`` subpackage contains methods for retrieving climate projection data.
-It provides a simple interface for obtaining projections of key climate variables
-for climate-VBD modeling (currently, temperature and precipitation) from various sources
-(currently supported data sources include the CESM LENS2 and ISIMIP projects).
+It provides a single interface for obtaining projections of key climate variables
+used in climate-VBD models (currently, temperature and precipitation) from various
+sources (currently supported data sources include the
+`LENS2 <https://www.cesm.ucar.edu/community-projects/lens2>`_ and
+`ISIMIP <https://www.isimip.org/>`_ projects). For example,
 
 .. code-block:: python
 
     from climepi import climdata
+
+    ds_clim = climdata.get_climate_data(
+        data_source="lens2",
+        frequency="daily",
+        subset={
+                "years": list(range(2030, 2101)),
+                "locations": ["London", "Paris"],
+                "realizations": [0, 1]
+            },
+    )
 
 .. _`getting-started/overview:functionality/epimod`:
 
 Epidemiological model subpackage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Classes and methods for climate-sensitive epidemiological models are contained in the
-``epimod`` subpackage:
+The ``epimod`` subpackage contains classes and methods for climate-sensitive
+epidemiological models, particularly models describing climate suitability for VBDs.
+For example, a simple model in which transmission is possible within a certain
+temperature range can be defined as follows:
 
 .. code-block:: python
 
     from climepi import epimod
 
+    suitability_model = epimod.SuitabilityModel(temperature_range=(15, 30))
+
+Running the model on a climate dataset (either using the
+:py:meth:`SuitabilityModel.run()` method, or via the ``climepi`` accessor as described
+below) will then yield a dataset with a boolean data variable "suitability" indicating
+whether or not each temperature value falls within the specified range).
+
+Methods are also provided for inferring temperature responses of vector and pathogen
+traits in order to construct suitability models in the
+:py:class:`~epimod.ParameterizedSuitabilityModel` class. See :doc:`/gallery` for
+detailed usage examples.
+
 .. _`getting-started/overview:functionality/climepi-accessor`:
 
-Dataset accessor
-~~~~~~~~~~~~~~~~
+Accessor class for xarray datasets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``climepi`` accessor class for ``xarray.Dataset`` objects provides methods for
 running epidemiological models on climate datasets, and for analyzing and visualizing
@@ -98,22 +124,21 @@ to run an epidemiological model on a climate dataset as follows:
 
     import climepi # noqa
 
-    ds_epi = ds_clim.climepi.run_epi_model()
+    ds_epi = ds_clim.climepi.run_epi_model(suitability_model)
 
 Front-end application
 ---------------------
 
 climepi provides a browser-based front-end application, built using the ``Panel`` 
-library.
-
-A web application is available at https://idm-oxford.github.io/climate-epidemics/app.
-A method to run the application locally is contained in the ``app`` subpackage:
+library. A web application is available at
+https://idm-oxford.github.io/climate-epidemics/app. A method to run the application
+locally is contained in the ``app`` subpackage:
 
 .. code-block:: python
 
     from climepi import app
-    app.run_app()
 
+    app.run_app()
 
 If the ``climepi`` package is installed within the current ``conda`` environment, the
 application can also be run from the command line:
