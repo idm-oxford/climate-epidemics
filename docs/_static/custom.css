@@ -1,0 +1,23 @@
+/* Options copied from nbsite config */
+
+@media (min-width: 960px) {
+    .bd-sidebar {
+        max-width: 250px;
+    }
+
+    .bd-page-width {
+        max-width: min(100%, 1600px);
+    }
+}
+
+@media (min-width: 1200px) {
+    .bd-sidebar-secondary {
+        max-width: 250px;
+    }
+}
+
+@media (min-width: 1400px) {
+    .bd-sidebar {
+        max-width: 300px;
+    }
+}
