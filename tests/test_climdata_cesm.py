@@ -622,6 +622,7 @@ class TestGLENSDataGetter:
     @patch.object(siphon.catalog, "TDSCatalog")
     @patch.object(time, "sleep", autospec=True)
     @pytest.mark.parametrize("frequency", ["daily", "monthly"])
+    @pytest.mark.parametrize("scenario", ["rcp85", "sai"])
     def test_find_remote_data(
         self,
         mock_sleep,
@@ -629,6 +630,7 @@ class TestGLENSDataGetter:
         mock_combine_by_coords,
         mock_open_mfdataset,
         frequency,
+        scenario,
     ):
         """Test the _find_remote_data method of the GLENSDataGetter class."""
         data_vars = (
@@ -670,7 +672,7 @@ class TestGLENSDataGetter:
             subset={
                 "years": [2029, 2030],
                 "realizations": [0, 2],
-                "scenarios": ["rcp85"],
+                "scenarios": [scenario],
             },
         )
         data_getter._find_remote_data()
@@ -678,10 +680,17 @@ class TestGLENSDataGetter:
         assert mock_sleep.call_count == 2  # Two retries due to HTTPError
 
         urls_expected = [
-            f"https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/Control"
+            f"https://data-osdf.rda.ucar.edu/ncar/rda/d651064/GLENS/{_scenario_str}"
             f"/atm/proc/tseries/{frequency}/{_data_var}/b.e15.B5505C5WCCML45BGCR."
-            f"f09_g16.control.{_member_id}.cam.hX.{_data_var}."
+            f"f09_g16.{_scenario_str.lower()}.{_member_id}.cam.hX.{_data_var}."
             f"{_year_str}.nc"
+            for _scenario_str in [
+                "Control"
+                if scenario == "rcp85"
+                else "Feedback"
+                if scenario == "sai"
+                else "Unknown"
+            ]
             for _data_var in data_vars
             for _member_id in ["001", "003"]
             for _year_str in (

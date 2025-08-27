@@ -132,7 +132,14 @@ def test_find_remote_data(mock_session):
 @patch.object(climepi.climdata._isimip, "geocode", autospec=True)
 @pytest.mark.parametrize(
     "location_mode",
-    ["single_named", "multiple_named", "grid_lon_0_360", "grid_lon_180_180", "global"],
+    [
+        "single_named",
+        "multiple_named",
+        "grid_lon_0_360",
+        "grid_lon_180_180",
+        "grid_all_lon",
+        "global",
+    ],
 )
 @pytest.mark.parametrize("times_out", [False, True])
 def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out):
@@ -217,6 +224,14 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat_range = None
         lon_range = [-30, 60]
         id_suffixes_expected = ["bbox_-90_90_-30_60"]
+    elif location_mode == "grid_all_lon":
+        # Use a grid of lon/lat values with all longitudes
+        locations = None
+        lon = None
+        lat = None
+        lat_range = [-30, 60]
+        lon_range = None
+        id_suffixes_expected = ["bbox_-30_60_-180_180"]
     elif location_mode == "global":
         # Use all global data
         locations = None
