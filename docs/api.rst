@@ -91,7 +91,7 @@ Front-end application subpackage
 
 A method to run the front-end application is contained in the ``app`` subpackage
 (accessible via ``from climepi import app``; see
-:ref:`getting-started/overview:Front-end application`).
+:doc:`getting-started/app`).
 
 Methods
 ~~~~~~~
