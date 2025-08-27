@@ -342,7 +342,7 @@ def generate_dataset(
     if random:
         for data_var_curr in data_var:
             vals_new = np.random.rand(*ds[data_var_curr].shape)
-            if np.issubdtype(dtype, np.integer) or np.issubdtype(dtype, np.bool):
+            if np.issubdtype(dtype, np.integer) or np.issubdtype(dtype, np.bool_):
                 vals_new = np.round(vals_new)
             ds[data_var_curr].values = vals_new.astype(dtype)
 
