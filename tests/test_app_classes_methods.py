@@ -310,6 +310,7 @@ class TestPlotter:
                 ("Coastline", "I"),
                 ("Borders", "I"),
                 ("Ocean", "I"),
+                ("Lakes", "I"),
             ]
         elif plot_type == "time series":
             assert isinstance(plot_obj, hv.Overlay)
