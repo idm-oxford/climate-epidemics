@@ -238,7 +238,7 @@ class TestSuitabilityModel:
         }
         model = epimod.SuitabilityModel(suitability_table=suitability_table)
         result = model.plot_suitability()
-        assert isinstance(result, hv.QuadMesh)
+        assert isinstance(result, hv.Image)
         assert result.kdims[0].pprint_label == "Temperature (°C)"
         assert result.kdims[1].pprint_label == "Precipitation (mm/day)"
         assert result.vdims[0].pprint_label == "Suitability"

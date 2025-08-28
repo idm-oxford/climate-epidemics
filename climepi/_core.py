@@ -173,7 +173,8 @@ class ClimEpiDatasetAccessor:
                 [
                     self.temporal_group_average(data_var_curr, frequency, **kwargs)
                     for data_var_curr in data_var_list
-                ]
+                ],
+                compat="no_conflicts",  # will become xarray default
             )
         if np.issubdtype(self._obj[data_var].dtype, np.integer) or np.issubdtype(
             self._obj[data_var].dtype, bool
@@ -701,7 +702,7 @@ class ClimEpiDatasetAccessor:
         plot_obj = da_plot.hvplot.line(**kwargs_hvplot)
         return plot_obj
 
-    def plot_map(self, data_var=None, mask_ocean=True, **kwargs):
+    def plot_map(self, data_var=None, mask_ocean=True, mask_lakes=True, **kwargs):
         """
         Generate a map plot of a data variable.
 
@@ -713,8 +714,9 @@ class ClimEpiDatasetAccessor:
             Name of the data variable to plot. If not provided, the function
             will attempt to automatically select a suitable variable.
         mask_ocean : bool, optional
-            Whether to show only land data, plotting ocean data as white. Default is
-            True.
+            Whether to plot over ocean areas in white. Default is True.
+        mask_lakes : bool, optional
+            Whether to plot over lake areas in white. Default is True.
         **kwargs : dict, optional
             Additional keyword arguments to pass to hvplot.quadmesh.
 
@@ -724,7 +726,14 @@ class ClimEpiDatasetAccessor:
             The resulting map plot.
         """
         data_var = self._process_data_var_argument(data_var)
-        da_plot = self._obj[data_var].squeeze()
+        da_plot = (
+            self._obj[data_var]
+            .squeeze()
+            .astype(
+                # quadmesh with project=True seems to require float dtype
+                float
+            )
+        )
         kwargs_hvplot = {
             "x": "lon",
             "y": "lat",
@@ -738,7 +747,9 @@ class ClimEpiDatasetAccessor:
         }
         plot_obj = da_plot.hvplot.quadmesh(**kwargs_hvplot)
         if mask_ocean:
-            plot_obj *= gf.ocean.options(fill_color="white")
+            plot_obj *= gf.ocean(fill_color="white")
+        if mask_lakes:
+            plot_obj *= gf.lakes(fill_color="white")
         return plot_obj
 
     def plot_variance_decomposition(

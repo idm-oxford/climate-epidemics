@@ -312,7 +312,13 @@ class ClimateDataGetter:
         realizations = self._subset["realizations"]
         ds = xr.open_mfdataset(
             [save_dir / file_name for file_name in file_names],
-            **{"data_vars": "minimal", "chunks": {}, **kwargs},
+            **{
+                "data_vars": "minimal",
+                "chunks": {},
+                "coords": "minimal",  # will become xarray default
+                "compat": "override",  # will become xarray default
+                **kwargs,
+            },
         )
         if "time_bnds" in ds:
             # Load time bounds to avoid errors saving to file (since no encoding set)
@@ -358,7 +364,15 @@ class ClimateDataGetter:
             temp_file_paths,
             **{
                 "data_vars": "minimal",
-                "chunks": {"realization": 1, "model": 1, "scenario": 1, "location": 1},
+                "chunks": {
+                    "realization": 1,
+                    "model": 1,
+                    "scenario": 1,
+                    "location": 1,
+                    "time": -1,
+                },
+                "coords": "minimal",  # will become xarray default
+                "compat": "override",  # will become xarray default
                 **kwargs,
             },
         )

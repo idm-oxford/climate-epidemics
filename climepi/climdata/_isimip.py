@@ -135,8 +135,10 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 location_geopy = geocode(locations)
                 lon = location_geopy.longitude
                 lat = location_geopy.latitude
-            bbox = [lat, lat, lon, lon]
+            operation = {"task": "cutout_bbox", "bbox": [lat, lat, lon, lon]}
         else:
+            if lon_range is None and lat_range is None:
+                return
             if lon_range is None:
                 lon_range = [-180, 180]
             else:
@@ -146,6 +148,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             if lat_range is None:
                 lat_range = [-90, 90]
             bbox = [str(x) for x in list(lat_range) + list(lon_range)]
+            operation = {"task": "cutout_bbox", "bbox": bbox}
         # Request server to subset the data
         client_file_paths = [file["path"] for file in client_results]
         paths_by_cutout_request = [
@@ -164,20 +167,16 @@ class ISIMIPDataGetter(ClimateDataGetter):
             client_results_new = [
                 requests_session.post(
                     files_api_url,
-                    json={"task": "cutout_bbox", "paths": paths, "bbox": bbox},
+                    json={"paths": paths, **operation},
                 ).json()
                 for paths in paths_by_cutout_request
             ]
-            job_ids = [results["id"] for results in client_results_new]
             job_statuses = [results["status"] for results in client_results_new]
             if all(job_status == "finished" for job_status in job_statuses):
                 subsetting_completed = True
             else:
                 if time.time() - subset_start_time > max_subset_wait_time:
-                    job_urls = [
-                        "https://data.isimip.org/download/" + job_id
-                        for job_id in job_ids
-                    ]
+                    job_urls = [results["job_url"] for results in client_results_new]
                     requests_session.close()
                     raise TimeoutError(
                         "Subsetting of the requested data has taken longer than the "
@@ -295,7 +294,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             ds["time"] = centered_times
             return ds
 
-        kwargs = {"chunks": "auto", "preprocess": _preprocess, **kwargs}
+        kwargs = {"preprocess": _preprocess, "join": "outer", **kwargs}
         super()._open_temp_data(**kwargs)
 
     def _process_data(self):

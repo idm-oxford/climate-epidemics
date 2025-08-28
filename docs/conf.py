@@ -5,13 +5,11 @@
 # This file only contains a selection of the most common options. For a full
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
-
 # -- Path setup --------------------------------------------------------------
-
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-
+import inspect
 import os
 import sys
 
@@ -36,13 +34,20 @@ release = climepi.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx.ext.duration",
-    "sphinx.ext.doctest",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.autosummary",
+    "sphinx.ext.doctest",
+    "sphinx.ext.duration",
+    "sphinx.ext.extlinks",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.linkcode",
+    "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
+    "jupyter_sphinx",
+    "nbsphinx",
     "sphinx_autosummary_accessors",
+    "sphinx_copybutton",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -58,27 +63,28 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_book_theme"
+html_theme = "pydata_sphinx_theme"
 
-# sphinx_book_theme configurations
-# https://sphinx-book-theme.readthedocs.io/en/latest/configure.html
+# pydata_sphinx_theme configurations
+html_logo = "_static/climepi-logo.svg"
 html_title = "climepi documentation"
-html_theme_options = {
-    "repository_url": "https://github.com/idm-oxford/climate-epidemics",
-    "repository_branch": "main",
-    "path_to_docs": "docs",
-    "use_edit_page_button": True,
-    "use_repository_button": True,
-    "use_issues_button": True,
-    "use_download_button": True,
-    "use_fullscreen_button": True,
+html_context = {
+    "github_user": "idm-oxford",
+    "github_repo": "climate-epidemics",
+    "github_version": "main",
+    "doc_path": "docs",
 }
+html_theme_options = {
+    "github_url": "https://github.com/idm-oxford/climate-epidemics",
+    "use_edit_page_button": True,
+}
+html_show_sourcelink = False
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-# html_static_path = ["_static"]
-
+html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
 # -- Extension configuration -------------------------------------------------
 
@@ -98,3 +104,55 @@ napoleon_numpy_docstring = True
 napoleon_use_param = False
 napoleon_use_rtype = False
 napoleon_preprocess_types = True
+
+# nbsphinx
+nbsphinx_requirejs_path = ""
+nbsphinx_widgets_path = ""
+
+
+# based on xarray doc/conf.py
+def linkcode_resolve(domain, info):
+    """Determine the URL corresponding to Python object."""
+    if domain != "py":
+        return None
+
+    modname = info["module"]
+    fullname = info["fullname"]
+
+    submod = sys.modules.get(modname)
+    if submod is None:
+        return None
+
+    obj = submod
+    for part in fullname.split("."):
+        try:
+            obj = getattr(obj, part)
+        except AttributeError:
+            return None
+
+    try:
+        fn = inspect.getsourcefile(inspect.unwrap(obj))
+    except TypeError:
+        fn = None
+    if not fn:
+        return None
+
+    try:
+        source, lineno = inspect.getsourcelines(obj)
+    except OSError:
+        lineno = None
+
+    if lineno:
+        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
+    else:
+        linespec = ""
+
+    fn = os.path.relpath(fn, start=os.path.dirname(climepi.__file__))
+
+    if "+" in climepi.__version__:
+        return f"https://github.com/idm-oxford/climate-epidemics/blob/main/climepi/{fn}{linespec}"
+    else:
+        return (
+            f"https://github.com/idm-oxford/climate-epidemics/blob/"
+            f"v{climepi.__version__}/climepi/{fn}{linespec}"
+        )

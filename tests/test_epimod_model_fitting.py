@@ -473,6 +473,8 @@ class TestParameterizedSuitabilityModel:
                 probability=False,
                 trait_name="bold",
                 trait_attrs={"fine": "addition"},
+                kwargs_area=None,
+                kwargs_scatter=None,
             )
             mock_layout.assert_called_once_with(["idata_bold"])
             mock_layout.reset_mock()

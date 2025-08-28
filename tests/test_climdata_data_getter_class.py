@@ -421,8 +421,7 @@ def test_download_remote_data():
 
 
 @patch("xarray.open_mfdataset", autospec=True)
-@pytest.mark.parametrize("include_data_vars_kwarg", [True, False])
-def test_open_temp_data(mock_xr_open_mfdataset, include_data_vars_kwarg):
+def test_open_temp_data(mock_xr_open_mfdataset):
     """Test the _open_temp_data method of the ClimateDataGetter class."""
     data_getter = ClimateDataGetter()
     data_getter._temp_save_dir = pathlib.Path("not/a/real/path")
@@ -438,20 +437,14 @@ def test_open_temp_data(mock_xr_open_mfdataset, include_data_vars_kwarg):
         pathlib.Path("not/a/real/path/temporary_3.nc"),
     ]
 
-    if include_data_vars_kwarg:
-        data_getter._open_temp_data(data_vars="all")
-        mock_xr_open_mfdataset.assert_called_once_with(
-            open_paths_expected,
-            data_vars="all",
-            chunks={"realization": 1, "model": 1, "scenario": 1, "location": 1},
-        )
-    else:
-        data_getter._open_temp_data()
-        mock_xr_open_mfdataset.assert_called_once_with(
-            open_paths_expected,
-            data_vars="minimal",
-            chunks={"realization": 1, "model": 1, "scenario": 1, "location": 1},
-        )
+    data_getter._open_temp_data(data_vars="all")
+    mock_xr_open_mfdataset.assert_called_once_with(
+        open_paths_expected,
+        data_vars="all",
+        chunks={"realization": 1, "model": 1, "scenario": 1, "location": 1, "time": -1},
+        coords="minimal",
+        compat="override",
+    )
 
     assert data_getter._ds_temp == mock_xr_open_mfdataset.return_value
     assert data_getter._ds == mock_xr_open_mfdataset.return_value.copy.return_value

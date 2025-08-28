@@ -51,41 +51,13 @@ EXAMPLES = {
         "Istanbul, Cape Town and Los Angeles for 2030-2100 from the ISIMIP repository "
         "(https://data.isimip.org/).",
     },
-    "isimip_cities_monthly": {
-        "data_source": "isimip",
+    "lens2_2020_2100_monthly": {
+        "data_source": "lens2",
         "frequency": "monthly",
-        "subset": {
-            "years": np.arange(2030, 2101),
-            "locations": _EXAMPLE_CITY_NAME_LIST,
-            "lon": _EXAMPLE_CITY_LON_LIST,
-            "lat": _EXAMPLE_CITY_LAT_LIST,
-        },
+        "subset": {"years": [2020, 2100]},
         "formatted_data_downloadable": True,
-        "doc": "Monthly temperature and precipitation projections for London, Paris, "
-        "Istanbul, Cape Town and Los Angeles for 2030-2100 from the ISIMIP repository "
-        "(https://data.isimip.org/).",
-    },
-    "lens2_cities_monthly": {
-        "data_source": "lens2",
-        "frequency": "monthly",
-        "subset": {
-            "years": np.arange(2030, 2101),
-            "locations": _EXAMPLE_CITY_NAME_LIST,
-            "lon": _EXAMPLE_CITY_LON_LIST,
-            "lat": _EXAMPLE_CITY_LAT_LIST,
-        },
-        "doc": "Monthly temperature and precipitation projections for London, Paris, "
-        "Istanbul, Cape Town and Los Angeles for 2030-2100 from the CESM2 LENS project "
-        "(https://registry.opendata.aws/ncar-cesm2-lens/).",
-    },
-    "lens2_2030_2060_2090_monthly": {
-        "data_source": "lens2",
-        "frequency": "monthly",
-        "subset": {
-            "years": [2030, 2060, 2090],
-        },
-        "doc": "Monthly global temperature and precipitation projections for 2030, "
-        "2060 and 2090 from the CESM2 LENS project "
+        "doc": "Monthly global temperature and precipitation projections for 2020 and "
+        "2100 from the CESM2 LENS project "
         "(https://registry.opendata.aws/ncar-cesm2-lens/).",
     },
 }
@@ -108,11 +80,9 @@ def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        "isimip_cities_monthly" (ISIMIP monthly projections for London, Paris, Los
-        Angeles, Cape Town and Istanbul for 2030-2100), "isimip_cities_daily" (ISIMIP
-        daily projections for the same cities and years), "lens2_cities" (CESM LENS2
-        monthly projections for the same cities and years), and "lens2_2030_2060_2090"
-        (CESM LENS2 monthly projections for 2030, 2060 and 2090).
+        "isimip_cities_daily" (ISIMIP daily projections for London, Paris, Los
+        Angeles, Cape Town and Istanbul for 2030-2100) and "lens2_2020_2100_monthly"
+        (CESM LENS2 monthly projections for 2020 and 2100).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same

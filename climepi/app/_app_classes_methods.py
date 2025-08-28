@@ -32,7 +32,11 @@ def _load_clim_data_func(
     elif clim_data_option == "Custom dataset":
         # Load custom climate data from the specified directory.
         ds_clim = xr.open_mfdataset(
-            f"{custom_clim_data_dir}/*.nc", data_vars="minimal", chunks={}
+            f"{custom_clim_data_dir}/*.nc",
+            data_vars="minimal",
+            chunks={},
+            coords="minimal",  # will become xarray default
+            compat="override",  # will become xarray default
         )
         if "time_bnds" in ds_clim:
             # Load time_bnds if present (otherwise issues in _compute_to_file_reopen as

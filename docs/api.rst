@@ -1,22 +1,12 @@
 API reference
 =============
 
-Core functionality
-------------------
+Accessor class for xarray datasets
+----------------------------------
 
-The ``climepi`` package provides an accessor class for ``xarray.Dataset`` objects,
-which can be used by chaining the ``climepi`` attribute to a ``Dataset``. For example,
-the :py:meth:`~xarray.Dataset.climepi.sel_geo` method can be used to select a named
-location from a dataset containing data with latitude and longitude coordinates (named
-"lat" and "lon", respectively) as follows:
-
-.. code-block:: python
-
-    import xarray as xr
-    import climepi
-
-    ds = xr.open_dataset("path/to/dataset.nc")
-    ds.climepi.sel_geo("London")
+The ``climepi`` accessor class for ``xarray.Dataset`` objects can be used by chaining
+the ``climepi`` attribute to a ``Dataset`` (e.g., ``ds.climepi.sel_geo("London")``; see
+:ref:`getting-started/overview:functionality/climepi-accessor`).
 
 Classes
 ~~~~~~~
@@ -55,11 +45,8 @@ Climate data subpackage
 .. currentmodule:: climepi
 
 Methods for downloading and accessing climate projection data are contained in the
-``climdata`` subpackage:
-
-.. code-block:: python
-
-    from climepi import climdata
+``climdata`` subpackage (accessible via ``from climepi import climdata``; see
+:ref:`getting-started/overview:functionality/climdata`).
 
 Methods
 ~~~~~~~
@@ -74,12 +61,9 @@ Methods
 Epidemiological model subpackage
 --------------------------------
 
-Classes and methods for running climate-sensitive epidemiological models are contained
-in the ``epimod`` subpackage:
-
-.. code-block:: python
-
-    from climepi import epimod
+Classes and methods for climate-sensitive epidemiological models are contained in the
+``epimod`` subpackage (accessible via ``from climepi import epimod``; see
+:ref:`getting-started/overview:functionality/epimod`).
 
 Classes
 ~~~~~~~
@@ -89,6 +73,7 @@ Classes
 
    epimod.EpiModel
    epimod.SuitabilityModel
+   epimod.ParameterizedSuitabilityModel
 
 Methods
 ~~~~~~~
@@ -97,19 +82,16 @@ Methods
    :toctree: generated/
 
    epimod.get_example_model
+   epimod.get_example_temperature_response_data
+   epimod.fit_temperature_response
+   epimod.get_posterior_temperature_response
 
 Front-end application subpackage
 --------------------------------
 
-A method to run the front-end application is contained in the ``app`` subpackage:
-
-.. code-block:: python
-
-    from climepi import app
-    app.run_app()
-
-See :ref:`usage:Front-end application` for information on how to run the application
-from the command line.
+A method to run the front-end application is contained in the ``app`` subpackage
+(accessible via ``from climepi import app``; see
+:doc:`getting-started/app`).
 
 Methods
 ~~~~~~~

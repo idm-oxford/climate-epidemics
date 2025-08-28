@@ -209,8 +209,12 @@ class SuitabilityModel(EpiModel):
         if "precipitation" not in suitability_table.dims:
             kwargs_hvplot = {"x": "temperature", **kwargs}
             return suitability_table[suitability_var_name].hvplot.line(**kwargs_hvplot)
-        kwargs_hvplot = {"x": "temperature", "y": "precipitation", **kwargs}
-        return suitability_table[suitability_var_name].hvplot.quadmesh(**kwargs_hvplot)
+        kwargs_hvplot = {
+            "x": "temperature",
+            "y": "precipitation",
+            **kwargs,
+        }
+        return suitability_table[suitability_var_name].hvplot.image(**kwargs_hvplot)
 
     def get_max_suitability(self):
         """

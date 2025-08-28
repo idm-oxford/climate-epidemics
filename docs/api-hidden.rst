@@ -20,3 +20,13 @@
    climepi.epimod.SuitabilityModel.run
    climepi.epimod.SuitabilityModel.plot_suitability
    climepi.epimod.SuitabilityModel.get_max_suitability
+   climepi.epimod.SuitabilityModel.reduce
+
+   climepi.epimod.ParameterizedSuitabilityModel.run
+   climepi.epimod.ParameterizedSuitabilityModel.plot_suitability
+   climepi.epimod.ParameterizedSuitabilityModel.get_max_suitability
+   climepi.epimod.ParameterizedSuitabilityModel.reduce
+   climepi.epimod.ParameterizedSuitabilityModel.fit_temperature_responses
+   climepi.epimod.ParameterizedSuitabilityModel.plot_fitted_temperature_responses
+   climepi.epimod.ParameterizedSuitabilityModel.construct_suitability_table
+   climepi.epimod.ParameterizedSuitabilityModel.get_posterior_min_optimal_max_temperature
