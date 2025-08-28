@@ -612,12 +612,16 @@ def get_posterior_temperature_response(
             ds_posterior.temperature_max.max().item() + 1,
             500,
         )
-    ds_posterior_expanded = ds_posterior.assign_coords(temperature=temperature_vals)
+    da_temperature = xr.DataArray(
+        temperature_vals,
+        dims=["temperature"],
+        coords={"temperature": temperature_vals},
+    )
     da_posterior_response = curve_func(
-        temperature=ds_posterior_expanded.temperature,
-        scale=ds_posterior_expanded.scale,
-        temperature_min=ds_posterior_expanded.temperature_min,
-        temperature_max=ds_posterior_expanded.temperature_max,
+        temperature=da_temperature,
+        scale=ds_posterior.scale,
+        temperature_min=ds_posterior.temperature_min,
+        temperature_max=ds_posterior.temperature_max,
         probability=probability,
         array_lib=xr,
     )
