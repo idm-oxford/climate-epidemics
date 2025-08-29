@@ -9,11 +9,12 @@ import importlib
 import logging
 import sys
 import types
+from typing import Any
 
 try:
     importlib.import_module("xesmf")
 except (ImportError, KeyError):
-    xesmf = types.ModuleType("xesmf")
+    xesmf: Any = types.ModuleType("xesmf")
     xesmf.Regridder = None
     sys.modules["xesmf"] = xesmf
     logging.warning(

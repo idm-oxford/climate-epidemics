@@ -4,10 +4,13 @@ Core module for the climepi package.
 Contains the ClimEpiDatasetAccessor class for xarray datasets.
 """
 
+from typing import Any, overload
+
 import geoviews.feature as gf
 import holoviews as hv
 import hvplot.xarray  # noqa # pylint: disable=unused-import
 import numpy as np
+import param
 import scipy.interpolate
 import scipy.stats
 import xarray as xr
@@ -24,6 +27,7 @@ from climepi._xcdat import (  # noqa
     _infer_freq,
     center_times,
 )
+from climepi.epimod._base_classes import EpiModel
 from climepi.utils import (
     add_bnds_from_other,
     add_var_attrs_from_other,
@@ -36,14 +40,19 @@ class ClimEpiDatasetAccessor:
     """
     Accessor class for xarray datasets accessed through the ``.climepi`` attribute.
 
-    Provides core methods, including for computing temporal and ensemble statistics, and
-    for plotting.
+    Provides a range of methods, including for running epidemiological models, temporal
+    averaging, analysing uncertainty, and plotting.
+
+    Parameters
+    ----------
+    dataset : xarray.Dataset
+        A dataset object.
     """
 
-    def __init__(self, xarray_obj):
-        self._obj = xarray_obj
+    def __init__(self, dataset: xr.Dataset):
+        self._obj = dataset
 
-    def run_epi_model(self, epi_model, **kwargs):
+    def run_epi_model(self, epi_model: EpiModel, **kwargs: Any) -> xr.Dataset:
         """
         Run the epidemiological model on a climate dataset.
 
@@ -67,6 +76,22 @@ class ClimEpiDatasetAccessor:
         ds_epi = epi_model.run(self._obj, **kwargs)
         return ds_epi
 
+    @overload
+    def sel_geo(
+        self,
+        location: list[str],
+        lon: list[float | None] | None = None,
+        lat: list[float | None] | None = None,
+        **kwargs: Any,
+    ) -> xr.Dataset: ...
+    @overload
+    def sel_geo(
+        self,
+        location: str,
+        lon: float | None = None,
+        lat: float | None = None,
+        **kwargs: Any,
+    ) -> xr.Dataset: ...
     def sel_geo(self, location, lon=None, lat=None, **kwargs):
         """
         Get data for the nearest grid point(s) to a specified location(s).
@@ -106,6 +131,11 @@ class ClimEpiDatasetAccessor:
             if lon is None and lat is None:
                 lon = [None] * len(location)
                 lat = [None] * len(location)
+            if not (isinstance(lon, list) and isinstance(lat, list)):
+                raise ValueError(
+                    "If 'location' is a list, 'lon' and 'lat' must also be lists if "
+                    "provided."
+                )
             ds_list = [
                 self.sel_geo(location_curr, lon=lon_curr, lat=lat_curr, **kwargs)
                 for location_curr, lon_curr, lat_curr in zip(
@@ -131,7 +161,7 @@ class ClimEpiDatasetAccessor:
         lon_min = min(self._obj.lon)
         lon_max = max(self._obj.lon)
         if lon_max > 180.0001:
-            # Deals with the case where the longitude co-ordinates of the datasetare in
+            # Deals with the case where the longitude co-ordinates of the dataset are in
             # the range [0, 360] (slightly crude)
             lon = lon % 360
         if lon > lon_max and (lon_min - (lon - 360)) < (lon - lon_max):
@@ -142,7 +172,12 @@ class ClimEpiDatasetAccessor:
         ds_new = ds_new.assign_coords(location=location)
         return ds_new
 
-    def temporal_group_average(self, data_var=None, frequency="yearly", **kwargs):
+    def temporal_group_average(
+        self,
+        data_var: str | list[str] | None = None,
+        frequency: str = "yearly",
+        **kwargs: Any,
+    ) -> xr.Dataset:
         """
         Compute the group average of a data variable.
 
@@ -205,7 +240,9 @@ class ClimEpiDatasetAccessor:
             ds_m["time_bnds"] = centered_times.time_bnds
         return ds_m
 
-    def yearly_average(self, data_var=None, **kwargs):
+    def yearly_average(
+        self, data_var: str | list[str] | None = None, **kwargs: Any
+    ) -> xr.Dataset:
         """
         Compute the yearly mean of a data variable.
 
@@ -228,7 +265,9 @@ class ClimEpiDatasetAccessor:
             data_var=data_var, frequency="yearly", **kwargs
         )
 
-    def monthly_average(self, data_var=None, **kwargs):
+    def monthly_average(
+        self, data_var: str | list[str] | None = None, **kwargs: Any
+    ) -> xr.Dataset:
         """
         Compute the monthly mean of a data variable.
 
@@ -253,8 +292,10 @@ class ClimEpiDatasetAccessor:
         )
 
     def yearly_portion_suitable(
-        self, suitability_var_name=None, suitability_threshold=0
-    ):
+        self,
+        suitability_var_name: str | None = None,
+        suitability_threshold: float = 0,
+    ) -> xr.Dataset:
         """
         Calculate the portion of each year that is suitable given suitability data.
 
@@ -267,7 +308,7 @@ class ClimEpiDatasetAccessor:
         suitability_var_name : str, optional
             Name of the suitability variable to use. If not provided, the method will
             attempt to automatically select a suitable variable.
-        suitability_threshold : float or int, optional
+        suitability_threshold : float, optional
             Minimum suitability threshold for a month to be considered suitable. Default
             is 0.
 
@@ -321,12 +362,12 @@ class ClimEpiDatasetAccessor:
 
     def ensemble_stats(
         self,
-        data_var=None,
-        uncertainty_level=90,
-        internal_variability_method=None,
-        deg=3,
-        lam=None,
-    ):
+        data_var: str | list[str] | None = None,
+        uncertainty_level: float = 90,
+        internal_variability_method: str | None = None,
+        deg: int = 3,
+        lam: float | None = None,
+    ) -> xr.Dataset:
         """
         Compute a range of ensemble statistics for a data variable.
 
@@ -397,12 +438,12 @@ class ClimEpiDatasetAccessor:
 
     def variance_decomposition(
         self,
-        data_var=None,
-        fraction=False,
-        internal_variability_method=None,
-        deg=3,
-        lam=None,
-    ):
+        data_var: str | list[str] | None = None,
+        fraction: bool = False,
+        internal_variability_method: str | None = None,
+        deg: int = 3,
+        lam: float | None = None,
+    ) -> xr.Dataset:
         """
         Decompose variance contributions from different climate uncertainty sources.
 
@@ -510,12 +551,12 @@ class ClimEpiDatasetAccessor:
 
     def uncertainty_interval_decomposition(
         self,
-        data_var=None,
-        uncertainty_level=90,
-        internal_variability_method=None,
-        deg=3,
-        lam=None,
-    ):
+        data_var: str | list[str] | None = None,
+        uncertainty_level: float = 90,
+        internal_variability_method: str | None = None,
+        deg: int = 3,
+        lam: float | None = None,
+    ) -> xr.Dataset:
         """
         Decompose uncertainty interval contributions.
 
@@ -677,7 +718,9 @@ class ClimEpiDatasetAccessor:
         ds_decomp = add_var_attrs_from_other(ds_decomp, self._obj, var=data_var_list)
         return ds_decomp
 
-    def plot_time_series(self, data_var=None, **kwargs):
+    def plot_time_series(
+        self, data_var: str | None = None, **kwargs: Any
+    ) -> param.Parameterized:
         """
         Generate a time series plot of a data variable.
 
@@ -693,7 +736,7 @@ class ClimEpiDatasetAccessor:
 
         Returns
         -------
-        hvplot object
+        holoviews object
             The resulting time series plot.
         """
         data_var = self._process_data_var_argument(data_var)
@@ -702,7 +745,13 @@ class ClimEpiDatasetAccessor:
         plot_obj = da_plot.hvplot.line(**kwargs_hvplot)
         return plot_obj
 
-    def plot_map(self, data_var=None, mask_ocean=True, mask_lakes=True, **kwargs):
+    def plot_map(
+        self,
+        data_var: str | None = None,
+        mask_ocean: bool = True,
+        mask_lakes: bool = True,
+        **kwargs: Any,
+    ) -> param.Parameterized:
         """
         Generate a map plot of a data variable.
 
@@ -722,7 +771,7 @@ class ClimEpiDatasetAccessor:
 
         Returns
         -------
-        hvplot object
+        holoviews object
             The resulting map plot.
         """
         data_var = self._process_data_var_argument(data_var)
@@ -754,13 +803,13 @@ class ClimEpiDatasetAccessor:
 
     def plot_variance_decomposition(
         self,
-        data_var=None,
-        fraction=False,
-        internal_variability_method=None,
-        deg=3,
-        lam=None,
-        **kwargs,
-    ):
+        data_var: str | None = None,
+        fraction: bool = False,
+        internal_variability_method: str | None = None,
+        deg: int = 3,
+        lam: float | None = None,
+        **kwargs: Any,
+    ) -> param.Parameterized:
         """
         Plot decomposition of variance from different climate uncertainty sources.
 
@@ -837,14 +886,14 @@ class ClimEpiDatasetAccessor:
 
     def plot_uncertainty_interval_decomposition(
         self,
-        data_var=None,
-        uncertainty_level=90,
-        internal_variability_method=None,
-        deg=3,
-        lam=None,
-        kwargs_baseline=None,
-        **kwargs_area,
-    ):
+        data_var: str | None = None,
+        uncertainty_level: float = 90,
+        internal_variability_method: str | None = None,
+        deg: int = 3,
+        lam: float | None = None,
+        kwargs_baseline: dict[str, Any] | None = None,
+        **kwargs_area: Any,
+    ) -> hv.Overlay:
         """
         Plot contributions of climate uncertainty sources to uncertainty intervals.
 
@@ -884,7 +933,7 @@ class ClimEpiDatasetAccessor:
 
         Returns
         -------
-        hvplot object
+        holoviews.Overlay
             The resulting plot object.
         """
         data_var = self._process_data_var_argument(data_var)
@@ -981,11 +1030,13 @@ class ClimEpiDatasetAccessor:
             **kwargs_baseline
         )
         plot_obj_list.append(plot_obj_baseline)
-        # Combine the plots
+        # Collate the plots
         plot_obj = hv.Overlay(plot_obj_list).collate()
         return plot_obj
 
-    def _process_data_var_argument(self, data_var_in=None, as_list=False):
+    def _process_data_var_argument(
+        self, data_var_in: str | list[str] | None = None, as_list: bool = False
+    ):
         # Method for processing the data_var argument in the various methods of the
         # ClimEpiDatasetAccessor class, in order to allow for automatic specification of
         # the data variable(s) if not provided, when this is possible.
