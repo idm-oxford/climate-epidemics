@@ -58,6 +58,10 @@ xesmf = "*" # dependency of more recent xcdat versions, explicitly adding here s
 climepi = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.dependencies]
+mypy = "*"
+scipy-stubs = "*"
+pandas-stubs = "*"
+types-requests = "*"
 ruff = "*"
 pytest = "*"
 pytest-cov = "*"
@@ -81,6 +85,7 @@ default = { features = ["dev"], solve-group = "default" }
 app = "python -m climepi.app"
 lint = "ruff check"
 lint-gh-actions = "ruff check --output-format=github"
+type-check = "mypy climepi"
 test = "pytest"
 docs = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs docs/_build/html"
 docs-rtd = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs $READTHEDOCS_OUTPUT/html"
