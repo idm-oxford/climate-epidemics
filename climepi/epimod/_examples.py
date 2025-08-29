@@ -1,14 +1,15 @@
 """Module for creating/accessing example climate-sensitive epidemiological models."""
 
 import pathlib
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from climepi.epimod._base_classes import SuitabilityModel
+from climepi.epimod._base_classes import EpiModel, SuitabilityModel
 
-EXAMPLES = {
+EXAMPLES: dict[str, dict[str, Any]] = {
     "mordecai_ae_aegypti_niche": {
         "temperature_range": [17.8, 34.6],
         "doc": "Posterior mean temperature range of suitability for virus transmission "
@@ -146,7 +147,7 @@ EXAMPLES = {
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
-def get_example_model(name):
+def get_example_model(name: str) -> EpiModel:
     """
     Get an example climate-sensitive epidemiological model.
 
@@ -179,11 +180,11 @@ def get_example_model(name):
         # to ensure the correct ranges are enforced with nearest-neighbour
         # interpolation).
         temperature_range = example_details["temperature_range"]
+        precipitation_range = example_details["precipitation_range"]
         temperature_diff = temperature_range[1] - temperature_range[0]
         temperature_vals = temperature_range[0] + temperature_diff * np.arange(
             -0.005, 1.01, 0.01
         )
-        precipitation_range = example_details["precipitation_range"]
         precipitation_diff = precipitation_range[1] - precipitation_range[0]
         precipitation_vals = precipitation_range[0] + precipitation_diff * np.arange(
             -0.005, 1.01, 0.01
@@ -243,7 +244,7 @@ def get_example_model(name):
     return epi_model
 
 
-def get_example_temperature_response_data(name):
+def get_example_temperature_response_data(name: str) -> pd.DataFrame:
     """
     Get example temperature response data.
 
@@ -281,7 +282,7 @@ def get_example_temperature_response_data(name):
     )
 
 
-def _get_example_details(name):
+def _get_example_details(name: str) -> dict[str, Any]:
     # Helper function for extracting the details of an example model from the
     # EXAMPLES dictionary in this module, and raising a customised error message
     # listing the available examples if the requested example is not found.

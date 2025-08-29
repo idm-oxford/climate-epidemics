@@ -5,7 +5,10 @@ Provides a base epidemiological model class and a subclass for temperature- and/
 rainfall-dependent suitability models.
 """
 
+from typing import Any
+
 import numpy as np
+import param
 import xarray as xr
 
 from climepi.utils import add_bnds_from_other
@@ -22,7 +25,7 @@ class EpiModel:
     def __init__(self):
         pass
 
-    def run(self, ds_clim):
+    def run(self, ds_clim: xr.Dataset) -> xr.Dataset:
         """
         Run the epidemiological model on a given climate dataset.
 
@@ -50,7 +53,7 @@ class SuitabilityModel(EpiModel):
 
     Attributes
     ----------
-    temperature_range : list or tuple or array-like of two floats, optional
+    temperature_range : list or tuple of two floats, optional
         A list or tuple of two floats defining the temperature range of suitability
         (in degrees Celsius). Only defined if the parameter `temperature_range` is
         provided.
@@ -61,7 +64,7 @@ class SuitabilityModel(EpiModel):
 
     Parameters
     ----------
-    temperature_range : list or tuple or array-like of two floats, optional
+    temperature_range : list or tuple of two floats, optional
         A list or tuple of two floats defining the temperature range of suitability
         (in degrees Celsius), where suitability is assumed to be 1 for temperatures
         within the range and 0 otherwise. Default is None. Only one of
@@ -83,22 +86,31 @@ class SuitabilityModel(EpiModel):
         `suitability_table` should be provided.
     """
 
-    def __init__(self, temperature_range=None, suitability_table=None):
+    def __init__(
+        self,
+        temperature_range: tuple[float, float] | None = None,
+        suitability_table: xr.Dataset | None = None,
+    ):
         super().__init__()
         if suitability_table is None:
+            if temperature_range is not None:
+                raise ValueError(
+                    "The temperature_range argument must be provided if the "
+                    "suitability_table argument is not provided."
+                )
             self.temperature_range = temperature_range
             self.suitability_table = None
             self._suitability_var_name = "suitability"
             self._suitability_var_long_name = "Suitability"
         else:
-            if len(suitability_table.data_vars) != 1:
-                raise ValueError(
-                    "The suitability table should only have a single data variable."
-                )
-            if temperature_range is not None:
+            if temperature_range is None:
                 raise ValueError(
                     "The temperature_range argument should not be provided if the "
                     "suitability_table argument is provided."
+                )
+            if len(suitability_table.data_vars) != 1:
+                raise ValueError(
+                    "The suitability table should only have a single data variable."
                 )
             self.temperature_range = None
             suitability_var_name = list(suitability_table.data_vars)[0]
@@ -116,8 +128,11 @@ class SuitabilityModel(EpiModel):
             self._suitability_var_long_name = suitability_var_long_name
 
     def run(
-        self, ds_clim, return_yearly_portion_suitable=False, suitability_threshold=0
-    ):
+        self,
+        ds_clim: xr.Dataset,
+        return_yearly_portion_suitable: bool = False,
+        suitability_threshold: float = 0,
+    ) -> xr.Dataset:
         """
         Run the epidemiological model on a given climate dataset.
 
@@ -166,7 +181,7 @@ class SuitabilityModel(EpiModel):
             )
         return ds_epi
 
-    def plot_suitability(self, **kwargs):
+    def plot_suitability(self, **kwargs: Any) -> param.Parameterized:
         """
         Plot suitability against temperature and (if relevant) precipitation.
 
@@ -179,13 +194,14 @@ class SuitabilityModel(EpiModel):
 
         Returns
         -------
-        hvplot object
+        holoviews object
             A holoviews object representing the ecological niche.
         """
         suitability_table = self.suitability_table
         suitability_var_name = self._suitability_var_name
         if suitability_table is None:
             temperature_range = self.temperature_range
+            assert temperature_range is not None
             temperature_vals = np.linspace(0, 1.25 * temperature_range[1], 1000)
             suitability_vals = (
                 (temperature_vals >= temperature_range[0])
@@ -204,6 +220,7 @@ class SuitabilityModel(EpiModel):
                 "long_name": "Temperature",
                 "units": "°C",
             }
+        assert temperature_range is None
         if suitability_table[suitability_var_name].dtype == bool:
             suitability_table = suitability_table.astype(int)
         if "precipitation" not in suitability_table.dims:
@@ -216,7 +233,7 @@ class SuitabilityModel(EpiModel):
         }
         return suitability_table[suitability_var_name].hvplot.image(**kwargs_hvplot)
 
-    def get_max_suitability(self):
+    def get_max_suitability(self) -> float:
         """
         Return the maximum suitability value.
 
@@ -233,20 +250,22 @@ class SuitabilityModel(EpiModel):
             return 1
         return self.suitability_table[self._suitability_var_name].max().item()
 
-    def _run_main_temp_range(self, ds_clim):
+    def _run_main_temp_range(self, ds_clim: xr.Dataset) -> xr.DataArray:
         # Run the main logic of a suitability model defined by a temperature range.
         temperature = ds_clim["temperature"]
         temperature_range = self.temperature_range
+        assert temperature_range is not None
         da_suitability = (temperature >= temperature_range[0]) & (
             temperature <= temperature_range[1]
         )
         return da_suitability
 
-    def _run_main_temp_table(self, ds_clim):
+    def _run_main_temp_table(self, ds_clim: xr.Dataset) -> xr.DataArray:
         # Run the main logic of a suitability model defined by a temperature suitability
         # table.
         temperature = ds_clim["temperature"]
         suitability_var_name = self._suitability_var_name
+        assert self.suitability_table is not None
         da_suitability_table = self.suitability_table[suitability_var_name].transpose(
             "temperature", ...
         )
@@ -266,7 +285,7 @@ class SuitabilityModel(EpiModel):
         temp_inds = (temperature - table_temp_vals[0]) / table_temp_delta
         temp_inds = temp_inds.round(0).astype(int).clip(0, len(table_temp_vals) - 1)
 
-        def suitability_func(temp_inds_curr):
+        def suitability_func(temp_inds_curr: np.ndarray) -> np.ndarray:
             suitability_curr = table_suitability_vals[temp_inds_curr, ...]
             return suitability_curr
 
@@ -294,12 +313,13 @@ class SuitabilityModel(EpiModel):
 
         return da_suitability
 
-    def _run_main_temp_precip_table(self, ds_clim):
+    def _run_main_temp_precip_table(self, ds_clim: xr.Dataset) -> xr.DataArray:
         # Run the main logic of a suitability model defined by a temperature and
         # precipitation suitability table.
         temperature = ds_clim["temperature"]
         precipitation = ds_clim["precipitation"]
         suitability_var_name = self._suitability_var_name
+        assert self.suitability_table is not None
         da_suitability_table = self.suitability_table[suitability_var_name].transpose(
             "temperature", "precipitation", ...
         )
@@ -327,7 +347,9 @@ class SuitabilityModel(EpiModel):
             precip_inds.round(0).astype(int).clip(0, len(table_precip_vals) - 1)
         )
 
-        def suitability_func(temp_inds_curr, precip_inds_curr):
+        def suitability_func(
+            temp_inds_curr: np.ndarray, precip_inds_curr: np.ndarray
+        ) -> np.ndarray:
             suitability_curr = table_suitability_vals[
                 temp_inds_curr, precip_inds_curr, ...
             ]
@@ -360,11 +382,11 @@ class SuitabilityModel(EpiModel):
 
     def reduce(
         self,
-        suitability_threshold=None,
-        stat=None,
-        quantile=None,
-        rescale=False,
-    ):
+        suitability_threshold: float | None = None,
+        stat: str | None = None,
+        quantile: float | None = None,
+        rescale: bool | str | None = False,
+    ) -> "SuitabilityModel":
         """
         Get a summary suitability model.
 
@@ -395,6 +417,11 @@ class SuitabilityModel(EpiModel):
         SuitabilityModel
             The summary suitability model.
         """
+        if self.suitability_table is None:
+            raise ValueError(
+                "The reduce() method is only available for suitability table-based"
+                "models."
+            )
         suitability_var_name = self._suitability_var_name
         da_suitability = self.suitability_table[suitability_var_name]
         if suitability_threshold is not None:
@@ -404,22 +431,41 @@ class SuitabilityModel(EpiModel):
             da_suitability = da_suitability.astype(int)
         else:
             binary_suitability = False
-        suitability_stat_dict = {"mean": None, "median": None, "quantile": None}
+        suitability_stat_dict: dict[str, xr.DataArray | None] = {
+            "mean": None,
+            "median": None,
+            "quantile": None,
+        }
         if stat == "mean" or rescale == "mean":
             suitability_stat_dict["mean"] = da_suitability.mean(dim="sample")
         if stat == "median" or rescale == "median":
             suitability_stat_dict["median"] = da_suitability.median(dim="sample")
         if stat == "quantile":
+            if quantile is None:
+                raise ValueError("Quantile must be specified if stat is 'quantile'")
             suitability_stat_dict["quantile"] = da_suitability.quantile(
                 q=quantile, dim="sample"
             ).rename({"quantile": "suitability_quantile"})
         if stat is not None:
-            da_suitability = suitability_stat_dict[stat]
+            if stat not in ["mean", "median", "quantile"]:
+                raise ValueError(
+                    "stat must be one of 'mean', 'median', or 'quantile' if specified."
+                )
+            da_stat = suitability_stat_dict.get(stat, None)
+            assert da_stat is not None
+            da_suitability = da_stat
         if binary_suitability:
             da_suitability = da_suitability.astype(bool)
         if rescale:
             if isinstance(rescale, str):
-                da_suitability = da_suitability / suitability_stat_dict[rescale].max()
+                if rescale not in ["mean", "median"]:
+                    raise ValueError(
+                        "rescale must be one of 'mean' or 'median' if a string is "
+                        "provided."
+                    )
+                da_scale_by = suitability_stat_dict.get(rescale, None)
+                assert da_scale_by is not None
+                da_suitability = da_suitability / da_scale_by.max()
             else:
                 da_suitability = da_suitability / da_suitability.max()
         suitability_table_new = da_suitability.to_dataset(name=suitability_var_name)
@@ -460,6 +506,6 @@ class SuitabilityModel(EpiModel):
                     last_suitable_table_temp + temperature.item(last_suitable_loc + 1)
                 )
                 return SuitabilityModel(
-                    temperature_range=[min_temp, max_temp],
+                    temperature_range=(min_temp, max_temp),
                 )
         return SuitabilityModel(suitability_table=suitability_table_new)
