@@ -1,10 +1,12 @@
 import copy
 import numbers
+from typing import Any
 
 import arviz as az
 import holoviews as hv
 import hvplot.xarray  # noqa
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
@@ -25,7 +27,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
     Parameters
     ----------
-    parameters : dict, optional
+    parameters : dict
         Dictionary of model parameters. Each key is a parameter name, and the value
         is either a number (constant parameter), a callable (function which takes
         keyword arguments 'temperature' and, if the model is dependent on precipitation,
@@ -70,14 +72,14 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             trait_data: array-like
                 Vector of trait values corresponding to the temperature data.
 
-    data : pandas.DataFrame, optional
-        A DataFrame containing the temperature and trait data for the parameters to be
-        fitted. The DataFrame should have columns "trait_name", "temperature", and
-        "trait_value".
     suitability_function : callable
         A callable that takes the model parameters as keyword arguments and returns a
         suitability metric (e.g., the basic reproduction number). The callable should
         be able to handle xarray DataArrays as inputs.
+    data : pandas.DataFrame, optional
+        A DataFrame containing the temperature and trait data for the parameters to be
+        fitted. The DataFrame should have columns "trait_name", "temperature", and
+        "trait_value".
     suitability_var_name : str, optional
         The name of the suitability variable. Default is "suitability".
     suitability_var_long_name : str, optional
@@ -86,12 +88,16 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
     def __init__(
         self,
-        parameters=None,
-        data=None,
-        suitability_function=None,
-        suitability_var_name="suitability",
-        suitability_var_long_name="Suitability",
+        parameters: dict[str, Any] | None = None,
+        suitability_function: callable | None = None,
+        data: pd.DataFrame | None = None,
+        suitability_var_name: str = "suitability",
+        suitability_var_long_name: str = "Suitability",
     ):
+        if parameters is None:
+            raise ValueError("The 'parameters' argument must be provided.")
+        if suitability_function is None:
+            raise ValueError("The 'suitability_function' argument must be provided.")
         self.suitability_table = None
         self._parameters = parameters
         self._suitability_function = suitability_function
