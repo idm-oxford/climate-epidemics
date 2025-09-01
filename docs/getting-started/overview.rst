@@ -125,3 +125,15 @@ to run an epidemiological model on a climate dataset as follows:
     import climepi # noqa
 
     ds_epi = ds_clim.climepi.run_epi_model(suitability_model)
+
+Acknowledgement
+---------------
+
+This package has been developed as part of a project funded by a Digital Technology
+Development Award (Climate-Sensitive Infectious Disease Modelling) from
+`Wellcome <https://wellcome.org/>`_.
+
+.. image:: /_static/wellcome-logo-black.png
+   :alt: Wellcome logo
+   :scale: 40 %
+   :align: left
