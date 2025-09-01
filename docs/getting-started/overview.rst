@@ -75,12 +75,12 @@ sources (currently supported data sources include the
         data_source="lens2",
         frequency="daily",
         subset={
-                "years": list(range(2030, 2101)),
-                "locations": ["London", "Paris"],
-                "realizations": [0, 1]
-            },
+            "years": list(range(2030, 2101)),
+            "locations": ["London", "Paris"],
+            "realizations": [0, 1],
+        },
     )
-
+    
 .. _`getting-started/overview:functionality/epimod`:
 
 Epidemiological model subpackage
