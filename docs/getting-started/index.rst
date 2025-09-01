@@ -5,6 +5,6 @@ Getting Started
 .. toctree::
    :maxdepth: 2
 
-   installation
    overview
+   installation
    app
