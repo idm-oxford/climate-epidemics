@@ -236,10 +236,11 @@ class ARISEDataGetter(CESMDataGetter):
     https://www.ucar.edu/terms-of-use/data.
 
     Available years that can be specified in the `subset` argument of the class
-    constructor range from 2035 to 2069, and 10 realizations (here labelled as 0 to 9)
-    are available for two scenarios ("ssp245" and "sai15") and one model ("cesm2"). The
-    remotely stored data can be lazily opened as an xarray dataset and processed without
-    downloading (`download=False` option in the `get_data` method).
+    constructor range from 2035 to 2069 for feedback simulations (scenario "sai15"),
+    and 2000 to 2100 for reference simulations without climate intervention (scenario
+    "ssp245"). 10 realizations (here labelled as 0 to 9) are available for each
+    scenario. The remotely stored data can be lazily opened as an xarray dataset and
+    processed without downloading (`download=False` option in the `get_data` method).
 
     See the base class (`climepi.climdata._data_getter_class.ClimateDataGetter`) for
     further details.
@@ -318,6 +319,7 @@ class ARISEDataGetter(CESMDataGetter):
         _preprocess = functools.partial(
             _preprocess_arise_dataset,
             frequency=frequency,
+            years=years,
             realizations=realizations,
         )
         ds_in = xr.open_mfdataset(
@@ -510,7 +512,7 @@ class GLENSDataGetter(CESMDataGetter):
         super()._process_data()
 
 
-def _preprocess_arise_dataset(ds, frequency=None, realizations=None):
+def _preprocess_arise_dataset(ds, frequency=None, years=None, realizations=None):
     try:
         scenario = (
             "sai15"
@@ -540,6 +542,8 @@ def _preprocess_arise_dataset(ds, frequency=None, realizations=None):
         ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="MS"))
         ds["time"].encoding = old_time.encoding
         ds["time"].attrs = old_time.attrs
+    # Subset to requested years now to avoid concatenation/merging issues
+    ds = ds.isel(time=np.isin(ds.time.dt.year, years))
     return ds
 
 
