@@ -175,7 +175,7 @@ class ClimEpiDatasetAccessor:
     def temporal_group_average(
         self,
         data_var: str | list[str] | None = None,
-        frequency: str = "yearly",
+        frequency: Literal["daily", "monthly", "yearly"] = "yearly",
         **kwargs: Any,
     ) -> xr.Dataset:
         """

@@ -3,10 +3,12 @@
 import functools
 import time
 from copy import deepcopy
+from typing import Any, Literal, cast
 
 import dask.diagnostics
 import intake
 import numpy as np
+import pandas as pd
 import pooch
 import requests
 import siphon.catalog
@@ -41,22 +43,17 @@ class CESMDataGetter(ClimateDataGetter):
         # store the subsetted dataset in the _ds attribute.
         years = self._subset["years"]
         locations = self._subset["locations"]
-        lon = self._subset["lon"]
-        lat = self._subset["lat"]
+        lons = self._subset["lons"]
+        lats = self._subset["lats"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         ds_subset = self._ds.copy()
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
         if locations is not None:
             # Use the climepi package to find the nearest grid points to the provided
-            # locations, and subset the data accordingly (ensure locations is a list
-            # so "location" is made a dimension coordinate).
-            location_list = np.atleast_1d(locations).tolist()
-            lon_list = np.atleast_1d(lon).tolist() if lon is not None else None
-            lat_list = np.atleast_1d(lat).tolist() if lat is not None else None
-            ds_subset = ds_subset.climepi.sel_geo(
-                location_list, lon=lon_list, lat=lat_list
-            )
+            # locations, and subset the data accordingly (since locations is a list,
+            # "location" is made a dimension coordinate).
+            ds_subset = ds_subset.climepi.sel_geo(locations, lon=lons, lat=lats)
         else:
             if lon_range is not None:
                 # Note the remote data are stored with longitudes in the range 0 to 360.
@@ -88,7 +85,7 @@ class CESMDataGetter(ClimateDataGetter):
             delayed_obj.compute()
         self._temp_file_names = [temp_file_name]
 
-    def _open_temp_data(self, **kwargs):
+    def _open_temp_data(self, **kwargs: Any):
         # Open the temporary dataset, and store the opened dataset in the _ds attribute.
         # Extends the parent method by specifying chunks for the member_id coordinate.
         kwargs = {
@@ -176,9 +173,9 @@ class LENS2DataGetter(CESMDataGetter):
 
     data_source = "lens2"
     available_models = ["cesm2"]
-    available_years = np.arange(1850, 2101)
+    available_years = list(range(1850, 2101))
     available_scenarios = ["ssp370"]
-    available_realizations = np.arange(100)
+    available_realizations = list(range(100))
     remote_open_possible = True
 
     def _find_remote_data(self):
@@ -186,6 +183,7 @@ class LENS2DataGetter(CESMDataGetter):
         # single dataset and store in the _ds attribute.
         frequency = self._frequency
         if frequency == "yearly":
+            # Download monthly data (to be averaged later)
             frequency = "monthly"
         catalog_url = (
             "https://raw.githubusercontent.com/NCAR/cesm2-le-aws"
@@ -248,9 +246,9 @@ class ARISEDataGetter(CESMDataGetter):
 
     data_source = "arise"
     available_models = ["cesm2"]
-    available_years = np.arange(2035, 2070)
+    available_years = list(range(2035, 2070))
     available_scenarios = ["ssp245", "sai15"]
-    available_realizations = np.arange(10)
+    available_realizations = list(range(10))
     remote_open_possible = True
 
     def _find_remote_data(self):
@@ -347,15 +345,15 @@ class GLENSDataGetter(CESMDataGetter):
     lon_res = 1.25
     lat_res = 180 / 191
     data_source = "glens"
-    available_years = np.arange(2010, 2100)
+    available_years = list(range(2010, 2100))
     available_scenarios = ["rcp85", "sai"]
-    available_realizations = np.arange(20)
+    available_realizations = list(range(20))
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self._urls = None
 
-    def get_data(self, *args, **kwargs):
+    def get_data(self, *args: Any, **kwargs: Any):
         scenarios = self._subset["scenarios"]
         if len(scenarios) == 1:
             return super().get_data(*args, **kwargs)
@@ -512,7 +510,13 @@ class GLENSDataGetter(CESMDataGetter):
         super()._process_data()
 
 
-def _preprocess_arise_dataset(ds, frequency=None, years=None, realizations=None):
+def _preprocess_arise_dataset(
+    ds: xr.Dataset,
+    *,
+    frequency: Literal["daily", "monthly", "yearly"],
+    years: list[int],
+    realizations: list[int],
+) -> xr.Dataset:
     try:
         scenario = (
             "sai15"
@@ -539,7 +543,8 @@ def _preprocess_arise_dataset(ds, frequency=None, years=None, realizations=None)
     # times seem to be at end of interval for monthly data, so shift
     if frequency in ["monthly", "yearly"]:
         old_time = ds["time"]
-        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="MS"))
+        time_index = cast(xr.CFTimeIndex | pd.DatetimeIndex, ds.indexes["time"])
+        ds = ds.assign_coords(time=time_index.shift(-1, freq="MS"))
         ds["time"].encoding = old_time.encoding
         ds["time"].attrs = old_time.attrs
     # Subset to requested years now to avoid concatenation/merging issues
@@ -547,7 +552,13 @@ def _preprocess_arise_dataset(ds, frequency=None, years=None, realizations=None)
     return ds
 
 
-def _preprocess_glens_dataset(ds, frequency=None, years=None, realizations=None):
+def _preprocess_glens_dataset(
+    ds: xr.Dataset,
+    *,
+    frequency: Literal["daily", "monthly", "yearly"],
+    years: list[int],
+    realizations: list[int],
+) -> xr.Dataset:
     try:
         scenario_str = ds.attrs["case"].split(".")[-2]
         scenario = (
@@ -576,10 +587,11 @@ def _preprocess_glens_dataset(ds, frequency=None, years=None, realizations=None)
     )
     # Times seem to be at end of interval, so shift
     old_time = ds["time"]
+    time_index = cast(xr.CFTimeIndex | pd.DatetimeIndex, ds.indexes["time"])
     if frequency in ["monthly", "yearly"]:
-        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="MS"))
+        ds = ds.assign_coords(time=time_index.shift(-1, freq="MS"))
     elif frequency == "daily":
-        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="D"))
+        ds = ds.assign_coords(time=time_index.shift(-1, freq="D"))
     else:
         raise ValueError(f"Frequency {frequency} is not supported.")
     ds["time"].encoding = old_time.encoding

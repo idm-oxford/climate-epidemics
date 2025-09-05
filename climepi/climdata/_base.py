@@ -1,20 +1,29 @@
 """Module defining get_climate_data and get_climate_data_file_names functions."""
 
+import os
+from typing import Any, Literal
+
+import xarray as xr
+
 from climepi.climdata._cesm import ARISEDataGetter, GLENSDataGetter, LENS2DataGetter
+from climepi.climdata._data_getter_class import (
+    ClimateDataGetter,
+    SubsetPartial,
+)
 from climepi.climdata._isimip import ISIMIPDataGetter
 
 
 def get_climate_data(
-    data_source,
-    frequency="monthly",
-    subset=None,
-    save_dir=None,
-    download=True,
-    force_remake=False,
-    subset_check_interval=10,
-    max_subset_wait_time=20,
-    **kwargs,
-):
+    data_source: Literal["lens2", "arise", "glens", "isimip"],
+    frequency: Literal["daily", "monthly", "yearly"] = "monthly",
+    subset: SubsetPartial | None = None,
+    save_dir: str | os.PathLike | None = None,
+    download: bool = True,
+    force_remake: bool = False,
+    subset_check_interval: float = 10,
+    max_subset_wait_time: float = 20,
+    **kwargs: Any,
+) -> xr.Dataset:
     """
     Retrieve and download climate projection data from a remote server.
 
@@ -45,41 +54,41 @@ def get_climate_data(
         'yearly' (default is 'monthly').
     subset: dict, optional
         Dictionary of data subsetting options. The following keys/values are available:
-            years : list or array-like of int, optional
+            years : list of int, optional
                 Years for which to retrieve data within the available data range. If
                 not provided, all years are retrieved.
-            scenarios : list or array-like of str, optional
+            scenarios : list of str, optional
                 Scenarios for which to retrieve data. If not provided, all available
                 scenarios are retrieved.
-            models : list or array-like of str, optional
+            models : list of str, optional
                 Models for which to retrieve data. If not provided, all available models
                 are retrieved.
-            realizations : list or array-like of int, optional
-                Realizations for which to retrieve data. If not provided, all available
-                realizations are retrieved.
-            locations : str or list of str, optional
+            realizations : list of int, optional
+                Realizations for which to retrieve data (indexed from 0). If not
+                provided, all available realizations are retrieved.
+            locations : list of str, optional
                 Name of one or more locations for which to retrieve data. If provided,
-                and the 'lon' and 'lat' parameters are not provided, OpenStreetMap data
-                (https://openstreetmap.org/copyright) is used to query corresponding
-                longitude and latitudes, and data for the nearest grid point to each
-                location are retrieved). If 'lon' and 'lat' are also provided, these are
-                used to retrieve the data (the locations parameter is still used as a
-                dimension coordinate in the output dataset). If not provided, the
-                'lon_range' and 'lat_range' parameters are used instead.
-            lon: float or list of float, optional
+                and the 'lons' and 'lats' parameters are not provided, OpenStreetMap
+                data (https://openstreetmap.org/copyright) is used to query
+                corresponding longitude and latitudes, and data for the nearest grid
+                point to each location are retrieved). If 'lons' and 'lats' are also
+                provided, these are used to retrieve the data (the locations parameter
+                is still used as a dimension coordinate in the output dataset). If not
+                provided, the 'lon_range' and 'lat_range' parameters are used instead.
+            lons: list of float, optional
                 Longitude(s) for which to retrieve data. If provided, both 'locations'
-                and 'lat' should also be provided. If 'locations' is a list, 'lon' and
-                'lat' must also be lists of the same length (if provided).
-            lat: float or list of float, optional
+                and 'lats' should also be provided, and must be lists of the same
+                length.
+            lats: list of float, optional
                 Latitude(s) for which to retrieve data. If provided, both 'locations'
-                and 'lon' should also be provided. If 'locations' is a list, 'lon' and
-                'lat' must also be lists of the same length (if provided).
-            lon_range : list or array-like of float, optional
+                and 'lons' should also be provided, and must be lists of the same
+                length.
+            lon_range : tuple of two floats, optional
                 Longitude range for which to retrieve data. Should comprise two values
                 giving the minimum and maximum longitudes. Ignored if 'locations' is
                 provided. If not provided, and 'locations' is also not provided, all
                 longitudes are retrieved.
-            lat_range : list or array-like of float, optional
+            lat_range : tuple of two floats, optional
                 Latitude range for which to retrieve data. Should comprise two values
                 giving the minimum and maximum latitudes. Ignored if 'locations' is
                 provided. If not provided, and 'locations' is also not provided, all
@@ -95,10 +104,10 @@ def get_climate_data(
     force_remake : bool, optional
         Whether to force re-download and re-formatting of the data even if found
         locally (default is False). Can only be used if 'download' is True.
-    subset_check_interval : int or float, optional
+    subset_check_interval : float, optional
         For ISIMIP data only; time interval in seconds between checks for server-side
         data subsetting completion (default is 10).
-    max_subset_wait_time : int or float, optional
+    max_subset_wait_time : float, optional
         For ISIMIP data only; maximum time to wait for server-side data subsetting to
         complete, in seconds, before timing out (default is 20). Server-side subsetting
         will continue to run after this function times out, and this function can be
@@ -126,7 +135,11 @@ def get_climate_data(
     return ds_clim
 
 
-def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset=None):
+def get_climate_data_file_names(
+    data_source: Literal["lens2", "arise", "glens", "isimip"],
+    frequency: Literal["daily", "monthly", "yearly"] = "monthly",
+    subset: SubsetPartial | None = None,
+) -> list[str]:
     """
     Retrieve file names of formatted climate data files.
 
@@ -134,7 +147,7 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
 
     Parameters
     ----------
-    data_source : str, optional
+    data_source : str
         Data source. Currently supported sources are 'lens2' (for CESM2 LENS data),
         'arise' (CESM2 ARISE data), 'glens' (CESM1 GLENS data), and 'isimip' (ISIMIP
         data).
@@ -155,12 +168,13 @@ def get_climate_data_file_names(data_source="lens2", frequency="monthly", subset
 
 
 def _get_data_getter(
-    data_source,
-    *args,
-    subset_check_interval=None,
-    max_subset_wait_time=None,
-    **kwargs,
-):
+    data_source: Literal["lens2", "arise", "glens", "isimip"],
+    *args: Any,
+    subset_check_interval: float = 10,
+    max_subset_wait_time: float = 20,
+    **kwargs: Any,
+) -> ClimateDataGetter:
+    data_getter: ClimateDataGetter
     if data_source == "lens2":
         data_getter = LENS2DataGetter(*args, **kwargs)
     elif data_source == "arise":

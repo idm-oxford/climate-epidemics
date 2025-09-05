@@ -42,6 +42,7 @@ pandas = "*"
 panel = "*"
 param = "*"
 pooch = "*"
+pydantic = "*"
 pymc = "*"
 requests = "*"
 s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS server

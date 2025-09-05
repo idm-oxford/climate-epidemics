@@ -1,14 +1,17 @@
 """Module for accessing and downloading ISIMIP data."""
 
+import datetime
 import pathlib
 import time
 import zipfile
 from copy import deepcopy
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import pooch
 import requests
+import xarray as xr
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
@@ -41,7 +44,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
     """
 
     data_source = "isimip"
-    available_years = np.arange(2015, 2101)
+    available_years = list(range(2015, 2101))
     available_scenarios = ["ssp126", "ssp370", "ssp585"]
     available_models = [
         "gfdl-esm4",
@@ -60,7 +63,11 @@ class ISIMIPDataGetter(ClimateDataGetter):
     lat_res = 0.5
 
     def __init__(
-        self, *args, subset_check_interval=10, max_subset_wait_time=20, **kwargs
+        self,
+        *args: Any,
+        subset_check_interval: float = 10,
+        max_subset_wait_time: float = 20,
+        **kwargs: Any,
     ):
         # Extends the base class constructor to include the _client_results attribute,
         # which stores the results of the client requests to the ISIMIP repository, as
@@ -120,21 +127,24 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # Request server-side subsetting of the data to the requested location(s) and
         # update the _client_results attribute with the results of the subsetting.
         locations = self._subset["locations"]
-        lon = self._subset["lon"]
-        lat = self._subset["lat"]
+        lons = self._subset["lons"]
+        lats = self._subset["lats"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         client_results = self._client_results
         subset_check_interval = self._subset_check_interval
         max_subset_wait_time = self._max_subset_wait_time
         if locations is not None:
-            if isinstance(locations, list):
-                self._subset_remote_data_location_list()
+            if len(locations) > 1:
+                self._subset_remote_data_multiple_locations()
                 return
-            if lon is None and lat is None:
+            if lons is None and lats is None:
                 location_geopy = geocode(locations)
                 lon = location_geopy.longitude
                 lat = location_geopy.latitude
+            else:
+                lon = lons[0]
+                lat = lats[0]
             operation = {"task": "cutout_bbox", "bbox": [lat, lat, lon, lon]}
         else:
             if lon_range is None and lat_range is None:
@@ -195,22 +205,24 @@ class ISIMIPDataGetter(ClimateDataGetter):
         requests_session.close()
         self._client_results = client_results_new
 
-    def _subset_remote_data_location_list(self):
+    def _subset_remote_data_multiple_locations(self):
         # Request server-side subsetting of the data to a list of locations
         locations = self._subset["locations"]
-        lon = self._subset["lon"]
-        lat = self._subset["lat"]
-        if lon is None and lat is None:
-            lon = [None] * len(locations)
-            lat = [None] * len(locations)
+        lons = self._subset["lons"]
+        lats = self._subset["lats"]
+        if lons is None and lats is None:
+            lons = [None] * len(locations)
+            lats = [None] * len(locations)
         client_results = []
         any_timeout_error = False
-        for location_curr, lon_curr, lat_curr in zip(locations, lon, lat, strict=True):
+        for location_curr, lon_curr, lat_curr in zip(
+            locations, lons, lats, strict=True
+        ):
             print(f"Initiating subsetting request for location: {location_curr}")
             data_getter_curr = deepcopy(self)
-            data_getter_curr._subset["locations"] = location_curr
-            data_getter_curr._subset["lon"] = lon_curr
-            data_getter_curr._subset["lat"] = lat_curr
+            data_getter_curr._subset["locations"] = [location_curr]
+            data_getter_curr._subset["lons"] = [lon_curr]
+            data_getter_curr._subset["lats"] = [lat_curr]
             try:
                 data_getter_curr._subset_remote_data()
                 client_results += data_getter_curr._client_results
@@ -262,12 +274,12 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 temp_file_names.append(download_file_name)
         self._temp_file_names = temp_file_names
 
-    def _open_temp_data(self, **kwargs):
+    def _open_temp_data(self, **kwargs: Any):
         # Extends the parent method by defining a custom preprocess function to enable
         # the data to be opened as a single dataset, concantenating along new 'scenario'
         # and 'model' dimensions.
 
-        def _preprocess(ds):
+        def _preprocess(ds: xr.Dataset) -> xr.Dataset:
             file_name = ds.encoding["source"].split("/")[-1]
             # Preprocess the data to enable concatenation along the 'scenario' and
             # 'model' dimensions.
@@ -288,7 +300,9 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 }
             )
             # Some data have time at beginning, some at middle - set all to middle
-            centered_times = ds["time"].dt.floor("D") + pd.Timedelta("12h")
+            centered_times: xr.DataArray = ds["time"].dt.floor("D") + pd.Timedelta(
+                "12h"
+            )  # type: ignore[operator]
             centered_times.attrs = ds["time"].attrs
             centered_times.encoding = ds["time"].encoding
             ds["time"] = centered_times
@@ -304,17 +318,11 @@ class ISIMIPDataGetter(ClimateDataGetter):
         frequency = self._frequency
         years = self._subset["years"]
         locations = self._subset["locations"]
-        lon = self._subset["lon"]
-        lat = self._subset["lat"]
-        # Ensure the data are indexed by location string if locations are provided (use
-        # atleast_1d to ensure "location" is made a dimension)
+        lons = self._subset["lons"]
+        lats = self._subset["lats"]
+        # Ensure the data are indexed by location string if locations are provided
         if locations is not None:
-            location_list = np.atleast_1d(locations).tolist()
-            lon_list = np.atleast_1d(lon).tolist() if lon is not None else None
-            lat_list = np.atleast_1d(lat).tolist() if lat is not None else None
-            ds_processed = ds_processed.climepi.sel_geo(
-                location_list, lon=lon_list, lat=lat_list
-            )
+            ds_processed = ds_processed.climepi.sel_geo(locations, lon=lons, lat=lats)
         # Subset the data to the requested years
         ds_processed = ds_processed.isel(time=ds_processed.time.dt.year.isin(years))
         # Add time bounds using xcdat

@@ -1,11 +1,14 @@
 import itertools
+import os
 import pathlib
 import tempfile
 import warnings
+from typing import Any, Literal, TypedDict
 
 import dask.diagnostics
 import numpy as np
 import pooch
+import pydantic
 import xarray as xr
 
 # Cache directory for storing any temporary files created when downloading data.
@@ -13,6 +16,24 @@ import xarray as xr
 # error occurs, and to use a different temporary file name each time to avoid
 # potential conflicts if multiple instances of the code are run simultaneously.
 CACHE_DIR = pooch.os_cache("climepi")
+
+
+class Subset(TypedDict):
+    """Dictionary defining subsetting options for climate data retrieval."""
+
+    years: list[int]
+    scenarios: list[str]
+    models: list[str]
+    realizations: list[int]
+    locations: list[str] | None
+    lons: list[float] | None
+    lats: list[float] | None
+    lon_range: tuple[float, float] | None
+    lat_range: tuple[float, float] | None
+
+
+class SubsetPartial(Subset, total=False):
+    """Partial dictionary defining subsetting options for climate data retrieval."""
 
 
 class ClimateDataGetter:
@@ -51,43 +72,43 @@ class ClimateDataGetter:
     frequency : str, optional
         Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
         'yearly' (default is 'monthly').
-    subset : dict, optional
+    subset: dict, optional
         Dictionary of data subsetting options. The following keys/values are available:
-            years : list or array-like of int, optional
+            years : list of int, optional
                 Years for which to retrieve data within the available data range. If
                 not provided, all years are retrieved.
-            scenarios : list or array-like of str, optional
+            scenarios : list of str, optional
                 Scenarios for which to retrieve data. If not provided, all available
                 scenarios are retrieved.
-            models : list or array-like of str, optional
+            models : list of str, optional
                 Models for which to retrieve data. If not provided, all available models
                 are retrieved.
-            realizations : list or array-like of int, optional
-                Realizations for which to retrieve data. If not provided, all available
-                realizations are retrieved.
-            locations : str or list of str, optional
+            realizations : list of int, optional
+                Realizations for which to retrieve data (indexed from 0). If not
+                provided, all available realizations are retrieved.
+            locations : list of str, optional
                 Name of one or more locations for which to retrieve data. If provided,
-                and the 'lon' and 'lat' parameters are not provided, OpenStreetMap data
-                (https://openstreetmap.org/copyright) is used to query corresponding
-                longitude and latitudes, and data for the nearest grid point to each
-                location are retrieved). If 'lon' and 'lat' are also provided, these are
-                used to retrieve the data (the locations parameter is still used as a
-                dimension coordinate in the output dataset). If not provided, the
-                'lon_range' and 'lat_range' parameters are used instead.
-            lon: float or list of float, optional
+                and the 'lons' and 'lats' parameters are not provided, OpenStreetMap
+                data (https://openstreetmap.org/copyright) is used to query
+                corresponding longitude and latitudes, and data for the nearest grid
+                point to each location are retrieved). If 'lons' and 'lats' are also
+                provided, these are used to retrieve the data (the locations parameter
+                is still used as a dimension coordinate in the output dataset). If not
+                provided, the 'lon_range' and 'lat_range' parameters are used instead.
+            lons: list of float, optional
                 Longitude(s) for which to retrieve data. If provided, both 'locations'
-                and 'lat' should also be provided. If 'locations' is a list, 'lon' and
-                'lat' must also be lists of the same length (if provided).
-            lat: float or list of float, optional
+                and 'lats' should also be provided, and must be lists of the same
+                length.
+            lats: list of float, optional
                 Latitude(s) for which to retrieve data. If provided, both 'locations'
-                and 'lon' should also be provided. If 'locations' is a list, 'lon' and
-                'lat' must also be lists of the same length (if provided).
-            lon_range : list or array-like of float, optional
+                and 'lons' should also be provided, and must be lists of the same
+                length.
+            lon_range : tuple of two floats, optional
                 Longitude range for which to retrieve data. Should comprise two values
                 giving the minimum and maximum longitudes. Ignored if 'locations' is
                 provided. If not provided, and 'locations' is also not provided, all
                 longitudes are retrieved.
-            lat_range : list or array-like of float, optional
+            lat_range : tuple of two floats, optional
                 Latitude range for which to retrieve data. Should comprise two values
                 giving the minimum and maximum latitudes. Ignored if 'locations' is
                 provided. If not provided, and 'locations' is also not provided, all
@@ -99,44 +120,51 @@ class ClimateDataGetter:
         API token for accessing the data. Only required for some data sources.
     """
 
-    data_source = None
+    data_source: str
+    available_years: list[int]
+    available_scenarios: list[str]
+    available_models: list[str]
+    available_realizations: list[int]
+    lon_res: float
+    lat_res: float
     remote_open_possible = False
-    available_years = None
-    available_scenarios = None
-    available_models = None
-    available_realizations = None
-    lon_res = None
-    lat_res = None
 
-    def __init__(self, frequency="monthly", subset=None, save_dir=None, api_token=None):
-        subset_in = subset or {}
-        subset = {
+    def __init__(
+        self,
+        frequency: Literal["daily", "monthly", "yearly"] = "monthly",
+        subset: SubsetPartial | None = None,
+        save_dir: str | os.PathLike | None = None,
+        api_token: str | None = None,
+    ):
+        self._frequency = frequency
+        subset_full: Subset = {
             "years": self.available_years,
             "scenarios": self.available_scenarios,
             "models": self.available_models,
             "realizations": self.available_realizations,
             "locations": None,
-            "lon": None,
-            "lat": None,
+            "lons": None,
+            "lats": None,
             "lon_range": None,
             "lat_range": None,
         }
-        subset.update(subset_in)
-        self._frequency = frequency
-        self._subset = subset
-        self._ds = None
-        self._temp_save_dir = None
-        self._temp_file_names = None
-        self._ds_temp = None
+        if subset is not None:
+            subset_full.update(subset)
+        pydantic.TypeAdapter(Subset).validate_python(subset_full)
+        self._subset = subset_full
+        self._ds: xr.Dataset | None = None
+        self._temp_save_dir: pathlib.Path | None = None
+        self._temp_file_names: list[str] | None = None
+        self._ds_temp: xr.Dataset | None = None
         if save_dir is None:
             save_dir = CACHE_DIR
         self._save_dir = pathlib.Path(save_dir)
-        self._file_name_da = None
-        self._file_names = None
+        self._file_name_da: xr.DataArray | None = None
+        self._file_names: list[str] | None = None
         self._api_token = api_token
 
     @property
-    def file_name_da(self):
+    def file_name_da(self) -> xr.DataArray:
         """
         Get and xarray DataArray defining file names for saving and retrieving the data.
 
@@ -154,11 +182,11 @@ class ClimateDataGetter:
             lon_range = self._subset["lon_range"]
             lat_range = self._subset["lat_range"]
             base_name_str_list = [self.data_source, self._frequency]
-            if np.size(years) == 1:
-                base_name_str_list.append(f"{np.atleast_1d(years)[0]}")
+            if len(years) == 1:
+                base_name_str_list.append(f"{years[0]}")
             elif all(np.diff(years) == 1):
                 base_name_str_list.extend([f"{years[0]}", "to", f"{years[-1]}"])
-            elif np.size(years) <= 10:
+            elif len(years) <= 10:
                 base_name_str_list.extend([f"{year}" for year in years])
             elif all(np.diff(np.diff(years)) == 0):
                 base_name_str_list.extend(
@@ -172,9 +200,7 @@ class ClimateDataGetter:
                     "smaller chunks.",
                     stacklevel=2,
                 )
-            if locations is not None:
-                locations = np.atleast_1d(locations)
-            else:
+            if locations is None:
                 location_str_list = []
                 if lon_range is not None:
                     location_str_list.append(
@@ -205,6 +231,7 @@ class ClimateDataGetter:
                     "realization": realizations,
                 },
             )
+            assert isinstance(locations, list)
             for location, scenario, model, realization in itertools.product(
                 locations, scenarios, models, realizations
             ):
@@ -227,7 +254,7 @@ class ClimateDataGetter:
         return self._file_name_da
 
     @property
-    def file_names(self):
+    def file_names(self) -> list[str]:
         """
         Get a list of file names for saving and retrieving the data.
 
@@ -238,7 +265,9 @@ class ClimateDataGetter:
             self._file_names = file_name_da.values.flatten().tolist()
         return self._file_names
 
-    def get_data(self, download=True, force_remake=False, **kwargs):
+    def get_data(
+        self, download: bool = True, force_remake: bool = False, **kwargs: Any
+    ) -> xr.Dataset:
         """
         Retrieve the data.
 
@@ -272,6 +301,7 @@ class ClimateDataGetter:
         if not force_remake:
             try:
                 self._open_local_data(**kwargs)
+                assert self._ds is not None
                 return self._ds
             except FileNotFoundError:
                 pass
@@ -299,9 +329,10 @@ class ClimateDataGetter:
             print(f"Formatted data saved to '{self._save_dir}'")
             self._delete_temporary()
             self._open_local_data(**kwargs)
+        assert self._ds is not None
         return self._ds
 
-    def _open_local_data(self, **kwargs):
+    def _open_local_data(self, **kwargs: Any):
         # Open the data from the local files (will raise FileNotFoundError if any
         # files are not found), and store the dataset in the _ds attribute.
         save_dir = self._save_dir
@@ -330,7 +361,7 @@ class ClimateDataGetter:
             model=models,
         )
         if locations is not None:
-            ds = ds.sel(location=np.atleast_1d(locations))
+            ds = ds.sel(location=locations)
         self._ds = ds
 
     def _find_remote_data(self):
@@ -349,14 +380,16 @@ class ClimateDataGetter:
         # name(s) in the _temp_file_names attribute.
         raise NotImplementedError
 
-    def _open_temp_data(self, **kwargs):
+    def _open_temp_data(self, **kwargs: Any):
         # Open the downloaded data from the temporary file(s), and store the dataset in
         # both the _ds attribute and the _ds_temp attribute (the latter is used for
         # closing the temporary file(s) before they are deleted). The 'kwargs' argument
         # is included to allow for different options to be passed to
         # xarray.open_mfdataset by subclasses which extend this method.
         temp_save_dir = self._temp_save_dir
+        assert temp_save_dir is not None
         temp_file_names = self._temp_file_names
+        assert temp_file_names is not None
         temp_file_paths = [
             temp_save_dir / temp_file_name for temp_file_name in temp_file_names
         ]
@@ -426,7 +459,7 @@ class ClimateDataGetter:
         save_paths = []
         if locations is not None:
             loop_coord_names.append("location")
-            loop_coord_vals.append(np.atleast_1d(locations))
+            loop_coord_vals.append(locations)
         for coord_comb in itertools.product(*loop_coord_vals):
             coord_dict = dict(zip(loop_coord_names, coord_comb, strict=True))
             ds_curr = ds_all.sel({k: [v] for k, v in coord_dict.items()})
