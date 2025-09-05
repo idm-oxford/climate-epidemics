@@ -4,7 +4,7 @@ Core module for the climepi package.
 Contains the ClimEpiDatasetAccessor class for xarray datasets.
 """
 
-from typing import Any, overload
+from typing import Any, Literal, overload
 
 import geoviews.feature as gf
 import holoviews as hv
@@ -364,7 +364,8 @@ class ClimEpiDatasetAccessor:
         self,
         data_var: str | list[str] | None = None,
         uncertainty_level: float = 90,
-        internal_variability_method: str | None = None,
+        internal_variability_method: Literal["direct", "polyfit", "splinefit"]
+        | None = None,
         deg: int = 3,
         lam: float | None = None,
     ) -> xr.Dataset:
@@ -440,7 +441,8 @@ class ClimEpiDatasetAccessor:
         self,
         data_var: str | list[str] | None = None,
         fraction: bool = False,
-        internal_variability_method: str | None = None,
+        internal_variability_method: Literal["direct", "polyfit", "splinefit"]
+        | None = None,
         deg: int = 3,
         lam: float | None = None,
     ) -> xr.Dataset:
@@ -553,7 +555,8 @@ class ClimEpiDatasetAccessor:
         self,
         data_var: str | list[str] | None = None,
         uncertainty_level: float = 90,
-        internal_variability_method: str | None = None,
+        internal_variability_method: Literal["direct", "polyfit", "splinefit"]
+        | None = None,
         deg: int = 3,
         lam: float | None = None,
     ) -> xr.Dataset:
@@ -760,8 +763,8 @@ class ClimEpiDatasetAccessor:
         Parameters
         ----------
         data_var : str, optional
-            Name of the data variable to plot. If not provided, the function
-            will attempt to automatically select a suitable variable.
+            Name of the data variable to plot. Should be provided unless there is a
+            single non-bounds data variable.
         mask_ocean : bool, optional
             Whether to plot over ocean areas in white. Default is True.
         mask_lakes : bool, optional
@@ -805,7 +808,8 @@ class ClimEpiDatasetAccessor:
         self,
         data_var: str | None = None,
         fraction: bool = False,
-        internal_variability_method: str | None = None,
+        internal_variability_method: Literal["direct", "polyfit", "splinefit"]
+        | None = None,
         deg: int = 3,
         lam: float | None = None,
         **kwargs: Any,
@@ -821,8 +825,9 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str
-            Name of the data variable to plot.
+        data_var : str, optional
+            Name of the data variable to plot. Should be provided unless there is a
+            single non-bounds data variable.
         fraction : bool, optional
             Whether to plot the variance contributions as fractions of the total
             variance at each time, rather than the raw variances. Default is False.
@@ -888,7 +893,8 @@ class ClimEpiDatasetAccessor:
         self,
         data_var: str | None = None,
         uncertainty_level: float = 90,
-        internal_variability_method: str | None = None,
+        internal_variability_method: Literal["direct", "polyfit", "splinefit"]
+        | None = None,
         deg: int = 3,
         lam: float | None = None,
         kwargs_baseline: dict[str, Any] | None = None,
@@ -905,8 +911,9 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str
-            Name of the data variable to plot.
+        data_var : str, optional
+            Name of the data variable to plot. Should be provided unless there is a
+            single non-bounds data variable.
         uncertainty_level : float, optional
             Uncertainty level for the uncertainty intervals (percentage). Default is 90.
         internal_variability_method : str, optional

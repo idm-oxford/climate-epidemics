@@ -1,15 +1,17 @@
 import copy
 import numbers
-from typing import Any
+from typing import Any, Callable, Literal, Union, cast
 
 import arviz as az
 import holoviews as hv
 import hvplot.xarray  # noqa
 import numpy as np
 import pandas as pd
+import param
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from numpy.typing import ArrayLike, NDArray
 
 from climepi.epimod._base_classes import SuitabilityModel
 
@@ -88,16 +90,13 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
     def __init__(
         self,
-        parameters: dict[str, Any] | None = None,
-        suitability_function: callable | None = None,
+        *,
+        parameters: dict[str, Any],
+        suitability_function: Callable,
         data: pd.DataFrame | None = None,
         suitability_var_name: str = "suitability",
         suitability_var_long_name: str = "Suitability",
     ):
-        if parameters is None:
-            raise ValueError("The 'parameters' argument must be provided.")
-        if suitability_function is None:
-            raise ValueError("The 'suitability_function' argument must be provided.")
         self.suitability_table = None
         self._parameters = parameters
         self._suitability_function = suitability_function
@@ -106,7 +105,9 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         if data is not None:
             self._extract_data(data)
 
-    def fit_temperature_responses(self, step=None, thin=1, **kwargs_sample):
+    def fit_temperature_responses(
+        self, step: Callable | None = None, thin: int = 1, **kwargs_sample: Any
+    ) -> dict[str, az.InferenceData]:
         """
         Fit the model to data.
 
@@ -150,12 +151,12 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
     def plot_fitted_temperature_responses(
         self,
-        parameter_names=None,
-        temperature_vals=None,
-        kwargs_scatter=None,
-        kwargs_area=None,
-        **kwargs,
-    ):
+        parameter_names: str | list[str] | None = None,
+        temperature_vals: ArrayLike | None = None,
+        kwargs_scatter: dict[str, Any] | None = None,
+        kwargs_area: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> hv.Layout:
         """
         Plot the fitted temperature responses.
 
@@ -217,10 +218,11 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
     def construct_suitability_table(
         self,
-        temperature_vals=None,
-        precipitation_vals=None,
-        num_samples=None,
-    ):
+        *,
+        temperature_vals: ArrayLike,
+        precipitation_vals: ArrayLike | None = None,
+        num_samples: int | None = None,
+    ) -> xr.Dataset:
         """
         Construct a suitability table based on the fitted parameters.
 
@@ -249,7 +251,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             and precipitation values, and for each posterior sample.
         """
         self._check_fitting()
-        parameter_vals = {}
+        parameter_vals: dict[str, xr.DataArray | numbers.Number] = {}
         for parameter_name, parameter_entry in self._parameters.items():
             if isinstance(parameter_entry, dict):
                 idata = parameter_entry.get("idata")
@@ -292,7 +294,9 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         self.suitability_table = suitability_table
         return suitability_table.copy()
 
-    def get_posterior_min_optimal_max_temperature(self, suitability_threshold=0):
+    def get_posterior_min_optimal_max_temperature(
+        self, suitability_threshold: float = 0
+    ) -> xr.Dataset:
         """
         Get posterior distributions of minimum, optimal, and maximum temperatures.
 
@@ -319,6 +323,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         """
         self._check_fitting()
         self._check_suitability_table()
+        assert self.suitability_table is not None
         da_suitability_table = self.suitability_table[self._suitability_var_name]
         da_temperature = da_suitability_table.temperature
         if "precipitation" in da_suitability_table.dims:
@@ -333,12 +338,15 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             .assign_attrs(long_name="Optimal temperature for suitability", units="°C")
         )
         da_suitable = da_suitability_table > suitability_threshold
-        first_suitable_idx = da_suitable.argmax(dim="temperature")
+        first_suitable_idx = cast(xr.DataArray, da_suitable.argmax(dim="temperature"))
         last_suitable_idx = (
             da_suitable.sizes["temperature"]
             - 1
-            - da_suitable.isel(temperature=slice(None, None, -1)).argmax(
-                dim="temperature"
+            - cast(
+                xr.DataArray,
+                da_suitable.isel(temperature=slice(None, None, -1)).argmax(
+                    dim="temperature"
+                ),
             )
         )
         if np.any(first_suitable_idx == 0) or np.any(
@@ -378,7 +386,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         )
         return ds_posterior_min_optimal_max
 
-    def run(self, *args, **kwargs):
+    def run(self, *args: Any, **kwargs: Any) -> xr.Dataset:
         """
         Run the epidemiological model on a given climate dataset.
 
@@ -388,7 +396,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         self._check_suitability_table()
         return super().run(*args, **kwargs)
 
-    def plot_suitability(self, **kwargs):
+    def plot_suitability(self, **kwargs: Any) -> param.Parameterized:
         """
         Plot suitability against temperature and (if relevant) precipitation.
 
@@ -398,7 +406,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         self._check_suitability_table()
         return super().plot_suitability(**kwargs)
 
-    def get_max_suitability(self):
+    def get_max_suitability(self) -> float:
         """
         Get the maximum suitability value.
 
@@ -409,7 +417,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         self._check_suitability_table()
         return super().get_max_suitability()
 
-    def _extract_data(self, data):
+    def _extract_data(self, data: pd.DataFrame):
         # Extracts temperature and trait data from the provided dataset.
         parameters = copy.deepcopy(self._parameters)
         for parameter_name, parameter_dict in parameters.items():
@@ -441,15 +449,16 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
 
 def fit_temperature_response(
-    temperature_data=None,
-    trait_data=None,
-    curve_type=None,
-    probability=False,
-    priors=None,
-    step=None,
-    thin=1,
-    **kwargs_sample,
-):
+    *,
+    temperature_data: ArrayLike,
+    trait_data: ArrayLike,
+    curve_type: str,
+    probability: bool = False,
+    priors: dict[str, Callable] | None = None,
+    step: Callable | None = None,
+    thin: int = 1,
+    **kwargs_sample: Any,
+) -> az.InferenceData:
     """
     Fit the dependence of a parameter on temperature.
 
@@ -518,7 +527,7 @@ def fit_temperature_response(
             temperature_max=temperature_max,
             # probability=False,  # clipping mean at 1 can cause issues with sampling
             probability=probability,
-            array_lib=pt,
+            backend="pytensor",
         )
         if "noise_std" in priors:
             noise_std = priors["noise_std"]()
@@ -564,13 +573,14 @@ def fit_temperature_response(
 
 def get_posterior_temperature_response(
     idata,
-    num_samples=None,
-    temperature_vals=None,
-    curve_type=None,
-    probability=None,
-    trait_name=None,
-    trait_attrs=None,
-):
+    *,
+    curve_type: str,
+    num_samples: int | None = None,
+    temperature_vals: ArrayLike | None = None,
+    probability: bool = False,
+    trait_name: str | None = None,
+    trait_attrs: dict[str, Any] | None = None,
+) -> xr.DataArray:
     """
     Get the posterior distribution of the fitted temperature response.
 
@@ -579,6 +589,8 @@ def get_posterior_temperature_response(
     idata : arviz.InferenceData
         The posterior distribution of the fitted parameters (as returned by
         fit_temperature_response()).
+    curve_type : str
+        The type of curve fitted. Options are 'quadratic' and 'briere'.
     num_samples : int, optional
         Number of samples to draw from the posterior distribution. If None, all samples
         are used.
@@ -586,8 +598,6 @@ def get_posterior_temperature_response(
         Vector of temperature values for which the response is to be computed. If not
         provided, a default range is generated based on the minimum and maximum
         temperature values in the posterior distribution.
-    curve_type : str
-        The type of curve fitted. Options are 'quadratic' and 'briere'.
     probability : bool, optional
         If True, the response is constrained to be between 0 and 1. Default is False.
     trait_name : str, optional
@@ -629,7 +639,7 @@ def get_posterior_temperature_response(
         temperature_min=ds_posterior.temperature_min,
         temperature_max=ds_posterior.temperature_max,
         probability=probability,
-        array_lib=xr,
+        backend="xarray",
     )
     da_posterior_response.name = trait_name if trait_name is not None else "response"
     if trait_attrs is not None:
@@ -641,17 +651,18 @@ def get_posterior_temperature_response(
 
 def plot_fitted_temperature_response(
     idata,
-    temperature_vals=None,
-    temperature_data=None,
-    trait_data=None,
-    curve_type=None,
-    probability=False,
-    trait_name=None,
-    trait_attrs=None,
-    kwargs_scatter=None,
-    kwargs_area=None,
-    **kwargs,
-):
+    *,
+    curve_type: str,
+    temperature_vals: ArrayLike | None = None,
+    temperature_data: ArrayLike | None = None,
+    trait_data: ArrayLike | None = None,
+    probability: bool = False,
+    trait_name: str | None = None,
+    trait_attrs: dict[str, Any] | None = None,
+    kwargs_scatter: dict[str, Any] | None = None,
+    kwargs_area: dict[str, Any] | None = None,
+    **kwargs: Any,
+) -> hv.Overlay:
     """
     Plot a fitted temperature response curve.
 
@@ -661,6 +672,8 @@ def plot_fitted_temperature_response(
     ----------
     idata : arviz.InferenceData
         The posterior distribution of the fitted parameters.
+    curve_type : str
+        The type of curve fitted. Options are 'quadratic' and 'briere'.
     temperature_vals : array-like, optional
         Vector of temperature values for which the response is to be plotted. If not
         provided, a default range is generated based on the minimum and maximum
@@ -669,8 +682,6 @@ def plot_fitted_temperature_response(
         Vector of temperature values for which response data are available.
     trait_data : array-like, optional
         Vector of values of the trait variable for the corresponding temperature values.
-    curve_type : str
-        The type of curve fitted. Options are 'quadratic' and 'briere'.
     probability : bool, optional
         If True, the response is constrained to be between 0 and 1. Default is False.
     trait_name : str, optional
@@ -700,68 +711,96 @@ def plot_fitted_temperature_response(
     da_response_quantiles = da_posterior_response.quantile(
         [0.025, 0.5, 0.975], dim="sample", keep_attrs=True
     ).assign_coords(quantile=["lower", "median", "upper"])
-    return (
-        da_response_quantiles.sel(quantile="median", drop=True).hvplot.line(
-            label="Median response", **kwargs
-        )
-        * da_response_quantiles.to_dataset(dim="quantile").hvplot.area(
-            **{
-                "y": "lower",
-                "y2": "upper",
-                "alpha": 0.2,
-                "label": "95% credible interval",
-                **(kwargs_area or {}),
-            },
-        )
-        * xr.Dataset(
+    p = da_response_quantiles.sel(quantile="median", drop=True).hvplot.line(
+        label="Median response", **kwargs
+    ) * da_response_quantiles.to_dataset(dim="quantile").hvplot.area(
+        **{
+            "y": "lower",
+            "y2": "upper",
+            "alpha": 0.2,
+            "label": "95% credible interval",
+            **(kwargs_area or {}),
+        },
+    )
+    if trait_data is not None or temperature_data is not None:
+        if trait_data is None or temperature_data is None:
+            raise ValueError(
+                "Either both, or neither, trait data and corresponding temperature data "
+                "should be provided."
+            )
+        p = p * xr.Dataset(
             {"trait": ("temperature", trait_data)},
             coords={"temperature": temperature_data},
         ).hvplot.scatter(**(kwargs_scatter or {}))
-    )
+    return p
+
+
+_SupportedArrayType = Union[
+    NDArray[np.floating], xr.DataArray, xr.Dataset, pt.TensorVariable
+]
 
 
 def _bounded_quadratic(
-    temperature,
-    scale=None,
-    temperature_min=None,
-    temperature_max=None,
-    probability=None,
-    array_lib=np,
-):
+    temperature: _SupportedArrayType,
+    *,
+    scale: float,
+    temperature_min: float,
+    temperature_max: float,
+    probability: bool = False,
+    backend: Literal["numpy", "xarray", "pytensor"] = "numpy",
+) -> _SupportedArrayType:
     response = scale * (temperature - temperature_min) * (temperature_max - temperature)
-    response = array_lib.where(temperature >= temperature_min, response, 0)
-    response = array_lib.where(temperature <= temperature_max, response, 0)
+    response = _where(temperature >= temperature_min, response, 0, backend=backend)
+    response = _where(temperature <= temperature_max, response, 0, backend=backend)
     if probability:
         response = response.clip(0, 1)
     return response
 
 
 def _briere(
-    temperature,
-    scale=None,
-    temperature_min=None,
-    temperature_max=None,
-    probability=None,
-    array_lib=np,
-):
+    temperature: _SupportedArrayType,
+    *,
+    scale: float,
+    temperature_min: float,
+    temperature_max: float,
+    probability: bool = False,
+    backend: Literal["numpy", "xarray", "pytensor"] = "numpy",
+) -> _SupportedArrayType:
     response = (
         scale
         * temperature
         * (temperature - temperature_min)
         * np.abs(temperature_max - temperature) ** 0.5
     )
-    response = array_lib.where(temperature >= temperature_min, response, 0)
-    response = array_lib.where(temperature <= temperature_max, response, 0)
+    response = _where(temperature >= temperature_min, response, 0, backend=backend)
+    response = _where(temperature <= temperature_max, response, 0, backend=backend)
     if probability:
         response = response.clip(0, 1)
     return response
 
 
-def _get_curve_func(curve_type):
+def _where(
+    condition: Any,
+    x: Any,
+    y: Any,
+    backend: Literal["numpy", "xarray", "pytensor"] = "numpy",
+) -> _SupportedArrayType:
+    if backend == "numpy":
+        result = np.where(condition, x, y)
+    elif backend == "xarray":
+        result = xr.where(condition, x, y)
+    elif backend == "pytensor":
+        result = pt.where(condition, x, y)
+    else:
+        raise ValueError(f"Invalid backend: {backend}")
+    return cast(_SupportedArrayType, result)
+
+
+def _get_curve_func(curve_type: str) -> Callable:
     # Returns the appropriate curve function based on the curve type.
     if curve_type == "briere":
         return _briere
-    elif curve_type == "quadratic":
+    if curve_type == "quadratic":
         return _bounded_quadratic
     raise ValueError(
         f"Invalid curve_type: '{curve_type}'. Must be 'briere' or 'quadratic'."
