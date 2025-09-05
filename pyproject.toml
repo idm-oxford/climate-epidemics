@@ -35,7 +35,7 @@ h5netcdf = "*"
 hvplot = "*"
 intake = "*"
 intake-esm = "*"
-kerchunk = "<0.2.8" # https://github.com/fsspec/kerchunk/issues/566
+kerchunk = ">=0.2.9" # https://github.com/fsspec/kerchunk/issues/566
 nc-time-axis = "*"
 numpy = "*"
 pandas = "*"
@@ -51,8 +51,6 @@ tqdm = "*"
 urllib3 = "*"
 xarray = "!=2025.7.0,!=2025.7.1" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
-zarr = "<3" # https://github.com/fsspec/kerchunk/issues/566
-xesmf = "*" # dependency of more recent xcdat versions, explicitly adding here sometimes seems needed to ensure recent xcdat
 
 [tool.pixi.pypi-dependencies]
 climepi = { path = ".", editable = true }
