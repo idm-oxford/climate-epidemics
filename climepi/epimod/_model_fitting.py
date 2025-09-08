@@ -97,11 +97,12 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         suitability_var_name: str = "suitability",
         suitability_var_long_name: str = "Suitability",
     ):
-        self.suitability_table = None
+        super().__init__(
+            suitability_var_name=suitability_var_name,
+            suitability_var_long_name=suitability_var_long_name,
+        )
         self._parameters = parameters
         self._suitability_function = suitability_function
-        self._suitability_var_name = suitability_var_name
-        self._suitability_var_long_name = suitability_var_long_name
         if data is not None:
             self._extract_data(data)
 

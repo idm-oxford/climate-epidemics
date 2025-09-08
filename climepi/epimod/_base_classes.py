@@ -84,25 +84,29 @@ class SuitabilityModel(EpiModel):
         suitability tables, or a dimension "suitability_quantile" indexing quantiles of
         the suitability values. Default is None. Only one of `temperature_range` and
         `suitability_table` should be provided.
+    suitability_var_name : str, optional
+        The name of the suitability variable. Should not be provided if
+        `suitability_table` is provided (in this case, the name of the single
+        data variable in the suitability table will be used instead). If
+        `suitability_table` is not provided, the name will default to "suitability".
+    suitability_var_long_name : str, optional
+        The long name of the suitability variable, used to label axes in plots. If not
+        provided and if `suitability_table` is provided, the long name will be taken
+        from the suitability table (either via the `long_name` attribute of the
+        suitability variable, if it exists, or otherwise by capitalizing the suitability
+        variable name). If `suitability_table` is not provided, the long name will
+        default to "Suitability".
     """
 
     def __init__(
         self,
         temperature_range: tuple[float, float] | None = None,
         suitability_table: xr.Dataset | None = None,
+        suitability_var_name: str | None = None,
+        suitability_var_long_name: str | None = None,
     ):
         super().__init__()
-        if suitability_table is None:
-            if temperature_range is None:
-                raise ValueError(
-                    "The temperature_range argument must be provided if the "
-                    "suitability_table argument is not provided."
-                )
-            self.temperature_range = temperature_range
-            self.suitability_table = None
-            self._suitability_var_name = "suitability"
-            self._suitability_var_long_name = "Suitability"
-        else:
+        if suitability_table is not None:
             if temperature_range is not None:
                 raise ValueError(
                     "The temperature_range argument should not be provided if the "
@@ -112,20 +116,29 @@ class SuitabilityModel(EpiModel):
                 raise ValueError(
                     "The suitability table should only have a single data variable."
                 )
-            self.temperature_range = None
+            if suitability_var_name is not None:
+                raise ValueError(
+                    "The suitability_var_name argument should not be provided if the "
+                    "suitability_table argument is provided (the name of the single "
+                    "data variable in the suitability table will be used instead)."
+                )
             suitability_var_name = list(suitability_table.data_vars)[0]
-            suitability_var_long_name = suitability_table[
+            suitability_var_long_name = suitability_var_long_name or suitability_table[
                 suitability_var_name
-            ].attrs.get("long_name", suitability_var_name.capitalize())
-            self.suitability_table = suitability_table.assign(
+            ].attrs.get(
+                "long_name", suitability_var_name.capitalize().replace("_", " ")
+            )
+            suitability_table = suitability_table.assign(
                 {
                     suitability_var_name: suitability_table[
                         suitability_var_name
                     ].assign_attrs(long_name=suitability_var_long_name)
                 }
             )
-            self._suitability_var_name = suitability_var_name
-            self._suitability_var_long_name = suitability_var_long_name
+        self.temperature_range = temperature_range
+        self.suitability_table = suitability_table
+        self._suitability_var_name = suitability_var_name or "suitability"
+        self._suitability_var_long_name = suitability_var_long_name or "Suitability"
 
     def run(
         self,
@@ -220,7 +233,6 @@ class SuitabilityModel(EpiModel):
                 "long_name": "Temperature",
                 "units": "°C",
             }
-        assert temperature_range is None
         if suitability_table[suitability_var_name].dtype == bool:
             suitability_table = suitability_table.astype(int)
         if "precipitation" not in suitability_table.dims:
