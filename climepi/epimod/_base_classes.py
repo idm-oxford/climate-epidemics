@@ -93,7 +93,7 @@ class SuitabilityModel(EpiModel):
     ):
         super().__init__()
         if suitability_table is None:
-            if temperature_range is not None:
+            if temperature_range is None:
                 raise ValueError(
                     "The temperature_range argument must be provided if the "
                     "suitability_table argument is not provided."
@@ -103,7 +103,7 @@ class SuitabilityModel(EpiModel):
             self._suitability_var_name = "suitability"
             self._suitability_var_long_name = "Suitability"
         else:
-            if temperature_range is None:
+            if temperature_range is not None:
                 raise ValueError(
                     "The temperature_range argument should not be provided if the "
                     "suitability_table argument is provided."
