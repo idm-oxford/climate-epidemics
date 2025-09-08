@@ -1,6 +1,5 @@
 """Module for accessing and downloading ISIMIP data."""
 
-import datetime
 import pathlib
 import time
 import zipfile
