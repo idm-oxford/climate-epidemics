@@ -4,9 +4,9 @@ import threading
 from functools import lru_cache
 from typing import Any
 
+from geopy import Location
 from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
-from geopy.location import Location
 
 _geocode: None | RateLimiter = None
 _geocode_lock = threading.Lock()
@@ -38,7 +38,7 @@ def geocode(*args: Any, **kwargs: Any) -> Location | None | list[Location | None
 
     Returns
     -------
-    geopy.location.Location or None or list:
+    geopy.Location or None or list:
         Return value of the Nominatim.geocode method (see the link above).
     """
     _initialize_geocode()

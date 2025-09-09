@@ -10,9 +10,9 @@ import intake
 import numpy as np
 import pandas as pd
 import pooch
-import requests
 import siphon.catalog
 import xarray as xr
+from requests import HTTPError
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import BoundsAccessor, center_times  # noqa
@@ -441,7 +441,7 @@ class GLENSDataGetter(CESMDataGetter):
                 try:
                     catalog = siphon.catalog.TDSCatalog(catalog_url)
                     break
-                except requests.exceptions.HTTPError as e:
+                except HTTPError as e:
                     print(f"HTTP error opening catalog {catalog_url}: {e}")
                     print("Retrying in 10 seconds...")
                     time.sleep(10)

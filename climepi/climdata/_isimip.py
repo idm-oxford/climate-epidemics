@@ -141,7 +141,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 return
             if lons in [None, [None]] and lats in [None, [None]]:
                 location_geopy = geocode(locations[0])
-                assert isinstance(location_geopy, geopy.location.Location)
+                assert isinstance(location_geopy, geopy.Location)
                 lon = location_geopy.longitude
                 lat = location_geopy.latitude
             else:
