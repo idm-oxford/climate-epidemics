@@ -57,11 +57,11 @@ xcdat = "*"
 climepi = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.dependencies]
+ruff = "*"
 mypy = "*"
 scipy-stubs = "*"
 pandas-stubs = "*"
 types-requests = "*"
-ruff = "*"
 pytest = "*"
 pytest-cov = "*"
 jupyter_sphinx = "*"
@@ -123,3 +123,18 @@ unfixable = ["B"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
+
+[tool.mypy]
+check_untyped_defs = true
+# ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["geopy.*","intake.*","pooch.*","pymc.*","siphon.*","xcdat.*"]
+follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module = ["geoviews.*","holoviews.*","hvplot.*","param.*"]
+ignore_missing_imports = true
