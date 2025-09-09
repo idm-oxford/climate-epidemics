@@ -33,12 +33,12 @@ class CESMDataGetter(ClimateDataGetter):
     lon_res = 1.25
     lat_res = 180 / 191
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         raise NotImplementedError(
             "Method _find_remote_data must be implemented in a sub(sub)class."
         )
 
-    def _subset_remote_data(self):
+    def _subset_remote_data(self) -> None:
         # Subset the remotely opened dataset to the requested years and location(s), and
         # store the subsetted dataset in the _ds attribute.
         years = self._subset["years"]
@@ -47,6 +47,7 @@ class CESMDataGetter(ClimateDataGetter):
         lats = self._subset["lats"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
+        assert self._ds is not None
         ds_subset = self._ds.copy()
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
         if locations is not None:
@@ -74,10 +75,12 @@ class CESMDataGetter(ClimateDataGetter):
                 ds_subset = ds_subset.sel(lat=slice(*lat_range))
         self._ds = ds_subset
 
-    def _download_remote_data(self):
+    def _download_remote_data(self) -> None:
         # Download the remote dataset to a temporary file (printing a progress bar), and
         # store the file name in the _temp_file_names attribute.
         temp_save_dir = self._temp_save_dir
+        assert temp_save_dir is not None
+        assert self._ds is not None
         temp_file_name = "temp_data.nc"
         temp_save_path = temp_save_dir / temp_file_name
         delayed_obj = self._ds.to_netcdf(temp_save_path, compute=False)
@@ -85,7 +88,7 @@ class CESMDataGetter(ClimateDataGetter):
             delayed_obj.compute()
         self._temp_file_names = [temp_file_name]
 
-    def _open_temp_data(self, **kwargs: Any):
+    def _open_temp_data(self, **kwargs: Any) -> None:
         # Open the temporary dataset, and store the opened dataset in the _ds attribute.
         # Extends the parent method by specifying chunks for the member_id coordinate.
         kwargs = {
@@ -94,11 +97,12 @@ class CESMDataGetter(ClimateDataGetter):
         }
         super()._open_temp_data(**kwargs)
 
-    def _process_data(self):
+    def _process_data(self) -> None:
         # Extends the parent method to add renaming, unit conversion and (depending on
         # the requested data frequency) temporal averaging.
         realizations = self._subset["realizations"]
         frequency = self._frequency
+        assert self._ds is not None
         ds_processed = self._ds.copy()
         # Calculate total precipitation from convective and large-scale precipitation
         if "PRECC" in ds_processed.data_vars and "PRECL" in ds_processed.data_vars:
@@ -178,7 +182,7 @@ class LENS2DataGetter(CESMDataGetter):
     available_realizations = list(range(100))
     remote_open_possible = True
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         # Use intake to find and (lazily) open the remote data, then combine into a
         # single dataset and store in the _ds attribute.
         frequency = self._frequency
@@ -216,9 +220,10 @@ class LENS2DataGetter(CESMDataGetter):
         ds_in = xr.concat([ds_cmip6_in, ds_smbb_in], dim="member_id")
         self._ds = ds_in
 
-    def _subset_remote_data(self):
+    def _subset_remote_data(self) -> None:
         # Add realization subsetting to the parent method
         realizations = self._subset["realizations"]
+        assert self._ds is not None
         ds_subset = self._ds.copy()
         ds_subset = ds_subset.isel(member_id=realizations)
         self._ds = ds_subset
@@ -251,7 +256,7 @@ class ARISEDataGetter(CESMDataGetter):
     available_realizations = list(range(10))
     remote_open_possible = True
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         # Running to_datset_dict() on the catalog subset doesn't seem to work for
         # reference/kerchunk format data in AWS, so open the datasets manually.
         frequency = self._frequency
@@ -349,11 +354,11 @@ class GLENSDataGetter(CESMDataGetter):
     available_scenarios = ["rcp85", "sai"]
     available_realizations = list(range(20))
 
-    def __init__(self, *args: Any, **kwargs: Any):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._urls = None
+        self._urls: list[str] | None = None
 
-    def get_data(self, *args: Any, **kwargs: Any):
+    def get_data(self, *args: Any, **kwargs: Any) -> xr.Dataset:
         scenarios = self._subset["scenarios"]
         if len(scenarios) == 1:
             return super().get_data(*args, **kwargs)
@@ -375,7 +380,7 @@ class GLENSDataGetter(CESMDataGetter):
             *args, **{**kwargs, "force_remake": False, "download": False}
         )
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         frequency = self._frequency
         years = self._subset["years"]
         realizations = self._subset["realizations"]
@@ -465,13 +470,15 @@ class GLENSDataGetter(CESMDataGetter):
             )
         self._urls = urls
 
-    def _subset_remote_data(self):
+    def _subset_remote_data(self) -> None:
         pass
 
-    def _download_remote_data(self):
+    def _download_remote_data(self) -> None:
         # Download the remote data files to a temporary directory.
         urls = self._urls
         temp_save_dir = self._temp_save_dir
+        assert urls is not None
+        assert temp_save_dir is not None
         temp_file_names = []
 
         for url in urls:
@@ -491,7 +498,7 @@ class GLENSDataGetter(CESMDataGetter):
             temp_file_names.append(download_file_name)
         self._temp_file_names = temp_file_names
 
-    def _open_temp_data(self, **kwargs):
+    def _open_temp_data(self, **kwargs: Any) -> None:
         # Need to preprocess the downloaded data files.
         frequency = self._frequency
         years = self._subset["years"]
@@ -505,7 +512,7 @@ class GLENSDataGetter(CESMDataGetter):
         kwargs = {"preprocess": preprocess, "join": "inner", **kwargs}
         super()._open_temp_data(**kwargs)
 
-    def _process_data(self):
+    def _process_data(self) -> None:
         super()._subset_remote_data()
         super()._process_data()
 

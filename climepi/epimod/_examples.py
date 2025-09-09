@@ -147,12 +147,12 @@ EXAMPLES: dict[str, dict[str, Any]] = {
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
-def get_example_model(name: str) -> EpiModel:
+def get_example_model(name: str) -> SuitabilityModel:
     """
     Get an example climate-sensitive epidemiological model.
 
-    Returns a climepi.epimod.EpiModel object for the example model specified by the
-    name argument.
+    Returns a climepi.epimod.SuitabilityModel object for the example model specified by
+    the name argument.
 
     Parameters
     ----------
@@ -164,8 +164,8 @@ def get_example_model(name: str) -> EpiModel:
 
     Returns
     -------
-    epi_model : climepi.epimod.EpiModel
-        An instance of the EpiModel class representing the example model.
+    epi_model : climepi.epimod.SuitabilityModel
+        An instance of the SuitabilityModel class representing the example model.
     """
     example_details = _get_example_details(name)
     if "suitability_table_path" in example_details:

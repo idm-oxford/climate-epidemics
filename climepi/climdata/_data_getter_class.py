@@ -26,8 +26,8 @@ class Subset(TypedDict):
     models: list[str]
     realizations: list[int]
     locations: list[str] | None
-    lons: list[float] | None
-    lats: list[float] | None
+    lons: list[float | None] | None
+    lats: list[float | None] | None
     lon_range: tuple[float, float] | None
     lat_range: tuple[float, float] | None
 
@@ -135,7 +135,7 @@ class ClimateDataGetter:
         subset: SubsetPartial | None = None,
         save_dir: str | os.PathLike | None = None,
         api_token: str | None = None,
-    ):
+    ) -> None:
         self._frequency = frequency
         subset_full: Subset = {
             "years": self.available_years,
@@ -332,7 +332,7 @@ class ClimateDataGetter:
         assert self._ds is not None
         return self._ds
 
-    def _open_local_data(self, **kwargs: Any):
+    def _open_local_data(self, **kwargs: Any) -> None:
         # Open the data from the local files (will raise FileNotFoundError if any
         # files are not found), and store the dataset in the _ds attribute.
         save_dir = self._save_dir
@@ -364,23 +364,23 @@ class ClimateDataGetter:
             ds = ds.sel(location=locations)
         self._ds = ds
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         # Method for finding the data on the remote server to be implemented in
         # subclasses. The expected behaviour depends on the data source.
         raise NotImplementedError
 
-    def _subset_remote_data(self):
+    def _subset_remote_data(self) -> None:
         # Method for subsetting the remotely held data to be implemented in subclasses.
         # The expected behaviour depends on the data source.
         raise NotImplementedError
 
-    def _download_remote_data(self):
+    def _download_remote_data(self) -> None:
         # Method for downloading the remotely held data to be implemented in subclasses.
         # Should download the data to temporary netCDF file(s) and store the file
         # name(s) in the _temp_file_names attribute.
         raise NotImplementedError
 
-    def _open_temp_data(self, **kwargs: Any):
+    def _open_temp_data(self, **kwargs: Any) -> None:
         # Open the downloaded data from the temporary file(s), and store the dataset in
         # both the _ds attribute and the _ds_temp attribute (the latter is used for
         # closing the temporary file(s) before they are deleted). The 'kwargs' argument
@@ -414,11 +414,12 @@ class ClimateDataGetter:
             # Load time bounds to avoid errors saving to file (since no encoding set)
             self._ds.time_bnds.load()
 
-    def _process_data(self):
+    def _process_data(self) -> None:
         # Process the downloaded dataset, and store the processed dataset in the _ds
         # attribute. Processing common to all data sources is implemented here; this
         # method can be extended (or overridden) by subclasses to include data source-
         # specific processing.
+        assert self._ds is not None
         ds_processed = self._ds.copy()
         # Add latitude and longitude bounds (use provided resolution if available, else
         # use the xcdat `add_missing_bounds` method to infer bounds from the coordinate
@@ -442,7 +443,7 @@ class ClimateDataGetter:
         ds_processed["lat"].attrs.update(units="°N")
         self._ds = ds_processed
 
-    def _save_processed_data(self):
+    def _save_processed_data(self) -> None:
         # Save the data for each scenario/model/realization combination to a separate
         # file in the 'save_dir' directory.
         scenarios = self._subset["scenarios"]
@@ -452,9 +453,10 @@ class ClimateDataGetter:
         save_dir = self._save_dir
         file_name_da = self.file_name_da
         ds_all = self._ds
+        assert ds_all is not None
         save_dir.mkdir(parents=True, exist_ok=True)
         loop_coord_names = ["scenario", "model", "realization"]
-        loop_coord_vals = [scenarios, models, realizations]
+        loop_coord_vals: list[list[str] | list[int]] = [scenarios, models, realizations]
         datasets = []
         save_paths = []
         if locations is not None:
@@ -475,11 +477,14 @@ class ClimateDataGetter:
         with dask.diagnostics.ProgressBar():
             delayed_obj.compute()
 
-    def _delete_temporary(self):
+    def _delete_temporary(self) -> None:
         # Delete the temporary file(s) created when downloading the data (once the data
         # have been processed and saved to final files).
         temp_save_dir = self._temp_save_dir
         temp_file_names = self._temp_file_names
+        assert temp_save_dir is not None
+        assert temp_file_names is not None
+        assert self._ds_temp is not None
         self._ds_temp.close()
         for temp_file_name in temp_file_names:
             temp_save_path = temp_save_dir / temp_file_name

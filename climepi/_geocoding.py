@@ -23,7 +23,7 @@ def _initialize_geocode() -> None:
             )
 
 
-@lru_cache(maxsize=1000)
+@lru_cache(maxsize=1000, typed=True)
 def geocode(*args: Any, **kwargs: Any) -> Location | None | list[Location | None]:
     """
     Geocode an address using the Nominatim geocoder.

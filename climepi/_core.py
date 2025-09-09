@@ -6,9 +6,10 @@ Contains the ClimEpiDatasetAccessor class for xarray datasets.
 
 from typing import Any, Literal, overload
 
+import geopy
 import geoviews.feature as gf
 import holoviews as hv
-import hvplot.xarray  # noqa # pylint: disable=unused-import
+import hvplot.xarray  # noqa
 import numpy as np
 import param
 import scipy.interpolate
@@ -21,9 +22,9 @@ from climepi._ensemble_stats import (
     _ensemble_stats_fit,
 )
 from climepi._geocoding import geocode
-from climepi._xcdat import (  # noqa
-    BoundsAccessor,
-    TemporalAccessor,
+from climepi._xcdat import (
+    BoundsAccessor,  # noqa
+    TemporalAccessor,  # noqa
     _infer_freq,
     center_times,
 )
@@ -49,7 +50,7 @@ class ClimEpiDatasetAccessor:
         A dataset object.
     """
 
-    def __init__(self, dataset: xr.Dataset):
+    def __init__(self, dataset: xr.Dataset) -> None:
         self._obj = dataset
 
     def run_epi_model(self, epi_model: EpiModel, **kwargs: Any) -> xr.Dataset:
@@ -152,6 +153,7 @@ class ClimEpiDatasetAccessor:
             return ds_new
         if lon is None and lat is None:
             location_geopy = geocode(location, **kwargs)
+            assert isinstance(location_geopy, geopy.location.Location)
             lat = location_geopy.latitude
             lon = location_geopy.longitude  # in the range [-180, 180]
         elif lon is None or lat is None:
@@ -333,7 +335,7 @@ class ClimEpiDatasetAccessor:
                     variable is not named "suitability", specify the name using the
                     suitability_var_name argument.""",
                 )
-        freq_xcdat = _infer_freq(self._obj.time)  # noqa
+        freq_xcdat = _infer_freq(self._obj.time)
         if freq_xcdat not in ["month", "day"]:
             raise ValueError(
                 "Suitability data must be provided on either a monthly or daily "
@@ -1041,9 +1043,19 @@ class ClimEpiDatasetAccessor:
         plot_obj = hv.Overlay(plot_obj_list).collate()
         return plot_obj
 
+    @overload
     def _process_data_var_argument(
-        self, data_var_in: str | list[str] | None = None, as_list: bool = False
-    ):
+        self,
+        data_var_in: str | list[str] | None = ...,
+        as_list: Literal[False] = ...,
+    ) -> str: ...
+    @overload
+    def _process_data_var_argument(
+        self,
+        data_var_in: str | list[str] | None = ...,
+        as_list: Literal[True] = ...,
+    ) -> list[str]: ...
+    def _process_data_var_argument(self, data_var_in=None, as_list=False):
         # Method for processing the data_var argument in the various methods of the
         # ClimEpiDatasetAccessor class, in order to allow for automatic specification of
         # the data variable(s) if not provided, when this is possible.

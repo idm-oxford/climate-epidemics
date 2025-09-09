@@ -96,7 +96,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         data: pd.DataFrame | None = None,
         suitability_var_name: str = "suitability",
         suitability_var_long_name: str = "Suitability",
-    ):
+    ) -> None:
         super().__init__(
             suitability_var_name=suitability_var_name,
             suitability_var_long_name=suitability_var_long_name,
@@ -429,7 +429,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             parameter_dict["trait_data"] = data_subset["trait_value"].values
         self._parameters = parameters
 
-    def _check_fitting(self):
+    def _check_fitting(self) -> None:
         # Checks if the model has been fitted to data.
         if any(
             (isinstance(parameter_entry, dict)) and ("idata" not in parameter_entry)
@@ -440,7 +440,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                 "this method."
             )
 
-    def _check_suitability_table(self):
+    def _check_suitability_table(self) -> None:
         # Checks if the suitability table has been constructed.
         if self.suitability_table is None:
             raise ValueError(
@@ -453,7 +453,7 @@ def fit_temperature_response(
     *,
     temperature_data: ArrayLike,
     trait_data: ArrayLike,
-    curve_type: str,
+    curve_type: Literal["quadratic", "briere"],
     probability: bool = False,
     priors: dict[str, Callable] | None = None,
     step: Callable | None = None,
@@ -507,7 +507,7 @@ def fit_temperature_response(
         if curve_type == "quadratic"
         else (lambda: pm.Gamma("scale", alpha=1, beta=10))
         if curve_type == "briere"
-        else (lambda: None),
+        else None,
         "temperature_min": lambda: pm.Uniform("temperature_min", lower=0, upper=24),
         "temperature_max": lambda: pm.Uniform("temperature_max", lower=25, upper=50),
         "noise_precision": lambda: pm.Gamma(
@@ -575,7 +575,7 @@ def fit_temperature_response(
 def get_posterior_temperature_response(
     idata,
     *,
-    curve_type: str,
+    curve_type: Literal["quadratic", "briere"],
     num_samples: int | None = None,
     temperature_vals: ArrayLike | None = None,
     probability: bool = False,
@@ -653,7 +653,7 @@ def get_posterior_temperature_response(
 def plot_fitted_temperature_response(
     idata,
     *,
-    curve_type: str,
+    curve_type: Literal["quadratic", "briere"],
     temperature_vals: ArrayLike | None = None,
     temperature_data: ArrayLike | None = None,
     trait_data: ArrayLike | None = None,

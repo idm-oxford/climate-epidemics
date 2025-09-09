@@ -104,7 +104,7 @@ class SuitabilityModel(EpiModel):
         suitability_table: xr.Dataset | None = None,
         suitability_var_name: str | None = None,
         suitability_var_long_name: str | None = None,
-    ):
+    ) -> None:
         super().__init__()
         if suitability_table is not None:
             if temperature_range is not None:

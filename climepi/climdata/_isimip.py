@@ -6,6 +6,7 @@ import zipfile
 from copy import deepcopy
 from typing import Any
 
+import geopy
 import numpy as np
 import pandas as pd
 import pooch
@@ -67,7 +68,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
         subset_check_interval: float = 10,
         max_subset_wait_time: float = 20,
         **kwargs: Any,
-    ):
+    ) -> None:
         # Extends the base class constructor to include the _client_results attribute,
         # which stores the results of the client requests to the ISIMIP repository, as
         # well as the _subset_check_interval and _max_subset_wait_time attributes, which
@@ -77,9 +78,9 @@ class ISIMIPDataGetter(ClimateDataGetter):
         super().__init__(*args, **kwargs)
         self._subset_check_interval = subset_check_interval
         self._max_subset_wait_time = max_subset_wait_time
-        self._client_results = None
+        self._client_results: list[dict[str, Any]] | None = None
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         # Use the ISIMIPClient to find the available data for the requested models,
         # scenarios and years, and store a list of results (each entry of which
         # comprises a dictionary containing details of a single data file) in the
@@ -102,7 +103,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 "climate_forcing": models,
             },
         ).json()
-        client_results = response["results"]
+        client_results: list[dict[str, Any]] = response["results"]
         while response["next"] is not None:
             response = requests_session.get(response["next"]).json()
             client_results.extend(response["results"])
@@ -122,7 +123,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
         ]
         self._client_results = client_results
 
-    def _subset_remote_data(self):
+    def _subset_remote_data(self) -> None:
         # Request server-side subsetting of the data to the requested location(s) and
         # update the _client_results attribute with the results of the subsetting.
         locations = self._subset["locations"]
@@ -131,17 +132,24 @@ class ISIMIPDataGetter(ClimateDataGetter):
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
         client_results = self._client_results
+        assert client_results is not None
         subset_check_interval = self._subset_check_interval
         max_subset_wait_time = self._max_subset_wait_time
         if locations is not None:
             if len(locations) > 1:
                 self._subset_remote_data_multiple_locations()
                 return
-            if lons is None and lats is None:
-                location_geopy = geocode(locations)
+            if lons in [None, [None]] and lats in [None, [None]]:
+                location_geopy = geocode(locations[0])
+                assert isinstance(location_geopy, geopy.location.Location)
                 lon = location_geopy.longitude
                 lat = location_geopy.latitude
             else:
+                if lons is None or lats is None or lons[0] is None or lats[0] is None:
+                    raise ValueError(
+                        "Either both, or neither, of 'lons' and 'lats' must be "
+                        "provided."
+                    )
                 lon = lons[0]
                 lat = lats[0]
             operation = {"task": "cutout_bbox", "bbox": [lat, lat, lon, lon]}
@@ -149,14 +157,14 @@ class ISIMIPDataGetter(ClimateDataGetter):
             if lon_range is None and lat_range is None:
                 return
             if lon_range is None:
-                lon_range = [-180, 180]
+                lon_range = (-180, 180)
             else:
                 # Ensure longitudes are in range -180 to 180 (note this works fine for
                 # ranges that cross the 180 meridian).
-                lon_range = ((np.array(lon_range) + 180) % 360) - 180
+                lon_range = tuple(((np.array(lon_range) + 180) % 360) - 180)
             if lat_range is None:
-                lat_range = [-90, 90]
-            bbox = [str(x) for x in list(lat_range) + list(lon_range)]
+                lat_range = (-90, 90)
+            bbox = [str(x) for x in lat_range + lon_range]
             operation = {"task": "cutout_bbox", "bbox": bbox}
         # Request server to subset the data
         client_file_paths = [file["path"] for file in client_results]
@@ -204,15 +212,20 @@ class ISIMIPDataGetter(ClimateDataGetter):
         requests_session.close()
         self._client_results = client_results_new
 
-    def _subset_remote_data_multiple_locations(self):
+    def _subset_remote_data_multiple_locations(self) -> None:
         # Request server-side subsetting of the data to a list of locations
         locations = self._subset["locations"]
+        assert locations is not None
         lons = self._subset["lons"]
         lats = self._subset["lats"]
         if lons is None and lats is None:
             lons = [None] * len(locations)
             lats = [None] * len(locations)
-        client_results = []
+        if lons is None or lats is None:
+            raise ValueError(
+                "Either both, or neither, of 'lons' and 'lats' must be provided."
+            )
+        client_results: list[dict[str, Any]] = []
         any_timeout_error = False
         for location_curr, lon_curr, lat_curr in zip(
             locations, lons, lats, strict=True
@@ -224,6 +237,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             data_getter_curr._subset["lats"] = [lat_curr]
             try:
                 data_getter_curr._subset_remote_data()
+                assert data_getter_curr._client_results is not None
                 client_results += data_getter_curr._client_results
             except TimeoutError as exc:
                 any_timeout_error = True
@@ -234,7 +248,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             raise TimeoutError("Subsetting for at least one location timed out.")
         self._client_results = client_results
 
-    def _download_remote_data(self):
+    def _download_remote_data(self) -> None:
         # Download the remote data to temporary files using (printing a progress bar),
         # and store the file names in the _temp_file_names attribute. Note that this
         # method currently supports downloading both .nc files (as obtained when
@@ -245,6 +259,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # currently implemented).
         client_results = self._client_results
         temp_save_dir = self._temp_save_dir
+        assert client_results is not None
+        assert temp_save_dir is not None
         temp_file_names = []
         for results in client_results:
             file_url = results["file_url"]
@@ -273,7 +289,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 temp_file_names.append(download_file_name)
         self._temp_file_names = temp_file_names
 
-    def _open_temp_data(self, **kwargs: Any):
+    def _open_temp_data(self, **kwargs: Any) -> None:
         # Extends the parent method by defining a custom preprocess function to enable
         # the data to be opened as a single dataset, concantenating along new 'scenario'
         # and 'model' dimensions.
@@ -310,9 +326,10 @@ class ISIMIPDataGetter(ClimateDataGetter):
         kwargs = {"preprocess": _preprocess, "join": "outer", **kwargs}
         super()._open_temp_data(**kwargs)
 
-    def _process_data(self):
+    def _process_data(self) -> None:
         # Extends the parent method to add subsetting, time bounds, renaming, unit
         # conversion and (depending on the requested data frequency) temporal averaging.
+        assert self._ds is not None
         ds_processed = self._ds.copy()
         frequency = self._frequency
         years = self._subset["years"]
