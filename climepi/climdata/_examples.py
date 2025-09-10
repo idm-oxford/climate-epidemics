@@ -46,8 +46,8 @@ EXAMPLES = {
         "subset": {
             "years": np.arange(2030, 2101),
             "locations": _EXAMPLE_CITY_NAME_LIST,
-            "lon": _EXAMPLE_CITY_LON_LIST,
-            "lat": _EXAMPLE_CITY_LAT_LIST,
+            "lons": _EXAMPLE_CITY_LON_LIST,
+            "lats": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
         "doc": "Daily temperature and precipitation projections for London, Paris, "

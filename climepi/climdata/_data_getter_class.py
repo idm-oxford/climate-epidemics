@@ -120,13 +120,13 @@ class ClimateDataGetter:
         API token for accessing the data. Only required for some data sources.
     """
 
-    data_source: str
-    available_years: list[int]
-    available_scenarios: list[str]
-    available_models: list[str]
-    available_realizations: list[int]
-    lon_res: float
-    lat_res: float
+    data_source: str = ""
+    available_years: list[int] = []
+    available_scenarios: list[str] = []
+    available_models: list[str] = []
+    available_realizations: list[int] = []
+    lon_res: float | None = None
+    lat_res: float | None = None
     remote_open_possible = False
 
     def __init__(
