@@ -7,7 +7,6 @@ The ISIMIPDataGetter class is tested.
 import itertools
 import pathlib
 import time
-import types
 from unittest.mock import patch
 
 import geopy

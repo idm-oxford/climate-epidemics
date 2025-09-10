@@ -1,6 +1,5 @@
 """Module defining the layout of the climepi app and providing a method to run it."""
 
-import functools
 import logging
 import os
 import signal

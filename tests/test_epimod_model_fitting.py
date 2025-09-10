@@ -6,7 +6,6 @@ import holoviews as hv
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
-import pytensor.tensor as pt
 import pytest
 import xarray as xr
 
