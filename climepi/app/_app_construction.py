@@ -1,9 +1,14 @@
 """Module defining the layout of the climepi app and providing a method to run it."""
 
+import functools
 import logging
+import os
 import signal
 import sys
+import traceback
+from typing import Any, Literal, overload
 
+import bokeh
 import panel as pn
 from dask.distributed import Client
 
@@ -12,15 +17,15 @@ from climepi.app._dask_port_address import DASK_SCHEDULER_ADDRESS
 
 
 def run_app(
-    clim_dataset_example_base_dir=None,
-    clim_dataset_example_names=None,
-    enable_custom_clim_dataset=False,
-    custom_clim_data_dir=None,
-    epi_model_example_names=None,
-    enable_custom_epi_model=True,
-    dask_distributed=False,
-    **kwargs,
-):
+    clim_dataset_example_base_dir: str | os.PathLike | None = None,
+    clim_dataset_example_names: list[str] | None = None,
+    enable_custom_clim_dataset: bool = False,
+    custom_clim_data_dir: str | os.PathLike | None = None,
+    epi_model_example_names: list[str] | None = None,
+    enable_custom_epi_model: bool = True,
+    dask_distributed: bool = False,
+    **kwargs: Any,
+) -> pn.io.server.Server | pn.io.threads.StoppableThread:
     """
     Run the `climepi` front-end application locally.
 
@@ -56,14 +61,17 @@ def run_app(
 
     Returns
     -------
-    None
+    panel.io.server.Server or panel.io.threads.StoppableThread
+        The server or thread running the app (return value of `pn.serve`).
     """
     logger = get_logger(name="setup")
     logger.info("Setting up the app")
 
     _setup_dask(dask_distributed=dask_distributed)
 
-    def session_created(session_context):
+    def session_created(
+        session_context: bokeh.application.application.SessionContext,
+    ) -> None:
         logger_session = get_logger(name="session")
         logger_session.info("Session created")
 
@@ -89,7 +97,7 @@ def run_app(
         kwargs_serve["start"] = False  # don't start until later
     server = pn.serve({"/climepi_app": session}, **kwargs_serve)
 
-    _set_shutdown(server)
+    _set_shutdown(server, threaded=threaded)
 
     logger.info("Set-up complete. Press Ctrl+C to stop the app")
 
@@ -100,7 +108,7 @@ def run_app(
 
 
 @pn.cache()
-def get_logger(name):
+def get_logger(name: str) -> logging.Logger:
     """
     Set up logger (see https://panel.holoviz.org/how_to/logging/index.html).
 
@@ -128,7 +136,7 @@ def get_logger(name):
     return logger
 
 
-def _setup_dask(dask_distributed):
+def _setup_dask(dask_distributed: bool) -> None:
     logger = get_logger(name="setup")
     if dask_distributed:
         try:
@@ -146,12 +154,13 @@ def _setup_dask(dask_distributed):
 
 
 def _session(
-    clim_dataset_example_base_dir=None,
-    clim_dataset_example_names=None,
-    enable_custom_clim_dataset=None,
-    custom_clim_data_dir=None,
-    epi_model_example_names=None,
-    enable_custom_epi_model=None,
+    *,
+    clim_dataset_example_base_dir: str | os.PathLike | None,
+    clim_dataset_example_names: list[str] | None,
+    enable_custom_clim_dataset: bool,
+    custom_clim_data_dir: str | os.PathLike | None,
+    epi_model_example_names: list[str] | None,
+    enable_custom_epi_model: bool,
 ):
     # Get the template and controller
 
@@ -164,6 +173,8 @@ def _session(
         enable_custom_epi_model=enable_custom_epi_model,
     )
 
+    assert pn.state.curdoc is not None
+    assert pn.state.curdoc.session_context is not None
     session_id = pn.state.curdoc.session_context.id
     pn.state.cache["controllers"] = {
         **pn.state.cache.get("controllers", {}),
@@ -178,12 +189,13 @@ def _session(
 
 
 def _layout(
-    clim_dataset_example_base_dir=None,
-    clim_dataset_example_names=None,
-    enable_custom_clim_dataset=None,
-    custom_clim_data_dir=None,
-    epi_model_example_names=None,
-    enable_custom_epi_model=None,
+    *,
+    clim_dataset_example_base_dir: str | os.PathLike | None,
+    clim_dataset_example_names: list[str] | None,
+    enable_custom_clim_dataset: bool,
+    custom_clim_data_dir: str | os.PathLike | None,
+    epi_model_example_names: list[str] | None,
+    enable_custom_epi_model: bool,
 ):
     # Define the layout of the app
 
@@ -218,7 +230,7 @@ def _layout(
     return template, controller
 
 
-def _cleanup_session(session_id):
+def _cleanup_session(session_id: str) -> None:
     # Clean up the session
     controller = pn.state.cache["controllers"].pop(session_id)
     controller.cleanup_temp_file()
@@ -226,11 +238,13 @@ def _cleanup_session(session_id):
     logger.info("Session cleaned up successfully (deleted temporary file(s))")
 
 
-def _session_destroyed(session_context):
+def _session_destroyed(
+    session_context: bokeh.application.application.SessionContext,
+) -> None:
     _cleanup_session(session_id=session_context.id)
 
 
-def _shutdown():
+def _shutdown() -> None:
     logger = get_logger(name="stop")
     logger.info("Cleaning up sessions")
     session_ids = list(pn.state.cache.get("controllers", {}).keys())
@@ -245,11 +259,17 @@ def _shutdown():
     logger.info("Stopping app")
 
 
-def _set_shutdown(server):
+@overload
+def _set_shutdown(server: pn.io.server.Server, threaded: Literal[False]) -> None: ...
+@overload
+def _set_shutdown(
+    server: pn.io.threads.StoppableThread, threaded: Literal[True]
+) -> None: ...
+def _set_shutdown(server, threaded):
     original_stop = server.stop
 
     def _stop():
-        if server.is_alive():
+        if not threaded or server.is_alive():
             _shutdown()
         return original_stop()
 
@@ -258,13 +278,19 @@ def _set_shutdown(server):
     original_sigint = signal.getsignal(signal.SIGINT)
     original_sigterm = signal.getsignal(signal.SIGTERM)
 
-    def _sigint(signum, frame):
-        _shutdown()
-        original_sigint(signum, frame)
+    def _make_handler(original):
+        def _new_handler(signum, frame):
+            try:
+                _shutdown()
+            except Exception:
+                traceback.print_exc()
+            if callable(original):
+                original(signum, frame)
+            elif original is signal.SIG_DFL:
+                signal.signal(signum, signal.SIG_DFL)
+                os.kill(os.getpid(), signum)
 
-    def _sigterm(signum, frame):
-        _shutdown()
-        original_sigterm(signum, frame)
+        return _new_handler
 
-    signal.signal(signal.SIGINT, _sigint)
-    signal.signal(signal.SIGTERM, _sigterm)
+    signal.signal(signal.SIGINT, _make_handler(original_sigint))
+    signal.signal(signal.SIGTERM, _make_handler(original_sigterm))

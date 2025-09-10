@@ -1,7 +1,9 @@
 """Module defining the classes and methods underlying the climepi app."""
 
+import os
 import pathlib
 import tempfile
+from typing import Any, Literal
 
 import dask
 import numpy as np
@@ -19,18 +21,20 @@ from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
 @pn.cache()
 def _load_clim_data_func(
-    clim_data_option,
-    clim_example_name=None,
-    clim_example_base_dir=None,
-    custom_clim_data_dir=None,
-):
+    clim_data_option: Literal["Example dataset", "Custom dataset"],
+    clim_example_name: str | None = None,
+    clim_example_base_dir: str | os.PathLike | None = None,
+    custom_clim_data_dir: str | os.PathLike | None = None,
+) -> xr.Dataset:
     if clim_data_option == "Example dataset":
         # Load climate data from the data source.
+        assert clim_example_name is not None
         ds_clim = climdata.get_example_dataset(
             clim_example_name, base_dir=clim_example_base_dir
         )
     elif clim_data_option == "Custom dataset":
         # Load custom climate data from the specified directory.
+        assert custom_clim_data_dir is not None
         ds_clim = xr.open_mfdataset(
             f"{custom_clim_data_dir}/*.nc",
             data_vars="minimal",
@@ -47,7 +51,10 @@ def _load_clim_data_func(
     return ds_clim
 
 
-def _get_epi_model_func(example_name=None, temperature_range=None):
+def _get_epi_model_func(
+    example_name: str | None = None,
+    temperature_range: tuple[float, float] | None = None,
+) -> epimod.SuitabilityModel:
     if example_name is not None and temperature_range is None:
         # Get the example model.
         epi_model = epimod.get_example_model(example_name)
@@ -62,12 +69,13 @@ def _get_epi_model_func(example_name=None, temperature_range=None):
 
 
 def _run_epi_model_func(
-    ds_clim,
-    epi_model,
-    return_yearly_portion_suitable=False,
-    suitability_threshold=0,
-    save_path=None,
-):
+    ds_clim: xr.Dataset,
+    epi_model: epimod.SuitabilityModel,
+    *,
+    save_path: pathlib.Path,
+    return_yearly_portion_suitable: bool = False,
+    suitability_threshold: float = 0,
+) -> xr.Dataset:
     # Get and run the epidemiological model.
     ds_suitability = ds_clim.climepi.run_epi_model(epi_model)
     if return_yearly_portion_suitable:
@@ -86,7 +94,7 @@ def _run_epi_model_func(
     return ds_suitability
 
 
-def _get_scope_dict(ds_in):
+def _get_scope_dict(ds_in: xr.Dataset) -> dict[str, str]:
     temporal_scope_xcdat = _infer_freq(ds_in.time)  # noqa
     xcdat_freq_map = {"year": "yearly", "month": "monthly", "day": "daily"}
     temporal_scope = xcdat_freq_map[temporal_scope_xcdat]
@@ -118,15 +126,20 @@ def _get_scope_dict(ds_in):
     return scope_dict
 
 
-def _get_view_func(ds_in, plot_settings):
+def _get_view_func(
+    ds_in: xr.Dataset, plot_settings: dict[str, Any]
+) -> pn.viewable.Viewable | pn.viewable.ServableMixin:
     plotter = _Plotter(ds_in, plot_settings)
     plotter.generate_plot()
     view = plotter.view
+    assert view is not None
     return view
 
 
-def _compute_to_file_reopen(ds_in, save_path):
-    chunks = ds_in.chunks.mapping
+def _compute_to_file_reopen(
+    ds_in: xr.Dataset, save_path: str | os.PathLike
+) -> xr.Dataset:
+    chunks = dict(ds_in.chunksizes)
     delayed_obj = ds_in.to_netcdf(save_path, compute=False)
     with dask.diagnostics.ProgressBar():
         delayed_obj.compute()
@@ -140,17 +153,18 @@ def _compute_to_file_reopen(ds_in, save_path):
 class _Plotter:
     """Class for generating plots."""
 
-    def __init__(self, ds_in, plot_settings):
-        self.view = None
+    def __init__(self, ds_in: xr.Dataset, plot_settings: dict[str, Any]) -> None:
+        self.view: pn.viewable.Viewable | pn.viewable.ServableMixin | None = None
         self._ds_base = ds_in
         self._scope_dict_base = _get_scope_dict(ds_in)
         self._plot_settings = plot_settings
-        self._ds_plot = None
+        self._ds_plot: xr.Dataset | None = None
 
-    def generate_plot(self):
+    def generate_plot(self) -> None:
         """Generate the plot."""
         self._get_ds_plot()
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         plot_settings = self._plot_settings
         plot_type = plot_settings["plot_type"]
         if plot_type == "map":
@@ -179,7 +193,7 @@ class _Plotter:
         )
         self.view = view
 
-    def _get_ds_plot(self):
+    def _get_ds_plot(self) -> None:
         self._ds_plot = self._ds_base
         self._sel_data_var_ds_plot()
         self._spatial_index_ds_plot()
@@ -190,16 +204,18 @@ class _Plotter:
         self._temporal_ops_ds_plot()
         self._ensemble_ops_ds_plot()
 
-    def _sel_data_var_ds_plot(self):
+    def _sel_data_var_ds_plot(self) -> None:
         data_var = self._plot_settings["data_var"]
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         ds_plot = get_data_var_and_bnds(ds_plot, data_var)
         self._ds_plot = ds_plot
 
-    def _spatial_index_ds_plot(self):
+    def _spatial_index_ds_plot(self) -> None:
         plot_type = self._plot_settings["plot_type"]
         spatial_scope_base = self._scope_dict_base["spatial"]
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         if spatial_scope_base == "single" or plot_type == "map":
             pass
         elif spatial_scope_base == "list":
@@ -216,10 +232,11 @@ class _Plotter:
             raise ValueError("Unsupported spatial base scope and plot type combination")
         self._ds_plot = ds_plot
 
-    def _temporal_index_ds_plot(self):
+    def _temporal_index_ds_plot(self) -> None:
         temporal_scope = self._plot_settings["temporal_scope"]
         year_range = self._plot_settings["year_range"]
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         if temporal_scope == "difference between years":
             if any(year not in ds_plot.time.dt.year.values for year in year_range):
                 raise ValueError(
@@ -231,34 +248,38 @@ class _Plotter:
             ds_plot = ds_plot.sel(time=slice(str(year_range[0]), str(year_range[1])))
         self._ds_plot = ds_plot
 
-    def _ensemble_index_ds_plot(self):
+    def _ensemble_index_ds_plot(self) -> None:
         realization = self._plot_settings["realization"]
         ensemble_scope_base = self._scope_dict_base["ensemble"]
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         if ensemble_scope_base == "multiple" and realization != "all":
             ds_plot = ds_plot.sel(realization=realization)
         self._ds_plot = ds_plot
 
-    def _model_index_ds_plot(self):
+    def _model_index_ds_plot(self) -> None:
         model = self._plot_settings["model"]
         model_scope_base = self._scope_dict_base["model"]
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         if model_scope_base == "multiple" and model != "all":
             ds_plot = ds_plot.sel(model=model)
         self._ds_plot = ds_plot
 
-    def _scenario_index_ds_plot(self):
+    def _scenario_index_ds_plot(self) -> None:
         scenario = self._plot_settings["scenario"]
         scenario_scope_base = self._scope_dict_base["scenario"]
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         if scenario_scope_base == "multiple" and scenario != "all":
             ds_plot = ds_plot.sel(scenario=scenario)
         self._ds_plot = ds_plot
 
-    def _temporal_ops_ds_plot(self):
+    def _temporal_ops_ds_plot(self) -> None:
         temporal_scope = self._plot_settings["temporal_scope"]
         temporal_scope_base = self._scope_dict_base["temporal"]
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         if temporal_scope not in ["difference between years", temporal_scope_base]:
             ds_plot = ds_plot.climepi.temporal_group_average(frequency=temporal_scope)
         if temporal_scope == "difference between years":
@@ -272,10 +293,11 @@ class _Plotter:
             ) - ds_plot.sel(time=str(year_range[0])).squeeze("time", drop=True)
         self._ds_plot = ds_plot
 
-    def _ensemble_ops_ds_plot(self):
+    def _ensemble_ops_ds_plot(self) -> None:
         plot_type = self._plot_settings["plot_type"]
         ensemble_stat = self._plot_settings["ensemble_stat"]
         ds_plot = self._ds_plot
+        assert ds_plot is not None
         if plot_type == "map" and ensemble_stat != "individual realization(s)":
             ds_plot = ds_plot.climepi.ensemble_stats().sel(stat=ensemble_stat)
         self._ds_plot = ds_plot
@@ -299,16 +321,16 @@ class _PlotController(param.Parameterized):
     plot_status = param.String(default="Plot not yet generated", precedence=1)
     view_refresher = param.Event(precedence=-1)
 
-    def __init__(self, ds_in=None, **params):
+    def __init__(self, ds_in: xr.Dataset | None = None, **params: Any) -> None:
         super().__init__(**params)
         self.view = pn.Row()
         self.controls = pn.Row()
-        self._ds_base = None
-        self._scope_dict_base = None
+        self._ds_base: xr.Dataset | None = None
+        self._scope_dict_base: dict[str, Any] | None = None
         self.initialize(ds_in)
 
     @param.depends()
-    def initialize(self, ds_in=None):
+    def initialize(self, ds_in: xr.Dataset | None = None) -> None:
         """Initialize the plot controller."""
         self.view.clear()
         self.param.trigger("view_refresher")
@@ -346,9 +368,11 @@ class _PlotController(param.Parameterized):
         self.controls.append(controls_new)
 
     @param.depends()
-    def _initialize_params(self):
+    def _initialize_params(self) -> None:
         ds_base = self._ds_base
         scope_dict_base = self._scope_dict_base
+        assert ds_base is not None
+        assert scope_dict_base is not None
         # Plot type choices
         if scope_dict_base["spatial"] == "grid":
             plot_type_choices = ["time series", "map", "variance decomposition"]
@@ -461,7 +485,7 @@ class _PlotController(param.Parameterized):
         self._update_precedence()
 
     @param.depends("plot_initiator", watch=True)
-    def _update_view(self):
+    def _update_view(self) -> None:
         # Update the plot view.
         if self.plot_generated:
             return
@@ -470,6 +494,7 @@ class _PlotController(param.Parameterized):
         self.plot_status = "Generating plot..."
         try:
             ds_base = self._ds_base
+            assert ds_base is not None
             plot_settings = self.param.values()
             view = _get_view_func(ds_base, plot_settings)
             self.view.append(view)
@@ -481,7 +506,7 @@ class _PlotController(param.Parameterized):
             raise
 
     @param.depends("plot_type", watch=True)
-    def _update_variable_param_choices(self):
+    def _update_variable_param_choices(self) -> None:
         # Add difference between years to temporal scope if plot type is map, and
         # remove it if it is not.
         if (
@@ -497,12 +522,14 @@ class _PlotController(param.Parameterized):
             self.temporal_scope = self.param.temporal_scope.default
 
     @param.depends("plot_type", watch=True)
-    def _update_precedence(self):
-        if self._scope_dict_base["spatial"] == "grid" and self.plot_type != "map":
+    def _update_precedence(self) -> None:
+        scope_dict_base = self._scope_dict_base
+        assert scope_dict_base is not None
+        if scope_dict_base["spatial"] == "grid" and self.plot_type != "map":
             self.param.location_string.precedence = 1
         else:
             self.param.location_string.precedence = -1
-        if self._scope_dict_base["spatial"] == "list":
+        if scope_dict_base["spatial"] == "list":
             self.param.location_selection.precedence = 1
         else:
             self.param.location_selection.precedence = -1
@@ -524,7 +551,7 @@ class _PlotController(param.Parameterized):
         "ensemble_stat",
         watch=True,
     )
-    def _revert_plot_status(self):
+    def _revert_plot_status(self) -> None:
         # Revert the plot status (but retain plot view). Some degeneracy here as this
         # can be called multiple times when changing a single parameter.
         self.plot_status = "Plot not yet generated"
@@ -577,14 +604,14 @@ class Controller(param.Parameterized):
 
     def __init__(
         self,
-        clim_dataset_example_base_dir=None,
-        clim_dataset_example_names=None,
-        enable_custom_clim_dataset=False,
-        custom_clim_data_dir=None,
-        epi_model_example_names=None,
-        enable_custom_epi_model=True,
-        **params,
-    ):
+        clim_dataset_example_base_dir: str | os.PathLike | None = None,
+        clim_dataset_example_names: list[str] | None = None,
+        enable_custom_clim_dataset: bool = False,
+        custom_clim_data_dir: str | os.PathLike | None = None,
+        epi_model_example_names: list[str] | None = None,
+        enable_custom_epi_model: bool = True,
+        **params: Any,
+    ) -> None:
         super().__init__(**params)
         self.param.clim_example_name.objects = (
             clim_dataset_example_names or climdata.EXAMPLE_NAMES
@@ -604,9 +631,9 @@ class Controller(param.Parameterized):
         self._update_epi_example_doc()
         self._custom_clim_data_dir = custom_clim_data_dir
         self._clim_dataset_example_base_dir = clim_dataset_example_base_dir
-        self._ds_clim = None
-        self._epi_model = None
-        self._ds_epi = None
+        self._ds_clim: xr.Dataset | None = None
+        self._epi_model: epimod.SuitabilityModel | None = None
+        self._ds_epi: xr.Dataset | None = None
         self._ds_epi_path = (
             pathlib.Path(tempfile.mkdtemp(suffix="_climepi_app")) / "ds_epi.nc"
         )
@@ -634,19 +661,20 @@ class Controller(param.Parameterized):
         self.data_controls = pn.Param(self, widgets=data_widgets, show_name=False)
         self._get_epi_model()
 
-    def clim_plot_controls(self):
+    def clim_plot_controls(self) -> pn.Row:
         """Return the climate data plot controls."""
         return self.clim_plot_controller.controls
 
     @param.depends("clim_plot_controller.view_refresher")
-    def clim_plot_view(self):
+    def clim_plot_view(self) -> pn.viewable.Viewable | pn.viewable.ServableMixin:
         """Return the climate data plot."""
         return self.clim_plot_controller.view
 
     @param.depends("_get_epi_model")
-    def epi_model_plot_view(self):
+    def epi_model_plot_view(self) -> pn.Row:
         """Return the epidemiological model plot."""
         epi_model = self._epi_model
+        assert epi_model is not None
         try:
             plot = epi_model.plot_suitability()
             view = pn.Row(plot)
@@ -654,17 +682,17 @@ class Controller(param.Parameterized):
             view = pn.Row(f"Error generating plot: {exc}")
         return view
 
-    def epi_plot_controls(self):
+    def epi_plot_controls(self) -> pn.Row:
         """Return the epidemiological projection plot controls."""
         return self.epi_plot_controller.controls
 
     @param.depends("epi_plot_controller.view_refresher")
-    def epi_plot_view(self):
+    def epi_plot_view(self) -> pn.viewable.Viewable | pn.viewable.ServableMixin:
         """Return the epidemiological projection plot."""
         return self.epi_plot_controller.view
 
     @param.depends("clim_data_load_initiator", watch=True)
-    def _load_clim_data(self):
+    def _load_clim_data(self) -> None:
         # Load data from the data source.
         if self.clim_data_loaded:
             return
@@ -688,7 +716,7 @@ class Controller(param.Parameterized):
     @param.depends(
         "epi_model_option", "epi_example_name", "epi_temperature_range", watch=True
     )
-    def _get_epi_model(self):
+    def _get_epi_model(self) -> None:
         self._epi_model = None
         epi_model = None
         if self.epi_model_option == "Example model":
@@ -713,7 +741,7 @@ class Controller(param.Parameterized):
         self._update_suitability_threshold()
 
     @param.depends("epi_model_run_initiator", watch=True)
-    def _run_epi_model(self):
+    def _run_epi_model(self) -> None:
         # Setup and run the epidemiological model.
         if self.epi_model_ran:
             return
@@ -730,6 +758,7 @@ class Controller(param.Parameterized):
             )
             if self._ds_epi is not None:
                 self._ds_epi.close()
+            assert self._ds_clim is not None
             ds_epi = _run_epi_model_func(
                 self._ds_clim,
                 self._epi_model,
@@ -746,7 +775,7 @@ class Controller(param.Parameterized):
             raise
 
     @param.depends("clim_data_option", "clim_example_name", watch=True)
-    def _revert_clim_data_load_status(self):
+    def _revert_clim_data_load_status(self) -> None:
         # Revert the climate data load status (but retain data for plotting).
         self.clim_data_status = "Data not loaded"
         self.clim_data_loaded = False
@@ -761,13 +790,13 @@ class Controller(param.Parameterized):
         "suitability_threshold",
         watch=True,
     )
-    def _revert_epi_model_run_status(self):
+    def _revert_epi_model_run_status(self) -> None:
         # Revert the epi model run status (but retain data for plotting).
         self.epi_model_status = "Model has not been run"
         self.epi_model_ran = False
 
     @param.depends("clim_data_option", "clim_example_name", watch=True)
-    def _update_clim_example_name_doc(self):
+    def _update_clim_example_name_doc(self) -> None:
         # Name and details of the climate dataset.
         if self.clim_data_option == "Example dataset":
             self.param.clim_example_name.precedence = 1
@@ -784,7 +813,7 @@ class Controller(param.Parameterized):
             )
 
     @param.depends("epi_model_option", "epi_example_name", watch=True)
-    def _update_epi_example_doc(self):
+    def _update_epi_example_doc(self) -> None:
         # Details of the epidemiological model.
         if self.epi_model_option == "Example model":
             self.epi_example_doc = epimod.EXAMPLES[self.epi_example_name].get("doc", "")
@@ -793,7 +822,7 @@ class Controller(param.Parameterized):
             self.param.epi_example_doc.precedence = -1
 
     @param.depends("epi_model_option", watch=True)
-    def _update_epi_example_model_temperature_range_precedence(self):
+    def _update_epi_example_model_temperature_range_precedence(self) -> None:
         # Update the example model and temperature range parameter precedence.
         if self.epi_model_option == "Example model":
             self.param.epi_example_name.precedence = 1
@@ -807,18 +836,18 @@ class Controller(param.Parameterized):
             )
 
     @param.depends("epi_output_choice", watch=True)
-    def _update_suitability_threshold(self):
+    def _update_suitability_threshold(self) -> None:
         # Update the suitability threshold parameter.
         if self.epi_output_choice == "Suitability values":
             self.param.suitability_threshold.precedence = -1
         elif self.epi_output_choice == "Suitable portion of each year":
             self.suitability_threshold = 0
-            if self._epi_model.temperature_range is not None or (
-                self._epi_model.suitability_table is not None
+            epi_model = self._epi_model
+            assert epi_model is not None
+            if epi_model.temperature_range is not None or (
+                epi_model.suitability_table is not None
                 and np.issubdtype(
-                    self._epi_model.suitability_table[
-                        self._epi_model._suitability_var_name
-                    ].dtype,
+                    epi_model.suitability_table[epi_model._suitability_var_name].dtype,
                     bool,
                 )
             ):
@@ -826,13 +855,13 @@ class Controller(param.Parameterized):
             else:
                 self.param.suitability_threshold.bounds = (
                     0,
-                    self._epi_model.get_max_suitability(),
+                    epi_model.get_max_suitability(),
                 )
                 self.param.suitability_threshold.precedence = 1
         else:
             raise ValueError("Unrecognised epidemiological model output choice.")
 
-    def cleanup_temp_file(self):
+    def cleanup_temp_file(self) -> None:
         """Cleanup the temporary file created for the epidemiological model output."""
         if self._ds_epi is not None:
             self._ds_epi.close()

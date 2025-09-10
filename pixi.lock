@@ -123,7 +123,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc-14.3.0-h76bdaa0_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc_impl_linux-64-14.3.0-hd9e9e21_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc_linux-64-14.3.0-h1382650_11.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/gdk-pixbuf-2.42.12-h2b0a6b4_3.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/gdk-pixbuf-2.44.0-h2b0a6b4_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geographiclib-2.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geopandas-base-1.1.1-pyha770c72_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geopy-2.4.1-pyhd8ed1ab_2.conda
@@ -1018,11 +1018,11 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/fonts-conda-forge-1-0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/fonttools-4.59.2-py313ha0c97b7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/freetype-2.13.3-hce30654_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/fribidi-1.0.10-h27ca646_0.tar.bz2
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/fribidi-1.0.14-hc919400_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/frozenlist-1.7.0-py313hf28abc0_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/fsspec-2025.9.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/future-1.0.0-pyhd8ed1ab_2.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/gdk-pixbuf-2.42.12-h7af3d76_3.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/gdk-pixbuf-2.44.0-h7542897_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geographiclib-2.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geopandas-base-1.1.1-pyha770c72_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geopy-2.4.1-pyhd8ed1ab_2.conda
@@ -1451,7 +1451,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/fonts-conda-forge-1-0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/win-64/fonttools-4.59.2-py313hd650c13_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/freetype-2.13.3-h57928b3_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/win-64/fribidi-1.0.10-h8d14728_0.tar.bz2
+      - conda: https://conda.anaconda.org/conda-forge/win-64/fribidi-1.0.14-hfd05255_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/frozenlist-1.7.0-py313h0c48a3b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/fsspec-2025.9.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/future-1.0.0-pyhd8ed1ab_2.conda
@@ -4375,7 +4375,7 @@ packages:
   timestamp: 1747811467132
 - pypi: ./
   name: climepi
-  version: 0.5.3+240.gc735230.dirty
+  version: 0.5.3+243.g590c2fe.dirty
   sha256: 6754ba6a12a2688d1121f7b44266b5e58a80035c1390bef2eefadd95fdd2a4c5
   requires_python: '>=3.10'
   editable: true
@@ -5404,23 +5404,26 @@ packages:
   purls: []
   size: 65388
   timestamp: 1604417213
-- conda: https://conda.anaconda.org/conda-forge/osx-arm64/fribidi-1.0.10-h27ca646_0.tar.bz2
-  sha256: 4b37ea851a2cf85edf0a63d2a63266847ec3dcbba4a31156d430cdd6aa811303
-  md5: c64443234ff91d70cb9c7dc926c58834
-  license: LGPL-2.1
-  purls: []
-  size: 60255
-  timestamp: 1604417405528
-- conda: https://conda.anaconda.org/conda-forge/win-64/fribidi-1.0.10-h8d14728_0.tar.bz2
-  sha256: e0323e6d7b6047042970812ee810c6b1e1a11a3af4025db26d0965ae5d206104
-  md5: 807e81d915f2bb2e49951648615241f6
+- conda: https://conda.anaconda.org/conda-forge/osx-arm64/fribidi-1.0.14-hc919400_0.conda
+  sha256: c7425ebdc4b1589199f3a95cd195e7d9162cd0e555468b3a7e0c40dcab05321d
+  md5: ddca06b4bd87dab0382741ea6ed4163a
   depends:
-  - vc >=14.1,<15.0a0
-  - vs2015_runtime >=14.16.27012
+  - __osx >=11.0
   license: LGPL-2.1
   purls: []
-  size: 64567
-  timestamp: 1604417122064
+  size: 59262
+  timestamp: 1757428812326
+- conda: https://conda.anaconda.org/conda-forge/win-64/fribidi-1.0.14-hfd05255_0.conda
+  sha256: 7be991f30dc4f8f6a4c9107382aedda434175692c760062fe16360b17db1a447
+  md5: 2584de5c5b1c5b47bc22b1b88677fa30
+  depends:
+  - ucrt >=10.0.20348.0
+  - vc >=14.3,<15
+  - vc14_runtime >=14.44.35208
+  license: LGPL-2.1
+  purls: []
+  size: 64327
+  timestamp: 1757428572392
 - conda: https://conda.anaconda.org/conda-forge/linux-64/frozenlist-1.7.0-py313h6b9daa2_0.conda
   sha256: 0742b58b7d685e67bf822f0b84a9e52473de071412d21453ad19ee187a4a6cf7
   md5: 3a0be7abedcbc2aee92ea228efea8eba
@@ -5580,13 +5583,13 @@ packages:
   purls: []
   size: 32827
   timestamp: 1748907473340
-- conda: https://conda.anaconda.org/conda-forge/linux-64/gdk-pixbuf-2.42.12-h2b0a6b4_3.conda
-  sha256: d8a9d0df91e1939b1fb952b5214e097d681c49faf215d1ad69a7f0acb03c8e08
-  md5: aeec474bd508d8aa6c015e2cc7d14651
+- conda: https://conda.anaconda.org/conda-forge/linux-64/gdk-pixbuf-2.44.0-h2b0a6b4_0.conda
+  sha256: 96f8f8056f135ab395ad86e6fc9878f24eddc2f15f708d5a5400d33a80af5a9a
+  md5: 2ebf437e1c9df5de32b86b3ac223d620
   depends:
   - __glibc >=2.17,<3.0.a0
   - libgcc >=14
-  - libglib >=2.84.3,<3.0a0
+  - libglib >=2.86.0,<3.0a0
   - libjpeg-turbo >=3.1.0,<4.0a0
   - liblzma >=5.8.1,<6.0a0
   - libpng >=1.6.50,<1.7.0a0
@@ -5594,8 +5597,8 @@ packages:
   license: LGPL-2.1-or-later
   license_family: LGPL
   purls: []
-  size: 579311
-  timestamp: 1754960116630
+  size: 580990
+  timestamp: 1757428259101
 - conda: https://conda.anaconda.org/conda-forge/osx-64/gdk-pixbuf-2.42.12-h5720e38_3.conda
   sha256: 17e804d758c898757209a7eac8073500b7b585a68789731a8a4ab3bc63d80cac
   md5: 34d25f5203c6c6e61fb5a40d2249b614
@@ -5612,12 +5615,12 @@ packages:
   purls: []
   size: 556549
   timestamp: 1754960291328
-- conda: https://conda.anaconda.org/conda-forge/osx-arm64/gdk-pixbuf-2.42.12-h7af3d76_3.conda
-  sha256: b9a928be779da5ce90e4dbc1f70829ac6bb45c3b244d6913c71439ce6a0d631b
-  md5: da68375a855e361d5833f84a7d012ef1
+- conda: https://conda.anaconda.org/conda-forge/osx-arm64/gdk-pixbuf-2.44.0-h7542897_0.conda
+  sha256: 793be95fc20812fe67ff732519a26b55110c63268c36a1e841a3996de9c56bcd
+  md5: c33602d85700e22825832d8c0dd81c4a
   depends:
   - __osx >=11.0
-  - libglib >=2.84.3,<3.0a0
+  - libglib >=2.86.0,<3.0a0
   - libintl >=0.25.1,<1.0a0
   - libjpeg-turbo >=3.1.0,<4.0a0
   - liblzma >=5.8.1,<6.0a0
@@ -5626,8 +5629,8 @@ packages:
   license: LGPL-2.1-or-later
   license_family: LGPL
   purls: []
-  size: 549845
-  timestamp: 1754960472079
+  size: 543408
+  timestamp: 1757429032638
 - conda: https://conda.anaconda.org/conda-forge/win-64/gendef-v12.0.0.r1.ggdc42231f0-he1bec0e_1.conda
   sha256: 1c4efe88c067b9c7056ad349ef67d0ffcb8b87615cff8164b7c76683f6ae6e3d
   md5: a738301b7ff9c74a1ec82655a9dfae8d
