@@ -35,13 +35,14 @@ h5netcdf = "*"
 hvplot = "*"
 intake = "*"
 intake-esm = "*"
-kerchunk = "<0.2.8" # https://github.com/fsspec/kerchunk/issues/566
+kerchunk = ">=0.2.9" # https://github.com/fsspec/kerchunk/issues/566
 nc-time-axis = "*"
 numpy = "*"
 pandas = "*"
 panel = "*"
 param = "*"
 pooch = "*"
+pydantic = "*"
 pymc = "*"
 requests = "*"
 s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS server
@@ -51,14 +52,16 @@ tqdm = "*"
 urllib3 = "*"
 xarray = "!=2025.7.0,!=2025.7.1" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
-zarr = "<3" # https://github.com/fsspec/kerchunk/issues/566
-xesmf = "*" # dependency of more recent xcdat versions, explicitly adding here sometimes seems needed to ensure recent xcdat
 
 [tool.pixi.pypi-dependencies]
 climepi = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.dependencies]
 ruff = "*"
+mypy = "*"
+scipy-stubs = "*"
+pandas-stubs = "*"
+types-requests = "*"
 pytest = "*"
 pytest-cov = "*"
 jupyter_sphinx = "*"
@@ -81,6 +84,7 @@ default = { features = ["dev"], solve-group = "default" }
 app = "python -m climepi.app"
 lint = "ruff check"
 lint-gh-actions = "ruff check --output-format=github"
+type-check = "mypy climepi"
 test = "pytest"
 docs = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs docs/_build/html"
 docs-rtd = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs $READTHEDOCS_OUTPUT/html"
@@ -119,3 +123,18 @@ unfixable = ["B"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
+
+[tool.mypy]
+check_untyped_defs = true
+# ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["geopy.*","intake.*","pooch.*","pymc.*","siphon.*","xcdat.*"]
+follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module = ["geoviews.*","holoviews.*","hvplot.*","param.*"]
+ignore_missing_imports = true

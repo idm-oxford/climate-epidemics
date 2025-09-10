@@ -106,9 +106,9 @@ def test_get_data_getter(data_source):
         "models": ["length", "inswinger"],
         "realizations": [1, 2],
         "years": [2015, 2016, 2018, 2100],
-        "locations": "gabba",
-        "lon": 153,
-        "lat": -27,
+        "locations": ["gabba"],
+        "lons": [153],
+        "lats": [-27],
         "lon_range": None,
         "lat_range": None,
     }

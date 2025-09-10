@@ -285,6 +285,7 @@ class TestPlotter:
             # Check error handling for unsupported plot type (patch _get_ds_plot to
             # avoid that method raising an error first)
             with patch.object(plotter, "_get_ds_plot", autospec=True):
+                plotter._ds_plot = xr.Dataset()
                 with pytest.raises(
                     ValueError, match="Unsupported plot type: unsupported_type"
                 ):
@@ -804,7 +805,7 @@ class TestPlotController:
         assert view_refresher_trigger_count == 2
 
         # Check error handling
-        plot_controller.initialize()
+        plot_controller.initialize(ds_in)
         with patch(
             "climepi.app._app_classes_methods._get_view_func",
             side_effect=ValueError("Some error"),

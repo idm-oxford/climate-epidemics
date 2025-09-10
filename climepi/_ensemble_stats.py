@@ -1,15 +1,16 @@
 """Module defining functions used to characterize internal climate variability."""
 
-import numpy as np
+from typing import Literal
+
 import scipy.interpolate
 import scipy.stats
 import xarray as xr
 from xarray.computation.computation import _ensure_numeric
 
 
-def _ensemble_stats_direct(ds_in, uncertainty_level=None):
-    # Compute ensemble statistics directly at each time point
-
+def _ensemble_stats_direct(
+    ds_in: xr.Dataset, *, uncertainty_level: float
+) -> xr.Dataset:
     # Add trivial "realization" dimension if necessary
     if "realization" not in ds_in.dims:
         ds_in = ds_in.expand_dims(dim="realization")
@@ -31,10 +32,14 @@ def _ensemble_stats_direct(ds_in, uncertainty_level=None):
 
 
 def _ensemble_stats_fit(
-    ds_in, uncertainty_level=None, internal_variability_method=None, deg=None, lam=None
-):
+    ds_in: xr.Dataset,
+    *,
+    uncertainty_level: float,
+    internal_variability_method: Literal["polyfit", "splinefit"],
+    deg: int | None = None,
+    lam: float | None = None,
+) -> xr.Dataset:
     # Estimate ensemble statistics by fitting a polynomial to each time series
-
     # Drop trivial "realization" co-ordinate if present
     if "realization" in ds_in.dims and ds_in.realization.size == 1:
         ds_in = ds_in.squeeze("realization", drop=True)
@@ -42,6 +47,7 @@ def _ensemble_stats_fit(
         ds_in = ds_in.drop_vars("realization")
     # Call appropriate method to estimate ensemble mean and variance
     if internal_variability_method == "polyfit":
+        assert deg is not None
         ds_mean, ds_var = _ensemble_mean_var_polyfit(ds_in, deg=deg)
     elif internal_variability_method == "splinefit":
         ds_mean, ds_var = _ensemble_mean_var_splinefit(ds_in, lam=lam)
@@ -50,7 +56,7 @@ def _ensemble_stats_fit(
             f"Unknown internal_variability_method: {internal_variability_method}"
         )
     # Calculate standard deviation and broadcast along time dimension
-    ds_std = np.sqrt(ds_var)
+    ds_std = xr.ufuncs.sqrt(ds_var)
     ds_var = ds_var.broadcast_like(ds_mean)
     ds_std = ds_std.broadcast_like(ds_mean)
     # Estimate uncertainty intervals
@@ -66,7 +72,9 @@ def _ensemble_stats_fit(
     return ds_stat
 
 
-def _ensemble_mean_var_polyfit(ds_in, deg=None):
+def _ensemble_mean_var_polyfit(
+    ds_in: xr.Dataset, *, deg: int
+) -> tuple[xr.Dataset, xr.Dataset]:
     # Estimate ensemble mean by fitting a polynomial to each time series.
     # Deal with cases where the dataset includes a realization coordinate
     if "realization" in ds_in.dims:
@@ -90,9 +98,10 @@ def _ensemble_mean_var_polyfit(ds_in, deg=None):
     return ds_mean, ds_var
 
 
-def _ensemble_mean_var_polyfit_multiple_realizations(ds_in, deg=None):
+def _ensemble_mean_var_polyfit_multiple_realizations(
+    ds_in: xr.Dataset, *, deg: int
+) -> tuple[xr.Dataset, xr.Dataset]:
     # Wrapper to extend _ensemble_mean_var_polyfit to multiple realizations.
-
     # Flatten observations from different realizations
     ds_in_stacked = ds_in.stack(dim={"time_realization": ("time", "realization")})
     ds_in_flattened = (
@@ -116,14 +125,15 @@ def _ensemble_mean_var_polyfit_multiple_realizations(ds_in, deg=None):
     return ds_mean, ds_var
 
 
-def _ensemble_mean_var_splinefit(ds_in, lam=None):
+def _ensemble_mean_var_splinefit(
+    ds_in: xr.Dataset, lam: float | None = None
+) -> tuple[xr.Dataset, xr.Dataset]:
     # Estimate ensemble mean by fitting a spline to each time series.
-
     # Deal with cases where the dataset includes a realization coordinate
     if "realization" in ds_in.dims:
         return _ensemble_mean_var_splinefit_multiple_realizations(ds_in, lam=lam)
     # Get vector of numeric time values
-    time_vec = _ensure_numeric(ds_in.time).values
+    time_vec = _ensure_numeric(ds_in.time).to_numpy()
     # Rescale time vector to [0, 1] for smoothing spline
     x_vec = (time_vec - time_vec.min()) / (time_vec.max() - time_vec.min())
 
@@ -153,9 +163,10 @@ def _ensemble_mean_var_splinefit(ds_in, lam=None):
     return ds_mean, ds_var
 
 
-def _ensemble_mean_var_splinefit_multiple_realizations(ds_in, lam=None):
+def _ensemble_mean_var_splinefit_multiple_realizations(
+    ds_in: xr.Dataset, lam: float | None = None
+) -> tuple[xr.Dataset, xr.Dataset]:
     # Wrapper to extend _ensemble_mean_var_splinefit to multiple realizations.
-
     # scipy.interpolate.make_smoothing_spline doesn't work with non-monotonic time
     # co-ordinates, so fit spline to mean of realizations (but compute variance
     # using all realizations).

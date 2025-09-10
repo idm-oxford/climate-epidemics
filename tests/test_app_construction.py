@@ -176,7 +176,12 @@ def test_session(mock_panel, mock_layout):
     mock_panel.state.cache = {}
     mock_layout.return_value = ("a template", "a controller")
     template = app_construction._session(
-        clim_dataset_example_names=["data"], epi_model_example_names=["model"]
+        clim_dataset_example_base_dir=None,
+        clim_dataset_example_names=["data"],
+        enable_custom_clim_dataset=True,
+        custom_clim_data_dir=None,
+        epi_model_example_names=["model"],
+        enable_custom_epi_model=False,
     )
     assert template == "a template"
     assert mock_panel.state.cache["controllers"]["an_id"] == "a controller"
@@ -206,7 +211,14 @@ def test_setup_dask(mock_client, capsys):
 @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
 def test_layout(_):
     """Unit test for the _layout method."""
-    template, controller = app_construction._layout()
+    template, controller = app_construction._layout(
+        clim_dataset_example_base_dir=None,
+        clim_dataset_example_names=None,
+        enable_custom_clim_dataset=True,
+        custom_clim_data_dir=None,
+        epi_model_example_names=None,
+        enable_custom_epi_model=False,
+    )
     assert isinstance(template, pn.template.BootstrapTemplate)
     assert isinstance(controller, app_classes_methods.Controller)
     assert template.sidebar[0] == controller.data_controls
@@ -289,7 +301,7 @@ def test_set_shutdown(mock_shutdown, mock_signal):
 
     mock_signal.signal.side_effect = _signal
 
-    app_construction._set_shutdown(server)
+    app_construction._set_shutdown(server, threaded=True)
     assert server.is_alive()
     out = server.stop()
     assert out == "stopped"

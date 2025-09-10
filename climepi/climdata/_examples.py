@@ -5,10 +5,13 @@ Running this module as a script will create all example datasets by downloading 
 formatting the relevant data.
 """
 
+import os
 import pathlib
+from typing import Any
 
 import numpy as np
 import pooch
+import xarray as xr
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi.climdata._base import get_climate_data, get_climate_data_file_names
@@ -43,8 +46,8 @@ EXAMPLES = {
         "subset": {
             "years": np.arange(2030, 2101),
             "locations": _EXAMPLE_CITY_NAME_LIST,
-            "lon": _EXAMPLE_CITY_LON_LIST,
-            "lat": _EXAMPLE_CITY_LAT_LIST,
+            "lons": _EXAMPLE_CITY_LON_LIST,
+            "lats": _EXAMPLE_CITY_LAT_LIST,
         },
         "formatted_data_downloadable": True,
         "doc": "Daily temperature and precipitation projections for London, Paris, "
@@ -64,7 +67,12 @@ EXAMPLES = {
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
 
-def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
+def get_example_dataset(
+    name: str,
+    base_dir: str | os.PathLike | None = None,
+    force_remake: bool = False,
+    **kwargs: Any,
+) -> xr.Dataset:
     """
     Retrieve an example climate dataset.
 
@@ -124,7 +132,7 @@ def get_example_dataset(name, base_dir=None, force_remake=False, **kwargs):
     return ds_example
 
 
-def _get_example_details(name):
+def _get_example_details(name: str) -> dict[str, Any]:
     # Helper function for extracting the details of an example dataset from the
     # EXAMPLES dictionary in this module, and raising a customised error message
     # listing the available examples if the requested example is not found.
@@ -138,7 +146,7 @@ def _get_example_details(name):
     return example_details
 
 
-def _get_data_dir(name, base_dir):
+def _get_data_dir(name: str, base_dir: str | os.PathLike | None = None) -> pathlib.Path:
     # Helper function for getting the directory where the example dataset is to be
     # downloaded/accessed. If no directory is specified, the datasets will be downloaded
     # to and accessed from the OS cache (unless a version of the source code including
@@ -152,7 +160,7 @@ def _get_data_dir(name, base_dir):
     return data_dir
 
 
-def _fetch_formatted_example_dataset(name, data_dir):
+def _fetch_formatted_example_dataset(name: str, data_dir: os.PathLike) -> None:
     # Helper function for fetching the formatted example dataset if available for direct
     # download.
     example_details = _get_example_details(name)
@@ -179,12 +187,14 @@ def _fetch_formatted_example_dataset(name, data_dir):
     _ = [pup.fetch(file_name) for file_name in file_names]
 
 
-def _get_registry_file_path(name):
+def _get_registry_file_path(name: str) -> pathlib.Path:
     # Helper function for getting the path to the registry file for the example dataset.
     return pathlib.Path(__file__).parent / "_example_registry_files" / f"{name}.txt"
 
 
-def _make_example_registry(name, base_dir):
+def _make_example_registry(
+    name: str, base_dir: str | os.PathLike | None = None
+) -> None:
     # Create a registry file for the example dataset to be used by a pooch instance for
     # downloading the dataset.
     data_dir = _get_data_dir(name, base_dir)
@@ -192,7 +202,9 @@ def _make_example_registry(name, base_dir):
     pooch.make_registry(data_dir, registry_file_path, recursive=False)
 
 
-def _make_all_examples(base_dir=None, force_remake=False):
+def _make_all_examples(
+    base_dir: str | os.PathLike | None = None, force_remake: bool = False
+) -> None:
     # Create all example datasets by downloading and formatting the relevant data.
     timed_out = []
     for example_name in EXAMPLES:

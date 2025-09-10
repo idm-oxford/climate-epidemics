@@ -5,239 +5,74 @@ Extensive inspiration and lifting of definitions is taken from the test suite fo
 xcdat package (see https://github.com/xCDAT/xcdat/blob/main/tests/fixtures.py)
 """
 
-import cftime
 import numpy as np
 import xarray as xr
 
 from climepi._xcdat import swap_lon_axis
 
 # Time
-time_yearly = xr.DataArray(
-    data=np.array(
-        [
-            cftime.DatetimeNoLeap(2000, 7, 2, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2001, 7, 2, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2002, 7, 2, 12, 0, 0, 0, has_year_zero=True),
-        ],
-        dtype=object,
-    ),
-    dims=["time"],
-    attrs={
-        "axis": "T",
-        "long_name": "time",
-        "standard_name": "time",
-    },
-)
-time_monthly = xr.DataArray(
-    data=np.array(
-        [
-            cftime.DatetimeNoLeap(2000, 1, 16, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 15, 0, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 3, 16, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 4, 16, 0, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 5, 16, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 6, 16, 0, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 7, 16, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 8, 16, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 9, 16, 0, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 10, 16, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 11, 16, 0, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 12, 16, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2001, 1, 16, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2001, 2, 15, 0, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2001, 12, 16, 12, 0, 0, 0, has_year_zero=True),
-        ],
-        dtype=object,
-    ),
-    dims=["time"],
-    attrs={
-        "axis": "T",
-        "long_name": "time",
-        "standard_name": "time",
-    },
-)
-time_daily = xr.DataArray(
-    data=np.array(
-        [
-            cftime.DatetimeNoLeap(2000, 1, 28, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 1, 29, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 1, 30, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 1, 31, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 1, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 2, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 3, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 4, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 5, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 6, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 7, 12, 0, 0, 0, has_year_zero=True),
-            cftime.DatetimeNoLeap(2000, 2, 8, 12, 0, 0, 0, has_year_zero=True),
-        ],
-        dtype=object,
-    ),
-    dims=["time"],
-    attrs={
-        "axis": "T",
-        "long_name": "time",
-        "standard_name": "time",
-    },
-)
 
+time_attrs = {
+    "axis": "T",
+    "long_name": "time",
+    "standard_name": "time",
+}
+time_bnds_attrs = {
+    "xcdat_bounds": "True",
+}
+
+time_ind_lb_yearly = xr.date_range(
+    start="2000", periods=3, freq="YS", calendar="noleap", use_cftime=True
+)
+time_ind_ub_yearly = xr.date_range(
+    start="2001", periods=3, freq="YS", calendar="noleap", use_cftime=True
+)
 time_bnds_yearly = xr.DataArray(
     name="time_bnds",
-    data=np.array(
-        [
-            [
-                cftime.DatetimeNoLeap(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2001, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2001, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2002, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2002, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2003, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-        ],
-        dtype=object,
-    ),
+    data=[[time_ind_lb_yearly[i], time_ind_ub_yearly[i]] for i in range(3)],
     dims=["time", "bnds"],
-    attrs={
-        "xcdat_bounds": "True",
-    },
+    attrs=time_bnds_attrs,
+)
+time_yearly = (
+    time_bnds_yearly.mean(dim="bnds", keep_attrs=False)
+    .rename("time")
+    .assign_attrs(**time_attrs)
+)
+
+time_ind_lb_monthly = xr.date_range(
+    start="2000-01", periods=15, freq="MS", calendar="noleap", use_cftime=True
+)
+time_ind_ub_monthly = xr.date_range(
+    start="2000-02", periods=15, freq="MS", calendar="noleap", use_cftime=True
 )
 time_bnds_monthly = xr.DataArray(
     name="time_bnds",
-    data=np.array(
-        [
-            [
-                cftime.DatetimeNoLeap(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 3, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 3, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 4, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 4, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 5, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 5, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 6, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 6, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 7, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 7, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 8, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 8, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 9, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 9, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 10, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 10, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 11, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 11, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 12, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 12, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2001, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2001, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2001, 2, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2001, 2, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2001, 3, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2001, 12, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2002, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-        ],
-        dtype=object,
-    ),
+    data=[[time_ind_lb_monthly[i], time_ind_ub_monthly[i]] for i in range(15)],
     dims=["time", "bnds"],
-    attrs={
-        "xcdat_bounds": "True",
-    },
+    attrs=time_bnds_attrs,
+)
+time_monthly = (
+    time_bnds_monthly.mean(dim="bnds", keep_attrs=False)
+    .rename("time")
+    .assign_attrs(**time_attrs)
 )
 
+time_ind_lb_daily = xr.date_range(
+    start="2000-01-28", periods=12, freq="D", calendar="noleap", use_cftime=True
+)
+time_ind_ub_daily = xr.date_range(
+    start="2000-01-29", periods=12, freq="D", calendar="noleap", use_cftime=True
+)
 time_bnds_daily = xr.DataArray(
     name="time_bnds",
-    data=np.array(
-        [
-            [
-                cftime.DatetimeNoLeap(2000, 1, 28, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 1, 29, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 1, 29, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 1, 30, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 1, 30, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 1, 31, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 1, 31, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 1, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 1, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 2, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 2, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 3, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 3, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 4, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 4, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 5, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 5, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 6, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 6, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 7, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 7, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 8, 0, 0, 0, 0, has_year_zero=True),
-            ],
-            [
-                cftime.DatetimeNoLeap(2000, 2, 8, 0, 0, 0, 0, has_year_zero=True),
-                cftime.DatetimeNoLeap(2000, 2, 9, 0, 0, 0, 0, has_year_zero=True),
-            ],
-        ],
-        dtype=object,
-    ),
+    data=[[time_ind_lb_daily[i], time_ind_ub_daily[i]] for i in range(12)],
     dims=["time", "bnds"],
-    attrs={
-        "xcdat_bounds": "True",
-    },
+    attrs=time_bnds_attrs,
+)
+time_daily = (
+    time_bnds_daily.mean(dim="bnds", keep_attrs=False)
+    .rename("time")
+    .assign_attrs(**time_attrs)
 )
 
 # Latitude

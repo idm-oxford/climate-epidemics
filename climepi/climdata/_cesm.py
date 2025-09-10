@@ -3,14 +3,16 @@
 import functools
 import time
 from copy import deepcopy
+from typing import Any, Literal, cast
 
 import dask.diagnostics
 import intake
 import numpy as np
+import pandas as pd
 import pooch
-import requests
 import siphon.catalog
 import xarray as xr
+from requests import HTTPError
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import BoundsAccessor, center_times  # noqa
@@ -31,32 +33,28 @@ class CESMDataGetter(ClimateDataGetter):
     lon_res = 1.25
     lat_res = 180 / 191
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         raise NotImplementedError(
             "Method _find_remote_data must be implemented in a sub(sub)class."
         )
 
-    def _subset_remote_data(self):
+    def _subset_remote_data(self) -> None:
         # Subset the remotely opened dataset to the requested years and location(s), and
         # store the subsetted dataset in the _ds attribute.
         years = self._subset["years"]
         locations = self._subset["locations"]
-        lon = self._subset["lon"]
-        lat = self._subset["lat"]
+        lons = self._subset["lons"]
+        lats = self._subset["lats"]
         lon_range = self._subset["lon_range"]
         lat_range = self._subset["lat_range"]
+        assert self._ds is not None
         ds_subset = self._ds.copy()
         ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
         if locations is not None:
             # Use the climepi package to find the nearest grid points to the provided
-            # locations, and subset the data accordingly (ensure locations is a list
-            # so "location" is made a dimension coordinate).
-            location_list = np.atleast_1d(locations).tolist()
-            lon_list = np.atleast_1d(lon).tolist() if lon is not None else None
-            lat_list = np.atleast_1d(lat).tolist() if lat is not None else None
-            ds_subset = ds_subset.climepi.sel_geo(
-                location_list, lon=lon_list, lat=lat_list
-            )
+            # locations, and subset the data accordingly (since locations is a list,
+            # "location" is made a dimension coordinate).
+            ds_subset = ds_subset.climepi.sel_geo(locations, lon=lons, lat=lats)
         else:
             if lon_range is not None:
                 # Note the remote data are stored with longitudes in the range 0 to 360.
@@ -77,10 +75,12 @@ class CESMDataGetter(ClimateDataGetter):
                 ds_subset = ds_subset.sel(lat=slice(*lat_range))
         self._ds = ds_subset
 
-    def _download_remote_data(self):
+    def _download_remote_data(self) -> None:
         # Download the remote dataset to a temporary file (printing a progress bar), and
         # store the file name in the _temp_file_names attribute.
         temp_save_dir = self._temp_save_dir
+        assert temp_save_dir is not None
+        assert self._ds is not None
         temp_file_name = "temp_data.nc"
         temp_save_path = temp_save_dir / temp_file_name
         delayed_obj = self._ds.to_netcdf(temp_save_path, compute=False)
@@ -88,7 +88,7 @@ class CESMDataGetter(ClimateDataGetter):
             delayed_obj.compute()
         self._temp_file_names = [temp_file_name]
 
-    def _open_temp_data(self, **kwargs):
+    def _open_temp_data(self, **kwargs: Any) -> None:
         # Open the temporary dataset, and store the opened dataset in the _ds attribute.
         # Extends the parent method by specifying chunks for the member_id coordinate.
         kwargs = {
@@ -97,11 +97,12 @@ class CESMDataGetter(ClimateDataGetter):
         }
         super()._open_temp_data(**kwargs)
 
-    def _process_data(self):
+    def _process_data(self) -> None:
         # Extends the parent method to add renaming, unit conversion and (depending on
         # the requested data frequency) temporal averaging.
         realizations = self._subset["realizations"]
         frequency = self._frequency
+        assert self._ds is not None
         ds_processed = self._ds.copy()
         # Calculate total precipitation from convective and large-scale precipitation
         if "PRECC" in ds_processed.data_vars and "PRECL" in ds_processed.data_vars:
@@ -176,16 +177,17 @@ class LENS2DataGetter(CESMDataGetter):
 
     data_source = "lens2"
     available_models = ["cesm2"]
-    available_years = np.arange(1850, 2101)
+    available_years = list(range(1850, 2101))
     available_scenarios = ["ssp370"]
-    available_realizations = np.arange(100)
+    available_realizations = list(range(100))
     remote_open_possible = True
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         # Use intake to find and (lazily) open the remote data, then combine into a
         # single dataset and store in the _ds attribute.
         frequency = self._frequency
         if frequency == "yearly":
+            # Download monthly data (to be averaged later)
             frequency = "monthly"
         catalog_url = (
             "https://raw.githubusercontent.com/NCAR/cesm2-le-aws"
@@ -218,9 +220,10 @@ class LENS2DataGetter(CESMDataGetter):
         ds_in = xr.concat([ds_cmip6_in, ds_smbb_in], dim="member_id")
         self._ds = ds_in
 
-    def _subset_remote_data(self):
+    def _subset_remote_data(self) -> None:
         # Add realization subsetting to the parent method
         realizations = self._subset["realizations"]
+        assert self._ds is not None
         ds_subset = self._ds.copy()
         ds_subset = ds_subset.isel(member_id=realizations)
         self._ds = ds_subset
@@ -236,10 +239,11 @@ class ARISEDataGetter(CESMDataGetter):
     https://www.ucar.edu/terms-of-use/data.
 
     Available years that can be specified in the `subset` argument of the class
-    constructor range from 2035 to 2069, and 10 realizations (here labelled as 0 to 9)
-    are available for two scenarios ("ssp245" and "sai15") and one model ("cesm2"). The
-    remotely stored data can be lazily opened as an xarray dataset and processed without
-    downloading (`download=False` option in the `get_data` method).
+    constructor range from 2035 to 2069 for feedback simulations (scenario "sai15"),
+    and 2000 to 2100 for reference simulations without climate intervention (scenario
+    "ssp245"). 10 realizations (here labelled as 0 to 9) are available for each
+    scenario. The remotely stored data can be lazily opened as an xarray dataset and
+    processed without downloading (`download=False` option in the `get_data` method).
 
     See the base class (`climepi.climdata._data_getter_class.ClimateDataGetter`) for
     further details.
@@ -247,12 +251,12 @@ class ARISEDataGetter(CESMDataGetter):
 
     data_source = "arise"
     available_models = ["cesm2"]
-    available_years = np.arange(2035, 2070)
+    available_years = list(range(2035, 2070))
     available_scenarios = ["ssp245", "sai15"]
-    available_realizations = np.arange(10)
+    available_realizations = list(range(10))
     remote_open_possible = True
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         # Running to_datset_dict() on the catalog subset doesn't seem to work for
         # reference/kerchunk format data in AWS, so open the datasets manually.
         frequency = self._frequency
@@ -318,6 +322,7 @@ class ARISEDataGetter(CESMDataGetter):
         _preprocess = functools.partial(
             _preprocess_arise_dataset,
             frequency=frequency,
+            years=years,
             realizations=realizations,
         )
         ds_in = xr.open_mfdataset(
@@ -345,15 +350,15 @@ class GLENSDataGetter(CESMDataGetter):
     lon_res = 1.25
     lat_res = 180 / 191
     data_source = "glens"
-    available_years = np.arange(2010, 2100)
+    available_years = list(range(2010, 2100))
     available_scenarios = ["rcp85", "sai"]
-    available_realizations = np.arange(20)
+    available_realizations = list(range(20))
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._urls = None
+        self._urls: list[str] | None = None
 
-    def get_data(self, *args, **kwargs):
+    def get_data(self, *args: Any, **kwargs: Any) -> xr.Dataset:
         scenarios = self._subset["scenarios"]
         if len(scenarios) == 1:
             return super().get_data(*args, **kwargs)
@@ -375,7 +380,7 @@ class GLENSDataGetter(CESMDataGetter):
             *args, **{**kwargs, "force_remake": False, "download": False}
         )
 
-    def _find_remote_data(self):
+    def _find_remote_data(self) -> None:
         frequency = self._frequency
         years = self._subset["years"]
         realizations = self._subset["realizations"]
@@ -436,7 +441,7 @@ class GLENSDataGetter(CESMDataGetter):
                 try:
                     catalog = siphon.catalog.TDSCatalog(catalog_url)
                     break
-                except requests.exceptions.HTTPError as e:
+                except HTTPError as e:
                     print(f"HTTP error opening catalog {catalog_url}: {e}")
                     print("Retrying in 10 seconds...")
                     time.sleep(10)
@@ -465,13 +470,15 @@ class GLENSDataGetter(CESMDataGetter):
             )
         self._urls = urls
 
-    def _subset_remote_data(self):
+    def _subset_remote_data(self) -> None:
         pass
 
-    def _download_remote_data(self):
+    def _download_remote_data(self) -> None:
         # Download the remote data files to a temporary directory.
         urls = self._urls
         temp_save_dir = self._temp_save_dir
+        assert urls is not None
+        assert temp_save_dir is not None
         temp_file_names = []
 
         for url in urls:
@@ -491,7 +498,7 @@ class GLENSDataGetter(CESMDataGetter):
             temp_file_names.append(download_file_name)
         self._temp_file_names = temp_file_names
 
-    def _open_temp_data(self, **kwargs):
+    def _open_temp_data(self, **kwargs: Any) -> None:
         # Need to preprocess the downloaded data files.
         frequency = self._frequency
         years = self._subset["years"]
@@ -505,12 +512,18 @@ class GLENSDataGetter(CESMDataGetter):
         kwargs = {"preprocess": preprocess, "join": "inner", **kwargs}
         super()._open_temp_data(**kwargs)
 
-    def _process_data(self):
+    def _process_data(self) -> None:
         super()._subset_remote_data()
         super()._process_data()
 
 
-def _preprocess_arise_dataset(ds, frequency=None, realizations=None):
+def _preprocess_arise_dataset(
+    ds: xr.Dataset,
+    *,
+    frequency: Literal["daily", "monthly", "yearly"],
+    years: list[int],
+    realizations: list[int],
+) -> xr.Dataset:
     try:
         scenario = (
             "sai15"
@@ -537,13 +550,22 @@ def _preprocess_arise_dataset(ds, frequency=None, realizations=None):
     # times seem to be at end of interval for monthly data, so shift
     if frequency in ["monthly", "yearly"]:
         old_time = ds["time"]
-        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="MS"))
+        time_index = cast(xr.CFTimeIndex | pd.DatetimeIndex, ds.indexes["time"])
+        ds = ds.assign_coords(time=time_index.shift(-1, freq="MS"))
         ds["time"].encoding = old_time.encoding
         ds["time"].attrs = old_time.attrs
+    # Subset to requested years now to avoid concatenation/merging issues
+    ds = ds.isel(time=np.isin(ds.time.dt.year, years))
     return ds
 
 
-def _preprocess_glens_dataset(ds, frequency=None, years=None, realizations=None):
+def _preprocess_glens_dataset(
+    ds: xr.Dataset,
+    *,
+    frequency: Literal["daily", "monthly", "yearly"],
+    years: list[int],
+    realizations: list[int],
+) -> xr.Dataset:
     try:
         scenario_str = ds.attrs["case"].split(".")[-2]
         scenario = (
@@ -572,10 +594,11 @@ def _preprocess_glens_dataset(ds, frequency=None, years=None, realizations=None)
     )
     # Times seem to be at end of interval, so shift
     old_time = ds["time"]
+    time_index = cast(xr.CFTimeIndex | pd.DatetimeIndex, ds.indexes["time"])
     if frequency in ["monthly", "yearly"]:
-        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="MS"))
+        ds = ds.assign_coords(time=time_index.shift(-1, freq="MS"))
     elif frequency == "daily":
-        ds = ds.assign_coords(time=ds.get_index("time").shift(-1, freq="D"))
+        ds = ds.assign_coords(time=time_index.shift(-1, freq="D"))
     else:
         raise ValueError(f"Frequency {frequency} is not supported.")
     ds["time"].encoding = old_time.encoding
