@@ -12,6 +12,7 @@
 Python package and web app for integrating climate projection data into epidemiological
 models.
 
-Project home page: https://idm-oxford.github.io/climate-epidemics/
+Documentation: https://climate-epidemics.readthedocs.io/en/latest/
 
-Python package documentation: https://climate-epidemics.readthedocs.io/en/latest/
+Web app: https://idm-oxford.github.io/climate-epidemics/
+
