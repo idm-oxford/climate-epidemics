@@ -66,15 +66,13 @@ def test_fit_temperature_response(mock_briere, mock_pm, specify_std_prior):
         thin=10,
     )
 
-    # mock_pm.Gamma.assert_called_once()
-    # assert mock_pm.Uniform.call_count == 2
     mock_briere.assert_called_once_with(
         "temperature_data",
         scale="scale_prior",
         temperature_min="temperature_min_prior",
         temperature_max="temperature_max_prior",
         probability=True,
-        array_lib=pt,
+        backend="pytensor",
     )
     if specify_std_prior:
         mock_pm.Normal.assert_called_once_with(
@@ -225,7 +223,7 @@ def test_bounded_quadratic():
         temperature_min=temperature_min,
         temperature_max=temperature_max,
         probability=True,
-        array_lib=xr,
+        backend="xarray",
     )
     assert isinstance(response, xr.DataArray)
     npt.assert_equal(response.isel(temperature=0, kenobi=0).item(), 0)
@@ -252,7 +250,7 @@ def test_briere():
         temperature_min=temperature_min,
         temperature_max=temperature_max,
         probability=True,
-        array_lib=xr,
+        backend="xarray",
     )
     assert isinstance(response, xr.DataArray)
     npt.assert_equal(response.isel(temperature=0, kenobi=0).item(), 0)
@@ -337,7 +335,9 @@ class TestParameterizedSuitabilityModel:
         when the model is not fitted or the suitability table is not constructed, and
         that the parent methods are called when the checks pass.
         """
-        model = epimod.ParameterizedSuitabilityModel()
+        model = epimod.ParameterizedSuitabilityModel(
+            parameters={}, suitability_function=lambda: None
+        )
         for method, parent_method_name, kwargs in zip(
             [model.run, model.plot_suitability, model.get_max_suitability],
             [
@@ -395,7 +395,8 @@ class TestParameterizedSuitabilityModel:
                     "probability": True,
                     "priors": "priors_bold",
                 },
-            }
+            },
+            suitability_function=lambda: None,
         )
 
         idata_dict = model.fit_temperature_responses(step="step", draws=10)
@@ -455,7 +456,8 @@ class TestParameterizedSuitabilityModel:
                     "trait_data": "data_bold",
                     "attrs": {"fine": "addition"},
                 },
-            }
+            },
+            suitability_function=lambda: None,
         )
 
         for parameter_names in [None, "bold", ["bold"]]:
@@ -542,13 +544,16 @@ class TestParameterizedSuitabilityModel:
             epimod.ParameterizedSuitabilityModel(
                 parameters={
                     "hello": "there",
-                }
-            ).construct_suitability_table()
+                },
+                suitability_function=lambda: None,
+            ).construct_suitability_table(temperature_vals=[])
 
 
 def test_get_posterior_min_optimal_max_temperature():
     """Test the get_posterior_min_optimal_max_temperature method."""
-    suitability_model = epimod.ParameterizedSuitabilityModel(parameters={})
+    suitability_model = epimod.ParameterizedSuitabilityModel(
+        parameters={}, suitability_function=lambda: None
+    )
     suitability_model.suitability_table = xr.Dataset(
         {
             "suitability": (

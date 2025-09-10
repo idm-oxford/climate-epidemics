@@ -10,6 +10,7 @@ import time
 import types
 from unittest.mock import patch
 
+import geopy
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
@@ -31,8 +32,8 @@ def test_init():
             "years": [2015, 2021],
             "models": ["mri-esm2-0", "ukesm1-0-ll"],
             "locations": ["gabba", "mcg"],
-            "lon": [153, 144],
-            "lat": [-27, -37],
+            "lons": [153, 144],
+            "lats": [-27, -37],
         },
         subset_check_interval=15,
     )
@@ -48,8 +49,8 @@ def test_init():
                 "models": ["mri-esm2-0", "ukesm1-0-ll"],
                 "realizations": [0],
                 "locations": ["gabba", "mcg"],
-                "lon": [153, 144],
-                "lat": [-27, -37],
+                "lons": [153, 144],
+                "lats": [-27, -37],
                 "lon_range": None,
                 "lat_range": None,
             },
@@ -186,57 +187,57 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
             lat = -37
         else:
             raise ValueError(f"Unexpected location {location}.")
-        return types.SimpleNamespace(latitude=lat, longitude=lon)
+        return geopy.Location(location, geopy.Point(latitude=lat, longitude=lon), {})
 
     mock_geocode.side_effect = _mock_geocode
 
     # Get inputs and expected bbox values used in subsetting requests
 
     if location_mode == "single_named":
-        # Use a single named location with provided lon and lat
-        locations = "Gabba"
-        lon = 153
-        lat = -27
+        # Use a single named location with provided lons and lats
+        locations = ["Gabba"]
+        lons = [153]
+        lats = [-27]
         lat_range = None
         lon_range = None
         id_suffixes_expected = ["bbox_-27_-27_153_153"]
     elif location_mode == "multiple_named":
-        # Use multiple named locations with geocoding to get lon and lat
+        # Use multiple named locations with geocoding to get lons and lats
         locations = ["Los Angeles", "Melbourne"]
-        lon = None
-        lat = None
+        lons = None
+        lats = None
         lat_range = None
         lon_range = None
         id_suffixes_expected = ["bbox_34_34_-118_-118", "bbox_-37_-37_144_144"]
     elif location_mode == "grid_lon_0_360":
         # Use a grid of lon/lat values with lon in 0-360 range
         locations = None
-        lon = None
-        lat = None
-        lat_range = [10, 60]
-        lon_range = [15, 240]
+        lons = None
+        lats = None
+        lat_range = (10, 60)
+        lon_range = (15, 240)
         id_suffixes_expected = ["bbox_10_60_15_-120"]
     elif location_mode == "grid_lon_180_180":
         # Use a grid of lon/lat values with lon in -180-180 range
         locations = None
-        lon = None
-        lat = None
+        lons = None
+        lats = None
         lat_range = None
-        lon_range = [-30, 60]
+        lon_range = (-30, 60)
         id_suffixes_expected = ["bbox_-90_90_-30_60"]
     elif location_mode == "grid_all_lon":
         # Use a grid of lon/lat values with all longitudes
         locations = None
-        lon = None
-        lat = None
-        lat_range = [-30, 60]
+        lons = None
+        lats = None
+        lat_range = (-30, 60)
         lon_range = None
         id_suffixes_expected = ["bbox_-30_60_-180_180"]
     elif location_mode == "global":
         # Use all global data
         locations = None
-        lon = None
-        lat = None
+        lons = None
+        lats = None
         lat_range = None
         lon_range = None
         id_suffixes_expected = ["should_not_subset"]
@@ -257,8 +258,8 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
             "years": [2015, 2021, 2046],
             "models": ["mri-esm2-0", "ukesm1-0-ll"],
             "locations": locations,
-            "lon": lon,
-            "lat": lat,
+            "lons": lons,
+            "lats": lats,
             "lat_range": lat_range,
             "lon_range": lon_range,
         },

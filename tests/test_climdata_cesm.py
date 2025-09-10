@@ -75,7 +75,7 @@ class TestCESMDataGetter:
         )
 
         if year_mode == "single":
-            years = 2002
+            years = [2002]
             time_inds_expected = slice(12, 24)
         elif year_mode == "multiple":
             years = [2002, 2003]
@@ -83,7 +83,7 @@ class TestCESMDataGetter:
         else:
             raise ValueError(f"Invalid year_mode: {year_mode}")
         if location_mode == "single_named":
-            locations = "Los Angeles"
+            locations = ["Los Angeles"]
             lat_range = None
             lon_range = None
             lon_inds_expected = None
@@ -536,9 +536,13 @@ def test_preprocess_arise_dataset(frequency, scenario):
         with pytest.raises(
             ValueError, match="Failed to parse scenario from case attribute"
         ):
-            _preprocess_arise_dataset(ds_in, frequency=frequency, realizations=[1])
+            _preprocess_arise_dataset(
+                ds_in, frequency=frequency, realizations=[1], years=list(range(3000))
+            )
         return
-    result = _preprocess_arise_dataset(ds_in, frequency=frequency, realizations=[0, 1])
+    result = _preprocess_arise_dataset(
+        ds_in, frequency=frequency, realizations=[0, 1], years=list(range(3000))
+    )
     npt.assert_equal(result.TREFHT.member_id.values, ["002"])
     npt.assert_equal(result.TREFHT.scenario.values, [scenario])
     npt.assert_equal(
@@ -555,7 +559,9 @@ def test_preprocess_arise_dataset(frequency, scenario):
     else:
         raise ValueError(f"Unexpected frequency: {frequency}")
     with pytest.raises(AssertionError, match="Unexpected member_id 002"):
-        _preprocess_arise_dataset(ds_in, frequency=frequency, realizations=[2])
+        _preprocess_arise_dataset(
+            ds_in, frequency=frequency, realizations=[2], years=[]
+        )
 
 
 class TestGLENSDataGetter:
@@ -586,7 +592,7 @@ class TestGLENSDataGetter:
     ):
         """Test the get_data method."""
 
-        def _mock_open_local_data(*args, **kwargs):
+        def _mock_open_local_data(obj, *args, **kwargs):
             if already_downloaded or mock_save_processed_data.call_count:
                 if mock_process_data.call_count < 2:
                     # If retrieving both scenarios, reset the mock after the first
@@ -594,7 +600,8 @@ class TestGLENSDataGetter:
                     # don't reset after second scenario to avoid interfering with final
                     # call to _open_local_data)
                     mock_save_processed_data.reset_mock()
-                return MagicMock()
+                obj._ds = MagicMock()
+                return
             raise FileNotFoundError("File not found")
 
         mock_open_local_data.side_effect = _mock_open_local_data
