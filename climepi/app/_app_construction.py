@@ -5,7 +5,7 @@ import os
 import signal
 import sys
 import traceback
-from typing import Any, Literal, overload
+from typing import Any, Callable, Literal, overload
 
 import bokeh
 import panel as pn
@@ -277,19 +277,22 @@ def _set_shutdown(server, threaded):
     original_sigint = signal.getsignal(signal.SIGINT)
     original_sigterm = signal.getsignal(signal.SIGTERM)
 
-    def _make_handler(original):
-        def _new_handler(signum, frame):
-            try:
-                _shutdown()
-            except Exception:
-                traceback.print_exc()
-            if callable(original):
-                original(signum, frame)
-            elif original is signal.SIG_DFL:
-                signal.signal(signum, signal.SIG_DFL)
-                os.kill(os.getpid(), signum)
+    signal.signal(signal.SIGINT, _extend_signal_handler(original_sigint, _shutdown))
+    signal.signal(signal.SIGTERM, _extend_signal_handler(original_sigterm, _shutdown))
 
-        return _new_handler
 
-    signal.signal(signal.SIGINT, _make_handler(original_sigint))
-    signal.signal(signal.SIGTERM, _make_handler(original_sigterm))
+def _extend_signal_handler(
+    original_handler: Any, extension: Callable[[], None]
+) -> Callable[[Any, Any], None]:
+    def new_handler(signum, frame):
+        try:
+            extension()
+        except Exception:
+            traceback.print_exc()
+        if callable(original_handler):
+            original_handler(signum, frame)
+        elif original_handler is signal.SIG_DFL:
+            signal.signal(signum, signal.SIG_DFL)
+            os.kill(os.getpid(), signum)
+
+    return new_handler
