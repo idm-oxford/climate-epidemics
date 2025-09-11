@@ -1,15 +1,22 @@
 """Unit tests for the _model_fitting module of the epimod subpackage."""
 
+import platform
 from unittest.mock import patch
 
 import holoviews as hv
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
+import pytensor
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
+import xarray.testing as xrt
 
 from climepi import epimod
+
+if platform.system() == "Darwin":
+    pytensor.config.cxx = "/usr/bin/clang++"
 
 
 @patch("climepi.epimod._model_fitting.pm", autospec=True)
@@ -209,6 +216,19 @@ def test_plot_fitted_temperature_response(mock_get_posterior):
         trait_attrs=None,
     )
 
+    # Test error when only one of temperature_data or trait_data is provided
+    with pytest.raises(
+        ValueError,
+        match="Either both, or neither",
+    ):
+        epimod.plot_fitted_temperature_response(
+            "idata",
+            temperature_vals="temperature_vals",
+            temperature_data=np.array([0, 0.5, 1]),
+            curve_type="briere",
+            probability=True,
+        )
+
 
 def test_bounded_quadratic():
     """Test the _bounded_quadratic function."""
@@ -262,6 +282,41 @@ def test_briere():
         response.isel(temperature=2, kenobi=1).item(),
         1,  # probability=True so max value is 1
     )
+
+
+def test_where():
+    """Test the _where function."""
+    condition = [True, False, True]
+    x = [1, 2, 3]
+    y = [10, 20, 30]
+    expected = [1, 20, 3]
+    # Default numpy backend
+    result1 = epimod._model_fitting._where(
+        np.array(condition), np.array(x), np.array(y)
+    )
+    assert isinstance(result1, np.ndarray)
+    npt.assert_equal(result1, expected)
+    # xarray backend
+    result2 = epimod._model_fitting._where(
+        xr.DataArray(condition, dims="x"),
+        xr.DataArray(x, dims="x"),
+        xr.DataArray(y, dims="x"),
+        backend="xarray",
+    )
+    assert isinstance(result2, xr.DataArray)
+    xrt.assert_equal(result2, xr.DataArray(expected, dims="x"))
+    # pytensor backend
+    result3 = epimod._model_fitting._where(
+        pt.as_tensor_variable(condition),
+        pt.as_tensor_variable(x),
+        pt.as_tensor_variable(y),
+        backend="pytensor",
+    )
+    assert isinstance(result3, pt.TensorVariable)
+    npt.assert_equal(result3.eval(), expected)
+    # Test error with invalid backend
+    with pytest.raises(ValueError, match="Invalid backend: 'hello'"):
+        epimod._model_fitting._where(condition, x, y, backend="hello")
 
 
 def test_get_curve_func():

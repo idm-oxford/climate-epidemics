@@ -105,10 +105,6 @@ class TestSelGeo:
         npt.assert_equal(result["lat"].values, 30)
         npt.assert_equal(result["location"].values, "Mustafar")
 
-        # Check that providing only one of lon or lat raises an error
-        with pytest.raises(ValueError):
-            ds.climepi.sel_geo(location, lon=lon)
-
     @pytest.mark.parametrize("location_list", [["Miami", "Cape Town"], ["Miami"]])
     def test_sel_geo_location_list(self, location_list):
         """Test with a list of locations."""
@@ -133,10 +129,27 @@ class TestSelGeo:
                 # True lat = -33.9, lon = 18.4
                 lat_expected = -30
                 lon_expected = 90
+            else:
+                raise ValueError(f"Invalid location: {location}")
             xrt.assert_identical(
                 result.sel(location=location, drop=True),
                 ds.sel(lat=lat_expected, lon=lon_expected, drop=True),
             )
+
+    def test_sel_geo_invalid_arguments(self):
+        """Test with invalid arguments."""
+        ds = generate_dataset()
+        # Check that providing only one of lon or lat raises an error
+        with pytest.raises(
+            ValueError, match="If 'lon' or 'lat' is provided, both 'lon' and 'lat'"
+        ):
+            ds.climepi.sel_geo("Miami", lon=4)
+        # Check that providing a location as a list, and lon/lat as scalars raises an
+        # error
+        with pytest.raises(
+            ValueError, match="If 'location' is a list, 'lon' and 'lat' must also"
+        ):
+            ds.climepi.sel_geo(location=["Miami"], lon=4, lat=20)
 
 
 @pytest.mark.parametrize("frequency", ["yearly", "monthly", "daily"])

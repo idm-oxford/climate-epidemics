@@ -139,6 +139,8 @@ def test_find_remote_data(mock_session):
         "grid_lon_180_180",
         "grid_all_lon",
         "global",
+        "invalid_single",
+        "invalid_multiple",
     ],
 )
 @pytest.mark.parametrize("times_out", [False, True])
@@ -240,6 +242,22 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
         lat_range = None
         lon_range = None
         id_suffixes_expected = ["should_not_subset"]
+    elif location_mode == "invalid_single":
+        # Invalid location mode (lons provided but not lats)
+        locations = ["Gabba"]
+        lons = [153]
+        lats = None
+        lat_range = None
+        lon_range = None
+        id_suffixes_expected = "should_not_matter"
+    elif location_mode == "invalid_multiple":
+        # Invalid location mode with a list of locations (lats provided but not lons)
+        locations = ["Los Angeles", "Melbourne"]
+        lons = None
+        lats = [-27, -37]
+        lat_range = None
+        lon_range = None
+        id_suffixes_expected = "should_not_matter"
     else:
         raise ValueError(f"Unexpected location_mode {location_mode}.")
 
@@ -270,7 +288,13 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
 
     # Run _subset_remote_data and check results
     st = time.time()
-    if times_out and location_mode != "global":
+    if location_mode in ["invalid_single", "invalid_multiple"]:
+        with pytest.raises(
+            ValueError,
+            match="Either both, or neither, of 'lons' and 'lats' must be provided.",
+        ):
+            data_getter._subset_remote_data()
+    elif times_out and location_mode != "global":
         if location_mode == "multiple_named":
             match = "Subsetting for at least one location timed out."
         else:
@@ -289,7 +313,7 @@ def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out
 
     # Check that requests sessions are closed
 
-    if location_mode == "global":
+    if location_mode in ["global", "invalid_single", "invalid_multiple"]:
         mock_session.assert_not_called()
     elif location_mode == "multiple_named":
         assert mock_session.return_value.close.call_count == 2
