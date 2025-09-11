@@ -5,11 +5,12 @@ Provides a base epidemiological model class and a subclass for temperature- and/
 rainfall-dependent suitability models.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import param
 import xarray as xr
+from numpy.typing import ArrayLike
 
 from climepi.utils import add_bnds_from_other
 
@@ -395,9 +396,9 @@ class SuitabilityModel(EpiModel):
     def reduce(
         self,
         suitability_threshold: float | None = None,
-        stat: str | None = None,
-        quantile: float | None = None,
-        rescale: bool | str | None = False,
+        stat: Literal["mean", "median", "quantile"] | None = None,
+        quantile: ArrayLike | None = None,
+        rescale: bool | Literal["mean", "median"] | None = False,
     ) -> "SuitabilityModel":
         """
         Get a summary suitability model.
@@ -416,7 +417,7 @@ class SuitabilityModel(EpiModel):
         stat : str, optional
             The summary statistic to compute. Can be "mean", "median", or "quantile".
             Default is None. If None, no summary statistic is computed.
-        quantile : float or array-like of floats, optional
+        quantile : array-like of floats, optional
             The quantile(s) to compute if stat is "quantile". Default is None.
         rescale : bool or str, optional
             If True, the suitability values (after applying any summary statistics)
@@ -431,7 +432,7 @@ class SuitabilityModel(EpiModel):
         """
         if self.suitability_table is None:
             raise ValueError(
-                "The reduce() method is only available for suitability table-based"
+                "The reduce() method is only available for suitability table-based "
                 "models."
             )
         suitability_var_name = self._suitability_var_name
@@ -454,7 +455,7 @@ class SuitabilityModel(EpiModel):
             suitability_stat_dict["median"] = da_suitability.median(dim="sample")
         if stat == "quantile":
             if quantile is None:
-                raise ValueError("Quantile must be specified if stat is 'quantile'")
+                raise ValueError("quantile must be specified if stat is 'quantile'")
             suitability_stat_dict["quantile"] = da_suitability.quantile(
                 q=quantile, dim="sample"
             ).rename({"quantile": "suitability_quantile"})
