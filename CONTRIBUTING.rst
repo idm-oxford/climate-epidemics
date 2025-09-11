@@ -155,7 +155,12 @@ Here's a simple checklist for PRs:
 Code formatting
 ~~~~~~~~~~~~~~~
 
-climepi uses `Ruff`_ for standardized code formatting, linting, and ordering of imports.
+climepi uses several tools to ensure a consistent code format throughout the project:
+
+- `Ruff`_ for standardized code formatting, linting, and ordering of imports (type
+  ``pixi run lint`` in the root directory to run the linter).
+- `mypy`_ for static type checking on `type hints`_ (type ``pixi run type-check`` in
+  the root directory to run mypy).
 
 .. _pull request: https://github.com/idm-oxford/climate-epidemics/compare
 .. _create a PR on GitHub: https://help.github.com/en/articles/creating-a-pull-request
@@ -163,6 +168,8 @@ climepi uses `Ruff`_ for standardized code formatting, linting, and ordering of 
 .. _NumPy style guide: https://numpydoc.readthedocs.io/en/latest/format.html
 .. _Pytest: http://doc.pytest.org/en/latest/
 .. _Ruff: https://docs.astral.sh/ruff/
+.. _mypy: http://mypy-lang.org/
+.. _type hints: https://docs.python.org/3/library/typing.html
 
 Testing with continuous integration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

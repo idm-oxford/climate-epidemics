@@ -8,6 +8,7 @@
 [![Coverage](https://codecov.io/gh/idm-oxford/climate-epidemics/branch/main/graph/badge.svg)](https://codecov.io/gh/idm-oxford/climate-epidemics)
 [![Documentation](https://readthedocs.org/projects/climate-epidemics/badge/?version=latest)](https://climate-epidemics.readthedocs.io/en/latest)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://www.mypy-lang.org/)
 
 Python package and web app for integrating climate projection data into epidemiological
 models.
