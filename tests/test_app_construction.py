@@ -1,5 +1,6 @@
 """Unit tests for the _app_construction module of the app subpackage."""
 
+import signal
 import time
 from unittest.mock import MagicMock, patch
 
@@ -318,3 +319,38 @@ def test_set_shutdown(mock_shutdown, mock_signal):
     mock_signal.SIGTERM("another signum", "another frame")
     mock_original_sigterm.assert_called_once_with("another signum", "another frame")
     assert mock_shutdown.call_count == 3
+
+
+@patch("climepi.app._app_construction.os.kill", autospec=True)
+@patch("climepi.app._app_construction.os.getpid", return_value=1234)
+def test_extend_signal_handler(_, mock_kill):
+    """Unit test for the _extend_signal_handler function."""
+    original_handler = MagicMock()
+    extension = MagicMock()
+    new_handler = app_construction._extend_signal_handler(original_handler, extension)
+    new_handler("a signum", "a frame")
+    extension.assert_called_once_with()
+    original_handler.assert_called_once_with("a signum", "a frame")
+    mock_kill.assert_not_called()
+    # Check case where extension raises an exception doesn't cause the exception to be
+    # raised
+    original_handler.reset_mock()
+    extension.reset_mock()
+    extension.side_effect = ValueError("an error")
+    new_handler("a signum", "a frame")
+    extension.assert_called_once_with()
+    original_handler.assert_called_once_with("a signum", "a frame")
+    mock_kill.assert_not_called()
+    # Check case where original is SIG_DFL
+    extension.reset_mock()
+    new_handler2 = app_construction._extend_signal_handler(signal.SIG_DFL, extension)
+    new_handler2(signal.SIGTERM, "a frame")
+    extension.assert_called_once_with()
+    mock_kill.assert_called_once_with(1234, signal.SIGTERM)
+    # Check case where original is signal.SIG_IGN
+    extension.reset_mock()
+    mock_kill.reset_mock()
+    new_handler3 = app_construction._extend_signal_handler(signal.SIG_IGN, extension)
+    new_handler3("a signum", "a frame")
+    extension.assert_called_once_with()
+    mock_kill.assert_not_called()

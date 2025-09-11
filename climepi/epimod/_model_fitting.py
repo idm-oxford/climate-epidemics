@@ -793,7 +793,9 @@ def _where(
     elif backend == "pytensor":
         result = pt.where(condition, x, y)
     else:
-        raise ValueError(f"Invalid backend: {backend}")
+        raise ValueError(
+            f"Invalid backend: '{backend}'. Must be 'numpy', 'xarray', or 'pytensor'."
+        )
     return cast(_SupportedArrayType, result)
 
 
