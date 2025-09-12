@@ -16,5 +16,5 @@ and its uncertainties on disease risks.
    Getting Started <getting-started/index>
    Gallery <gallery>
    API Reference <api>
-   Project Homepage <https://idm-oxford.github.io/climate-epidemics/>
    Development <development/index>
+   Web App <https://idm-oxford.github.io/climate-epidemics/>

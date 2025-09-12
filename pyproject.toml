@@ -88,6 +88,7 @@ type-check = "mypy climepi"
 test = "pytest"
 docs = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs docs/_build/html"
 docs-rtd = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs $READTHEDOCS_OUTPUT/html"
+remake-examples = "python -c 'from climepi.climdata._examples import _make_all_examples; _make_all_examples(force_remake=True)'"
 
 [tool.setuptools.packages.find]
 include = ["climepi*"]

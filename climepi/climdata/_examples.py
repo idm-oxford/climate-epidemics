@@ -225,7 +225,3 @@ def _make_all_examples(
             f"Downloads for the following examples timed out: {', '.join(timed_out)}."
             "\n Please check the output above for more information."
         )
-
-
-if __name__ == "__main__":
-    _make_all_examples(force_remake=True)  # pragma: no cover
