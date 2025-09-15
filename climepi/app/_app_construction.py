@@ -31,37 +31,38 @@ def run_app(
     Parameters
     ----------
     clim_dataset_example_base_dir: str or pathlib.Path
-        Base directory for the example climate datasets, optional. If None, the datasets
-        will be downloaded to and accessed from the OS cache.
+        Base directory for the example climate datasets, optional. If ``None``, the
+        datasets will be downloaded to and accessed from the OS cache.
     clim_dataset_example_names: list of str
         List of example names for climate datasets, optional. If None, the default list
-        in climdata.EXAMPLE_NAMES is used.
+        in ``climdata.EXAMPLE_NAMES`` is used.
     enable_custom_clim_dataset: bool
-        Whether to enable the option to load a custom climate dataset. Default is False.
-        If True, xarray.open_mfdataset will be called on the all netCDF files in the
-        directory specified by custom_clim_data_dir if the loading of custom data is
-        triggered.
+        Whether to enable the option to load a custom climate dataset. Default is
+        ``False``. If ``True``, :func:`xarray.open_mfdataset()` will be called on all
+        netCDF files in the directory specified by ``custom_clim_data_dir`` if the
+        loading of custom data is triggered.
     custom_clim_data_dir: str or pathlib.Path
         Directory containing the custom climate dataset. Must be specified if
-        enable_custom_clim_dataset is True.
+        ``enable_custom_clim_dataset`` is ``True``.
     epi_model_example_names: list of str
         List of example names for epidemiological models, optional. If None, the default
-        list in epimod.EXAMPLE_NAMES is used.
+        list in ``epimod.EXAMPLE_NAMES`` is used.
     enable_custom_epi_model: bool
         Whether to enable the option to specify a custom temperature range in which
-        transmission can occur. Default is True.
+        transmission can occur. Default is ``True``.
     dask_distributed: bool
-        Whether to use the Dask distributed scheduler. Default is False. If False, the
-        Dask single-machine scheduler using threads will be used. To use the distributed
-        scheduler, a Dask local cluster must be started from a separate terminal by
-        running ``python -m climepi.app.cluster`` before starting the app.
+        Whether to use the Dask distributed scheduler. Default is ``False``. If
+        ``False``, the Dask single-machine scheduler using threads will be used. To
+        use the distributed scheduler, a Dask local cluster must be started from a
+        separate terminal by running ``python -m climepi.app.cluster`` before starting
+        the app.
     **kwargs
-        Additional keyword arguments to pass to `pn.serve`.
+        Additional keyword arguments to pass to :func:`panel.serve()`.
 
     Returns
     -------
     panel.io.server.Server or panel.io.threads.StoppableThread
-        The server or thread running the app (return value of `pn.serve`).
+        The server or thread running the app (return value of :func:`panel.serve()`).
     """
     logger = get_logger(name="setup")
     logger.info("Setting up the app")

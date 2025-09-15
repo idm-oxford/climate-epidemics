@@ -68,18 +68,18 @@ def get_climate_data(
                 provided, all available realizations are retrieved.
             locations : list of str, optional
                 Name of one or more locations for which to retrieve data. If provided,
-                and the 'lons' and 'lats' parameters are not provided, OpenStreetMap
+                and the 'lons' and 'lats' keys are not provided, OpenStreetMap
                 data (https://openstreetmap.org/copyright) is used to query
                 corresponding longitude and latitudes, and data for the nearest grid
                 point to each location are retrieved). If 'lons' and 'lats' are also
                 provided, these are used to retrieve the data (the locations parameter
                 is still used as a dimension coordinate in the output dataset). If not
-                provided, the 'lon_range' and 'lat_range' parameters are used instead.
-            lons: list of float, optional
+                provided, the 'lon_range' and 'lat_range' keys are used instead.
+            lons : list of float, optional
                 Longitude(s) for which to retrieve data. If provided, both 'locations'
                 and 'lats' should also be provided, and must be lists of the same
                 length.
-            lats: list of float, optional
+            lats : list of float, optional
                 Latitude(s) for which to retrieve data. If provided, both 'locations'
                 and 'lons' should also be provided, and must be lists of the same
                 length.
@@ -97,13 +97,14 @@ def get_climate_data(
         Directory to which downloaded data are saved to and accessed from. If not
         provided, a directory within the OS cache directory is used.
     download : bool, optional
-        For CESM2 LENS data only; whether to download the data to the 'save_dir'
-        directory if not found locally (default is True). If False and the data are not
-        found locally, a lazily opened xarray dataset linked to the remote data is
-        returned. For ISIMIP data, the data must be downloaded if not found locally.
+        For CESM2 LENS and ARISE data only; whether to download the data to the
+        ``save_dir`` directory if not found locally (default is ``True``). If ``False``
+        and the data are not found locally, a lazily opened dataset linked to the remote
+        data is returned. For ISIMIP data, the data must be downloaded if not found
+        locally.
     force_remake : bool, optional
         Whether to force re-download and re-formatting of the data even if found
-        locally (default is False). Can only be used if 'download' is True.
+        locally (default is False). Can only be used if ``download`` is ``True``.
     subset_check_interval : float, optional
         For ISIMIP data only; time interval in seconds between checks for server-side
         data subsetting completion (default is 10).
@@ -113,8 +114,8 @@ def get_climate_data(
         will continue to run after this function times out, and this function can be
         re-run to check if the subsetting has completed and retrieve the subsetted data.
     **kwargs
-        Additional keyword arguments to pass to xarray.open_mfdataset when opening
-        downloaded data files.
+        Additional keyword arguments to pass to :func:`xarray.open_mfdataset` when
+        opening downloaded data files.
 
     Returns
     -------
@@ -143,7 +144,7 @@ def get_climate_data_file_names(
     """
     Retrieve file names of formatted climate data files.
 
-    File names are as created by the `get_climate_data` function.
+    File names are as created by :meth:`~climepi.climdata.get_climate_data`.
 
     Parameters
     ----------
@@ -155,8 +156,13 @@ def get_climate_data_file_names(
         Frequency of the data. Should be one of 'daily', 'monthly' or 'yearly' (default
         is 'monthly').
     subset: dict, optional
-        Dictionary of data subsetting options. See the docstring of `get_climate_data`
-        for details.
+        Dictionary of data subsetting options. See the docstring of
+        :meth:`~climepi.climdata.get_climate_data` for details.
+
+    Returns
+    -------
+    list of str
+        List of file names of formatted climate data files.
     """
     data_getter = _get_data_getter(
         data_source=data_source,

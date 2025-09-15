@@ -39,7 +39,7 @@ from climepi.utils import (
 @xr.register_dataset_accessor("climepi")
 class ClimEpiDatasetAccessor:
     """
-    Accessor class for xarray datasets accessed through the ``.climepi`` attribute.
+    Accessor for :class:`xarray.Dataset` objects accessed via the ``climepi`` attribute.
 
     Provides a range of methods, including for running epidemiological models, temporal
     averaging, analysing uncertainty, and plotting.
@@ -63,16 +63,16 @@ class ClimEpiDatasetAccessor:
             The epidemiological model to run.
         **kwargs : dict, optional
             Keyword arguments to pass to the model's run method. For suitability models,
-            passing "return_yearly_portion_suitable=True" will return the number of
+            passing ``return_yearly_portion_suitable=True`` will return the number of
             days/months suitable each year (depending on the resolution of the data),
             rather than the full suitability dataset, and additionally passing a value
-            for "suitability_threshold" will set the minimum suitability threshold for a
-            day/month to be considered suitable (default is 0).
+            for ``suitability_threshold`` will set the minimum suitability threshold
+            for a day/month to be considered suitable (default is 0).
 
         Returns
         -------
         xarray.Dataset:
-            The output of the model's run method.
+            The output of the model's ``run()`` method.
         """
         ds_epi = epi_model.run(self._obj, **kwargs)
         return ds_epi
@@ -98,30 +98,32 @@ class ClimEpiDatasetAccessor:
         Get data for the nearest grid point(s) to a specified location(s).
 
         Finds the nearest grid point(s) using either provided longitude and latitude
-        values, or if these are not provided, using geopy's Nominatim geocoder (uses
-        OpenStreetMap data https://openstreetmap.org/copyright). Returns a dataset with
-        a new "location" coordinate, which is used as a dimension coordinate in place of
-        the lon and lat coordinates if multiple locations are provided.
+        values, or if these are not provided, using geopy's
+        :class:`~geopy.geocoders.Nominatim` geocoder (uses OpenStreetMap data
+        https://openstreetmap.org/copyright). Returns a dataset with a new "location"
+        coordinate, which is used as a dimension coordinate in place of the lon and lat
+        coordinates if multiple locations are provided.
 
         Parameters
         ----------
         location : str or list of str
-            Name(s) of the location(s) to select. If 'lon' and 'lat' are not provided,
-            the location(s) will be geocoded using geopy's Nominatim geocoder, with
-            the location(s) provided used as search strings.
+            Name(s) of the location(s) to select. If ``lon`` and ``lat`` are not
+            provided, the location(s) will be geocoded using geopy's
+            :class:`~geopy.geocoders.Nominatim` geocoder, with the location(s) provided
+            used as search strings.
         lon : float or list of float, optional
-            Longitude(s) of the location(s) to select. If provided, 'lat' must also be
-            provided. If 'location' is a list, 'lon' and 'lat' must also be lists of the
-            same length (if provided). If not provided, the location(s) will be geocoded
-            using geopy's Nominatim geocoder.
+            Longitude(s) of the location(s) to select. If provided, ``lat`` must also be
+            provided. If ``location`` is a list, ``lon`` and ``lat`` must also be lists
+            of the same length (if provided). If not provided, the location(s) will be
+            geocoded using geopy's :class:`~geopy.geocoders.Nominatim` geocoder.
         lat : float or list of float, optional
-            Latitude(s) of the location(s) to select. If provided, 'lon' must also be
-            provided. If 'location' is a list, 'lon' and 'lat' must also be lists of the
-            same length (if provided). If not provided, the location(s) will be geocoded
-            using geopy's Nominatim geocoder.
+            Latitude(s) of the location(s) to select. If provided, ``lon`` must also be
+            provided. If ``location`` is a list, ``lon`` and ``lat`` must also be lists
+            of the same length (if provided). If not provided, the location(s) will be
+            geocoded using geopy's :class:`~geopy.geocoders.Nominatim` geocoder.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to the geocode method of the Nominatim
-            geocoder.
+            Additional keyword arguments to pass to the geocode method of the
+            :class:`~geopy.geocoders.Nominatim` geocoder.
 
         Returns
         -------
@@ -183,18 +185,19 @@ class ClimEpiDatasetAccessor:
         """
         Compute the group average of a data variable.
 
-        Wraps xcdat temporal.group_average.
+        Wraps :meth:`xcdat.temporal.group_average`.
 
         Parameters
         ----------
         data_var : str or list, optional
             Name(s) of the data variable(s) to compute the group average for. If not
-            provided, all non-bound data variables will be used.
+            provided, all non-bounds data variables will be used.
         frequency : str, optional
-            Frequency to compute the group average for (options are "yearly", "monthly"
-            or "daily"). Default is "yearly".
+            Frequency to compute the group average for (options are 'yearly', 'monthly'
+            or 'daily'). Default is 'yearly'.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to xcdat temporal.group_average.
+            Additional keyword arguments to pass to
+            :meth:`xcdat.temporal.group_average`.
 
         Returns
         -------
@@ -248,15 +251,16 @@ class ClimEpiDatasetAccessor:
         """
         Compute the yearly mean of a data variable.
 
-        Thin wrapper around group_average.
+        Thin wrapper around :meth:`~xarray.Dataset.climepi.temporal_group_average`.
 
         Parameters
         ----------
         data_var : str or list, optional
             Name(s) of the data variable(s) to compute the yearly mean for. If not
-            provided, all non-bound data variables will be used.
+            provided, all non-bounds data variables will be used.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to xcdat temporal.group_average.
+            Additional keyword arguments to pass to
+            :meth:`xcdat.temporal.group_average`.
 
         Returns
         -------
@@ -273,15 +277,16 @@ class ClimEpiDatasetAccessor:
         """
         Compute the monthly mean of a data variable.
 
-        Thin wrapper around group_average.
+        Thin wrapper around :meth:`~xarray.Dataset.climepi.temporal_group_average`.
 
         Parameters
         ----------
         data_var : str or list, optional
             Name(s) of the data variable(s) to compute the monthly mean for. If not
-            provided, all non-bound data variables will be used.
+            provided, all non-bounds data variables will be used.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to xcdat temporal.group_average.
+            Additional keyword arguments to pass to
+            :meth:`xcdat.temporal.group_average`.
 
         Returns
         -------
@@ -317,7 +322,7 @@ class ClimEpiDatasetAccessor:
         Returns
         -------
         xarray.Dataset:
-            Dataset with a single non-bounds data variable "portion_suitable", with
+            Dataset with a single non-bounds data variable 'portion_suitable', with
             units of months (for monthly suitability data) or days (for daily
             suitability data) each year.
         """
@@ -332,7 +337,7 @@ class ClimEpiDatasetAccessor:
                     """No suitability data found. To calculate the number of months
                     suitable from a climate dataset, first run the suitability model and
                     then apply this method to the output dataset. If the suitability
-                    variable is not named "suitability", specify the name using the
+                    variable is not named 'suitability', specify the name using the
                     suitability_var_name argument.""",
                 )
         freq_xcdat = _infer_freq(self._obj.time)
@@ -378,27 +383,27 @@ class ClimEpiDatasetAccessor:
         ----------
         data_var : str or list, optional
             Name(s) of the data variable(s) to compute the ensemble statistics for.
-            If not provided, all non-bound data variables will be used.
+            If not provided, all non-bounds data variables will be used.
         uncertainty_level : float, optional
             Uncertainty level (percentage) for computing ensemble percentiles. Default
             is 90.
         internal_variability_method : str, optional
-            Whether to compute statistics directly at each time point ("direct") or
-            to estimate them using a polynomial ("polyfit") or spline ("splinefit")
+            Whether to compute statistics directly at each time point ('direct') or
+            to estimate them using a polynomial ('polyfit') or spline ('splinefit')
             fit to the time series, assuming the variance is constant in time. By
-            default, the "direct" method is used if multiple realizations are available
-            (i.e., the dataset has a non-singleton "realization" dimension), and the
-            "polyfit" method is used if only a single realization is available. Note
-            that if the "splinefit" method is used and the dataset has a non-singleton
-            "realization" dimension, then the spline fit is applied to the mean of the
+            default, the 'direct' method is used if multiple realizations are available
+            (i.e., the dataset has a non-singleton 'realization' dimension), and the
+            'polyfit' method is used if only a single realization is available. Note
+            that if the 'splinefit' method is used and the dataset has a non-singleton
+            'realization' dimension, then the spline fit is applied to the mean of the
             realizations at each time point.
         deg : int, optional
-            Degree of the polynomial to fit to the time series if using the "polyfit"
+            Degree of the polynomial to fit to the time series if using the 'polyfit'
             method (ignored if using other methods). Default is 3.
         lam: float, optional
-            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
-            using the "splinefit" method (ignored if using other methods). Default is
-            None.
+            Smoothing parameter passed to
+            :meth:`scipy.interpolate.make_smoothing_spline` if using the 'splinefit'
+            method (ignored if using other methods). Default is ``None``.
 
         Returns
         -------
@@ -460,28 +465,28 @@ class ClimEpiDatasetAccessor:
             Name of the data variable(s) to decompose.
         fraction : bool, optional
             Whether to calculate the variance contributions as fractions of the total
-            variance at each time, rather than the raw variances. Default is False.
+            variance at each time, rather than the raw variances. Default is ``False``.
         internal_variability_method : str, optional
             Whether to characterize internal variability by computing ensemble
-            statistics directly at each time point ("direct") or by estimating them
-            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
-            series, assuming the variance is constant in time. By default, the "direct"
+            statistics directly at each time point ('direct') or by estimating them
+            using a polynomial ('polyfit') or spline ('splinefit') fit to the time
+            series, assuming the variance is constant in time. By default, the 'direct'
             method is used if multiple realizations are available (i.e., the dataset has
-            a non-singleton "realization" dimension), and the "polyfit" method is used
+            a non-singleton 'realization' dimension), and the 'polyfit' method is used
             if only a single realization is available.
         deg : int, optional
-            Degree of the polynomial to fit to the time series if using the "polyfit"
+            Degree of the polynomial to fit to the time series if using the 'polyfit'
             method (ignored if using other methods). Default is 3.
         lam: float, optional
-            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
-            using the "splinefit" method (ignored if using other methods). Default is
-            None.
+            Smoothing parameter passed to
+            :meth:`scipy.interpolate.make_smoothing_spline` if using the 'splinefit'
+            method (ignored if using other methods). Default is ``None``.
 
         Returns
         -------
         xarray.Dataset
             A new dataset containing the variance decomposition of the selected data
-            variable(s) along a new "source" dimension.
+            variable(s) along a new 'source' dimension.
         """
         data_var_list = self._process_data_var_argument(data_var, as_list=True)
         for dim in ["scenario", "model"]:
@@ -577,25 +582,25 @@ class ClimEpiDatasetAccessor:
             Uncertainty level for the uncertainty intervals (percentage). Default is 90.
         internal_variability_method : str, optional
             Whether to characterize internal variability by computing ensemble
-            statistics directly at each time point ("direct") or by estimating them
-            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
-            series, assuming the variance is constant in time. By default, the "direct"
+            statistics directly at each time point ('direct') or by estimating them
+            using a polynomial ('polyfit') or spline ('splinefit') fit to the time
+            series, assuming the variance is constant in time. By default, the 'direct'
             method is used if multiple realizations are available (i.e., the dataset has
-            a non-singleton "realization" dimension), and the "polyfit" method is used
+            a non-singleton 'realization' dimension), and the 'polyfit' method is used
             if only a single realization is available.
         deg : int, optional
-            Degree of the polynomial to fit to the time series if using the "polyfit"
+            Degree of the polynomial to fit to the time series if using the 'polyfit'
             method (ignored if using other methods). Default is 3.
         lam: float, optional
-            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
-            using the "splinefit" method (ignored if using other methods). Default is
-            None.
+            Smoothing parameter passed to
+            :meth:`scipy.interpolate.make_smoothing_spline` if using the 'splinefit'
+            method (ignored if using other methods). Default is ``None``.
 
         Returns
         -------
         xarray.Dataset
             A new dataset containing the uncertainty interval decomposition of the
-            selected data variable(s) along a new "level" dimension.
+            selected data variable(s) along a new 'level' dimension.
         """
         data_var_list = self._process_data_var_argument(data_var, as_list=True)
         ds_raw = self._obj[data_var_list].squeeze()  # drops bounds for now
@@ -729,7 +734,7 @@ class ClimEpiDatasetAccessor:
         """
         Generate a time series plot of a data variable.
 
-        Wraps hvplot.line.
+        Wraps :meth:`hvplot.hvPlot.line`.
 
         Parameters
         ----------
@@ -737,11 +742,11 @@ class ClimEpiDatasetAccessor:
             Name of the data variable to plot. If not provided, the function
             will attempt to automatically select a suitable variable.
         **kwargs : dict
-            Additional keyword arguments to pass to hvplot.line.
+            Additional keyword arguments to pass to :meth:`hvplot.hvPlot.line`.
 
         Returns
         -------
-        holoviews object
+        :mod:`holoviews` object
             The resulting time series plot.
         """
         data_var = self._process_data_var_argument(data_var)
@@ -760,7 +765,7 @@ class ClimEpiDatasetAccessor:
         """
         Generate a map plot of a data variable.
 
-        Wraps hvplot.quadmesh.
+        Wraps :meth:`hvplot.hvPlot.quadmesh`.
 
         Parameters
         ----------
@@ -768,15 +773,15 @@ class ClimEpiDatasetAccessor:
             Name of the data variable to plot. Should be provided unless there is a
             single non-bounds data variable.
         mask_ocean : bool, optional
-            Whether to plot over ocean areas in white. Default is True.
+            Whether to plot over ocean areas in white. Default is ``True``.
         mask_lakes : bool, optional
-            Whether to plot over lake areas in white. Default is True.
+            Whether to plot over lake areas in white. Default is ``True``.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to hvplot.quadmesh.
+            Additional keyword arguments to pass to :meth:`hvplot.hvPlot.quadmesh`.
 
         Returns
         -------
-        holoviews object
+        :mod:`holoviews` object
             The resulting map plot.
         """
         data_var = self._process_data_var_argument(data_var)
@@ -823,7 +828,7 @@ class ClimEpiDatasetAccessor:
         from internal variability, model uncertainty and scenario uncertainty, and
         creates an area plot showing these contributions over time.
 
-        Wraps hvplot.area.
+        Wraps :meth:`hvplot.hvPlot.area`.
 
         Parameters
         ----------
@@ -832,28 +837,28 @@ class ClimEpiDatasetAccessor:
             single non-bounds data variable.
         fraction : bool, optional
             Whether to plot the variance contributions as fractions of the total
-            variance at each time, rather than the raw variances. Default is False.
+            variance at each time, rather than the raw variances. Default is ``False``.
         internal_variability_method : str, optional
             Whether to characterize internal variability by computing ensemble
-            statistics directly at each time point ("direct") or by estimating them
-            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
-            series, assuming the variance is constant in time. By default, the "direct"
+            statistics directly at each time point ('direct') or by estimating them
+            using a polynomial ('polyfit') or spline ('splinefit') fit to the time
+            series, assuming the variance is constant in time. By default, the 'direct'
             method is used if multiple realizations are available (i.e., the dataset has
-            a non-singleton "realization" dimension), and the "polyfit" method is used
+            a non-singleton 'realization' dimension), and the 'polyfit' method is used
             if only a single realization is available.
         deg : int, optional
-            Degree of the polynomial to fit to the time series if using the "polyfit"
+            Degree of the polynomial to fit to the time series if using the 'polyfit'
             method (ignored if using other methods). Default is 3.
         lam: float, optional
-            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
-            using the "splinefit" method (ignored if using other methods). Default is
-            None.
+            Smoothing parameter passed to
+            :meth:`scipy.interpolate.make_smoothing_spline` if using the 'splinefit'
+            method (ignored if using other methods). Default is ``None``.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to hvplot.area.
+            Additional keyword arguments to pass to :meth:`hvplot.hvPlot.area`.
 
         Returns
         -------
-        hvplot object
+        :mod:`holoviews` object
             The resulting plot object.
         """
         data_var = self._process_data_var_argument(data_var)
@@ -906,10 +911,10 @@ class ClimEpiDatasetAccessor:
         Plot contributions of climate uncertainty sources to uncertainty intervals.
 
         Generates a plume plot showing contributions of internal variability, model
-        uncertainty and scenario uncertainty (as applicable) to uncertainty intervals for
-        a data variable over time.
+        uncertainty and scenario uncertainty (as applicable) to uncertainty intervals
+        for a data variable over time.
 
-        Wraps hvplot.area.
+        Wraps :meth:`hvplot.hvPlot.area`.
 
         Parameters
         ----------
@@ -920,19 +925,19 @@ class ClimEpiDatasetAccessor:
             Uncertainty level for the uncertainty intervals (percentage). Default is 90.
         internal_variability_method : str, optional
             Whether to characterize internal variability by computing ensemble
-            statistics directly at each time point ("direct") or by estimating them
-            using a polynomial ("polyfit") or spline ("splinefit") fit to the time
-            series, assuming the variance is constant in time. By default, the "direct"
+            statistics directly at each time point ('direct') or by estimating them
+            using a polynomial ('polyfit') or spline ('splinefit') fit to the time
+            series, assuming the variance is constant in time. By default, the 'direct'
             method is used if multiple realizations are available (i.e., the dataset has
-            a non-singleton "realization" dimension), and the "polyfit" method is used
+            a non-singleton 'realization' dimension), and the 'polyfit' method is used
             if only a single realization is available.
         deg : int, optional
-            Degree of the polynomial to fit to the time series if using the "polyfit"
+            Degree of the polynomial to fit to the time series if using the 'polyfit'
             method (ignored if using other methods). Default is 3.
         lam: float, optional
-            Smoothing parameter passed to scipy.interpolate.make_smoothing_spline if
-            using the "splinefit" method (ignored if using other methods). Default is
-            None.
+            Smoothing parameter passed to
+            :meth:`scipy.interpolate.make_smoothing_spline` if using the 'splinefit'
+            method (ignored if using other methods). Default is ``None``.
         kwargs_baseline : dict, optional
             Additional keyword arguments to pass to hvplot.line for the baseline
             estimate.
@@ -942,7 +947,7 @@ class ClimEpiDatasetAccessor:
 
         Returns
         -------
-        holoviews.Overlay
+        :class:`holoviews.Overlay`
             The resulting plot object.
         """
         data_var = self._process_data_var_argument(data_var)

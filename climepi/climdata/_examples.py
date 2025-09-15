@@ -88,22 +88,21 @@ def get_example_dataset(
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        "isimip_cities_daily" (ISIMIP daily projections for London, Paris, Los
-        Angeles, Cape Town and Istanbul for 2030-2100) and "lens2_2020_2100_monthly"
+        'isimip_cities_daily' (ISIMIP daily projections for London, Paris, Los
+        Angeles, Cape Town and Istanbul for 2030-2100) and 'lens2_2020_2100_monthly'
         (CESM LENS2 monthly projections for 2020 and 2100).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same
-        name as the `name` argument. If not specified, a directory within the OS cache
+        name as the ``name`` argument. If not specified, a directory within the OS cache
         will be used.
     force_remake : bool, optional
-        If True, force the download/formatting of the raw underlying data, even if the
-        formatted dataset already exists locally and/or is available for direct
-        download (default is False).
+        If ``True``, force the download/formatting of the raw underlying data, even if
+        the formatted dataset already exists locally and/or is available for direct
+        download (default is ``False``).
     **kwargs
-        Additional keyword arguments to pass to xarray.open_mfdataset when opening
-        downloaded data files.
-
+        Additional keyword arguments to pass to :func:`xarray.open_mfdataset` when
+        opening downloaded data files.
 
     Returns
     -------
