@@ -148,7 +148,7 @@ def generate_dataset(
 
     Returns
     -------
-    xr.Dataset
+    xarray.Dataset
         Test dataset.
     """
     if isinstance(data_var, str):

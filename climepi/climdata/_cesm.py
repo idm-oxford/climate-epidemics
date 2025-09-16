@@ -166,7 +166,7 @@ class LENS2DataGetter(CESMDataGetter):
     Terms of use can be found at https://www.ucar.edu/terms-of-use/data.
 
     Available years that can be specified in the `subset` argument of the class
-    constructor range from 1850 to 2100, and 100 realizations (here labelled as 0 to 99)
+    constructor range from 1850 to 2100, and 100 realizations (here labeled as 0 to 99)
     are available for a single scenario ("ssp370") and model ("cesm2"). The remotely
     stored data can be lazily opened as an xarray dataset and processed without
     downloading (`download=False` option in the `get_data` method).
@@ -241,7 +241,7 @@ class ARISEDataGetter(CESMDataGetter):
     Available years that can be specified in the `subset` argument of the class
     constructor range from 2035 to 2069 for feedback simulations (scenario "sai15"),
     and 2000 to 2100 for reference simulations without climate intervention (scenario
-    "ssp245"). 10 realizations (here labelled as 0 to 9) are available for each
+    "ssp245"). 10 realizations (here labeled as 0 to 9) are available for each
     scenario. The remotely stored data can be lazily opened as an xarray dataset and
     processed without downloading (`download=False` option in the `get_data` method).
 
@@ -542,7 +542,7 @@ def _preprocess_arise_dataset(
     member_id = ds.attrs["case"].split(".")[-1]
     assert member_id in member_ids, f"Unexpected member_id {member_id}"
     data_var = [v for v in ds.data_vars if v in ["TREFHT", "PRECT"]][0]
-    ds = ds[[data_var]]  # drops time_bnds (readded later)
+    ds = ds[[data_var]]  # drops time_bnds (re-added later)
     ds[data_var] = ds[data_var].expand_dims(
         member_id=[member_id],
         scenario=np.array([scenario], dtype="object"),

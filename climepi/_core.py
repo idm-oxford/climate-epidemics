@@ -42,7 +42,7 @@ class ClimEpiDatasetAccessor:
     Accessor for :class:`xarray.Dataset` objects accessed via the ``climepi`` attribute.
 
     Provides a range of methods, including for running epidemiological models, temporal
-    averaging, analysing uncertainty, and plotting.
+    averaging, analyzing uncertainty, and plotting.
 
     Parameters
     ----------
@@ -355,8 +355,9 @@ class ClimEpiDatasetAccessor:
             .sum("time")
             .rename(suitable="portion_suitable", year="time")
         )
-        # Fairly hacky way to convert years to datetime objects and add bounds
-        # (likely inefficient if not using Dask)
+        # Convert years to datetime objects and add bounds - note this approach is
+        # involves calculating a yearly average and is likely inefficient, particularly
+        # if not using Dask.
         ds_yearly_avg = self._obj.climepi.yearly_average(suitability_var_name)
         ds_portion_suitable = ds_portion_suitable.assign_coords(time=ds_yearly_avg.time)
         ds_portion_suitable = add_bnds_from_other(ds_portion_suitable, ds_yearly_avg)
@@ -939,11 +940,11 @@ class ClimEpiDatasetAccessor:
             :meth:`scipy.interpolate.make_smoothing_spline` if using the 'splinefit'
             method (ignored if using other methods). Default is ``None``.
         kwargs_baseline : dict, optional
-            Additional keyword arguments to pass to hvplot.line for the baseline
-            estimate.
+            Additional keyword arguments to pass to :meth:`hvplot.hvPlot.line` for the
+            baseline estimate.
         **kwargs_area : dict, optional
-            Additional keyword arguments to pass to hvplot.area for the all uncertainty
-            interval plots.
+            Additional keyword arguments to pass to :meth:`hvplot.hvPlot.area` for the
+            uncertainty interval plots.
 
         Returns
         -------

@@ -177,7 +177,7 @@ def get_example_model(name: str) -> SuitabilityModel:
     ):
         # Create a suitability table with suitability 1 in the relevant ranges and 0
         # outside them (with the range limits equidistant from two adjacent grid points
-        # to ensure the correct ranges are enforced with nearest-neighbour
+        # to ensure the correct ranges are enforced with nearest-neighbor
         # interpolation).
         temperature_range = example_details["temperature_range"]
         precipitation_range = example_details["precipitation_range"]
@@ -283,7 +283,7 @@ def get_example_temperature_response_data(name: str) -> pd.DataFrame:
 
 def _get_example_details(name: str) -> dict[str, Any]:
     # Helper function for extracting the details of an example model from the
-    # EXAMPLES dictionary in this module, and raising a customised error message
+    # EXAMPLES dictionary in this module, and raising a customized error message
     # listing the available examples if the requested example is not found.
     try:
         example_details = EXAMPLES[name]

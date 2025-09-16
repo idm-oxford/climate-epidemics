@@ -112,10 +112,10 @@ def get_example_dataset(
     data_dir = _get_data_dir(name, base_dir)
     example_details = _get_example_details(name)
     # If the formatted example dataset is available for direct download, download it
-    # if neccessary
+    # if necessary
     if example_details.get("formatted_data_downloadable", False) and not force_remake:
         _fetch_formatted_example_dataset(name, data_dir)
-    # Download and format the raw underlying data if neccessary, and return the dataset
+    # Download and format the raw underlying data if necessary, and return the dataset
     data_source = example_details["data_source"]
     frequency = example_details["frequency"]
     subset = example_details["subset"]
@@ -133,7 +133,7 @@ def get_example_dataset(
 
 def _get_example_details(name: str) -> dict[str, Any]:
     # Helper function for extracting the details of an example dataset from the
-    # EXAMPLES dictionary in this module, and raising a customised error message
+    # EXAMPLES dictionary in this module, and raising a customized error message
     # listing the available examples if the requested example is not found.
     try:
         example_details = EXAMPLES[name]

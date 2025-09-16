@@ -102,7 +102,7 @@ temperature range can be defined as follows:
 
 Running the model on a climate dataset (either using :py:meth:`suitability_model.run()
 <climepi.epimod.SuitabilityModel.run()>`, or via the ``climepi`` accessor as described
-below) will then yield a dataset with a boolean data variable 'suitability' indicating
+below) will then yield a dataset with a Boolean data variable 'suitability' indicating
 whether or not each temperature value falls within the specified range).
 
 Methods are also provided for inferring temperature responses of vector and pathogen

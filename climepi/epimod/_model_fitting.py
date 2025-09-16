@@ -714,7 +714,8 @@ def plot_fitted_temperature_response(
     Returns
     -------
     holoviews.Overlay
-        The plot object containing the fitted temperature response curve.
+        The plot object containing the response data (if provided), the median response
+        curve, and the credible interval.
     """
     da_posterior_response = get_posterior_temperature_response(
         idata=idata,

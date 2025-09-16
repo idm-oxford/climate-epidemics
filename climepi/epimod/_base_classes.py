@@ -75,8 +75,8 @@ class SuitabilityModel(EpiModel):
         values or temperature/precipitation combinations. The dataset should have a
         single data variable (with any desired name) with dimension(s) 'temperature'
         and, optionally, 'precipitation'. Temperatures should be in degrees Celsius and
-        precipitation values in mm/day. Equi-spaced temperature and (where applicable)
-        precipitation values should be provided, and nearest neighbour interpolation is
+        precipitation values in mm/day. Equispaced temperature and (where applicable)
+        precipitation values should be provided, and nearest neighbor interpolation is
         used to calculate suitability values away from grid points (this is for
         performance reasons). Suitability values can be either binary (0 or 1) or
         continuous. Suitability is assumed to take the nearest endpoint value for
@@ -509,7 +509,7 @@ class SuitabilityModel(EpiModel):
                 == last_suitable_loc - first_suitable_loc + 1
             ):
                 min_temp = (  # interpolates between first suitable temperature and the
-                    # temperature just below it, consistent with nearest neighbour
+                    # temperature just below it, consistent with nearest neighbor
                     # interpolation used in _run_main_temp_table
                     0.5
                     * (
