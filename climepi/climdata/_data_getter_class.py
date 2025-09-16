@@ -60,7 +60,7 @@ class ClimateDataGetter:
     available_models: list or array-like of str
         Available models for which data can be retrieved.
     available_realizations: list or array-like of int
-        Available realizations for which data can be retrieved (labelled as integers
+        Available realizations for which data can be retrieved (labeled as integers
         from 0).
     lon_res: float
         Longitude resolution of the data (degrees).
@@ -366,12 +366,12 @@ class ClimateDataGetter:
 
     def _find_remote_data(self) -> None:
         # Method for finding the data on the remote server to be implemented in
-        # subclasses. The expected behaviour depends on the data source.
+        # subclasses. The expected behavior depends on the data source.
         raise NotImplementedError
 
     def _subset_remote_data(self) -> None:
         # Method for subsetting the remotely held data to be implemented in subclasses.
-        # The expected behaviour depends on the data source.
+        # The expected behavior depends on the data source.
         raise NotImplementedError
 
     def _download_remote_data(self) -> None:

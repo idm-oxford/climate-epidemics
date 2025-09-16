@@ -19,7 +19,7 @@ class EpiModel:
     """
     Base class for epidemiological models. Intended to be subclassed.
 
-    Subclasses must implement the _run_main method to run the main logic of the
+    Subclasses must implement the ``run()`` method to run the main logic of the
     epidemiological model on a given climate dataset.
     """
 
@@ -56,47 +56,47 @@ class SuitabilityModel(EpiModel):
     ----------
     temperature_range : list or tuple of two floats, optional
         A list or tuple of two floats defining the temperature range of suitability
-        (in degrees Celsius). Only defined if the parameter `temperature_range` is
+        (in degrees Celsius). Only defined if the parameter ``temperature_range`` is
         provided.
     suitability_table : xarray.Dataset
         A dataset containing suitability values defined for different temperature
         values or temperature/precipitation combinations. Only defined if the parameter
-        `suitability_table` is provided.
+        ``suitability_table`` is provided.
 
     Parameters
     ----------
     temperature_range : list or tuple of two floats, optional
         A list or tuple of two floats defining the temperature range of suitability
         (in degrees Celsius), where suitability is assumed to be 1 for temperatures
-        within the range and 0 otherwise. Default is None. Only one of
-        `temperature_range` and `suitability_table` should be provided.
+        within the range and 0 otherwise. Default is ``None``. Only one of
+        ``temperature_range`` and ``suitability_table`` should be provided.
     suitability_table : xarray.Dataset, optional
         A dataset containing suitability values defined for different temperature
         values or temperature/precipitation combinations. The dataset should have a
-        single data variable (with any desired name) with dimension(s) "temperature"
-        and, optionally, "precipitation". Temperatures should be in degrees Celsius and
-        precipitation values in mm/day. Equi-spaced temperature and (where applicable)
-        precipitation values should be provided, and nearest neighbour interpolation is
+        single data variable (with any desired name) with dimension(s) 'temperature'
+        and, optionally, 'precipitation'. Temperatures should be in degrees Celsius and
+        precipitation values in mm/day. Equispaced temperature and (where applicable)
+        precipitation values should be provided, and nearest neighbor interpolation is
         used to calculate suitability values away from grid points (this is for
         performance reasons). Suitability values can be either binary (0 or 1) or
         continuous. Suitability is assumed to take the nearest endpoint value for
         temperature and/or precipitation values outside the provided range(s). May also
-        have an additional dimension named "sample" indexing equally likely possible
-        suitability tables, or a dimension "suitability_quantile" indexing quantiles of
-        the suitability values. Default is None. Only one of `temperature_range` and
-        `suitability_table` should be provided.
+        have an additional dimension named 'sample' indexing equally likely possible
+        suitability tables, or a dimension 'suitability_quantile' indexing quantiles of
+        the suitability values. Default is ``None``. Only one of ``temperature_range``
+        and ``suitability_table`` should be provided.
     suitability_var_name : str, optional
         The name of the suitability variable. Should not be provided if
-        `suitability_table` is provided (in this case, the name of the single
+        ``suitability_table`` is provided (in this case, the name of the single
         data variable in the suitability table will be used instead). If
-        `suitability_table` is not provided, the name will default to "suitability".
+        ``suitability_table`` is not provided, the name will default to 'suitability'.
     suitability_var_long_name : str, optional
         The long name of the suitability variable, used to label axes in plots. If not
-        provided and if `suitability_table` is provided, the long name will be taken
-        from the suitability table (either via the `long_name` attribute of the
+        provided and if ``suitability_table`` is provided, the long name will be taken
+        from the suitability table (either via the 'long_name' attribute of the
         suitability variable, if it exists, or otherwise by capitalizing the suitability
-        variable name). If `suitability_table` is not provided, the long name will
-        default to "Suitability".
+        variable name). If ``suitability_table`` is not provided, the long name will
+        default to 'Suitability'.
     """
 
     def __init__(
@@ -150,9 +150,9 @@ class SuitabilityModel(EpiModel):
         """
         Run the epidemiological model on a given climate dataset.
 
-        Extends the parent method to include the option to return the number of days/
-        months suitable each year (depending on the resolution of the climate data),
-        rather than the full suitability dataset.
+        Extends the parent method to include the option to return the number of
+        days/months suitable each year (depending on the resolution of the climate
+        data), rather than the full suitability dataset.
 
         Parameters
         ----------
@@ -161,10 +161,10 @@ class SuitabilityModel(EpiModel):
         return_yearly_portion_suitable : bool, optional
             Whether to return the number of days/months suitable each year (depending on
             the resolution of the climate data), rather than the full suitability
-            dataset. Default is False.
+            dataset. Default is ``False``.
         suitability_threshold : float, optional
             The minimum suitability threshold for a day/month to be considered suitable.
-            Only used if `return_yearly_portion_suitable` is True. Default is 0.
+            Only used if ``return_yearly_portion_suitable`` is ``True``. Default is 0.
 
         Returns
         -------
@@ -202,14 +202,15 @@ class SuitabilityModel(EpiModel):
         Parameters
         ----------
         **kwargs: dict, optional
-            Additional keyword arguments to pass to the plotting function (hvplot.line
-            for temperature-only suitability, or hvplot.quadmesh for temperature-
-            precipitation suitability).
+            Additional keyword arguments to pass to the plotting function
+            (:meth:`hvplot.hvPlot.line()` for temperature-only suitability, or
+            :meth:`hvplot.hvPlot.image()` for temperature- and
+            precipitation-dependent suitability).
 
         Returns
         -------
-        holoviews object
-            A holoviews object representing the ecological niche.
+        :mod:`holoviews` object
+            The suitability plot.
         """
         suitability_table = self.suitability_table
         suitability_var_name = self._suitability_var_name
@@ -412,18 +413,19 @@ class SuitabilityModel(EpiModel):
         ----------
         suitability_threshold : float, optional
             The threshold value (strictly) above which climate conditions are considered
-            suitable in a binary suitability model. Default is None. If None, a binary
-            suitability model is not computed.
+            suitable in a binary suitability model. If ``None``, a binary suitability
+            a binary suitability model is not computed. Default is ``None``.
         stat : str, optional
-            The summary statistic to compute. Can be "mean", "median", or "quantile".
-            Default is None. If None, no summary statistic is computed.
+            The summary statistic to compute. Can be 'mean', 'median', or 'quantile'.
+            If ``None``, no summary statistic is computed. Default is ``None``.
         quantile : array-like of floats, optional
-            The quantile(s) to compute if stat is "quantile". Default is None.
+            The quantile(s) to compute if ``stat`` is 'quantile'. Default is ``None``.
         rescale : bool or str, optional
-            If True, the suitability values (after applying any summary statistics)
-            are rescaled so that the maximum value is one. Can also be set to "mean"
-            or "median" such that the mean/median suitability table has max value 1.
-            Default is False. Has no effect if suitability_threshold is specified.
+            If ``True``, the suitability values (after applying any summary statistics)
+            are rescaled so that the maximum value is one. Can also be set to 'mean'
+            or 'median' such that the mean/median suitability table has max value 1.
+            Has no effect if ``suitability_threshold`` is specified. Default is
+            ``False``.
 
         Returns
         -------
@@ -507,7 +509,7 @@ class SuitabilityModel(EpiModel):
                 == last_suitable_loc - first_suitable_loc + 1
             ):
                 min_temp = (  # interpolates between first suitable temperature and the
-                    # temperature just below it, consistent with nearest neighbour
+                    # temperature just below it, consistent with nearest neighbor
                     # interpolation used in _run_main_temp_table
                     0.5
                     * (

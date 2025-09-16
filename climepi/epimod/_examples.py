@@ -151,21 +151,21 @@ def get_example_model(name: str) -> SuitabilityModel:
     """
     Get an example climate-sensitive epidemiological model.
 
-    Returns a climepi.epimod.SuitabilityModel object for the example model specified by
-    the name argument.
+    Returns a :class:`~climepi.epimod.SuitabilityModel` object for the example model
+    specified by the ``name`` argument.
 
     Parameters
     ----------
     name : str
         The name of the example model to return. A list of available example names can
-        be accessed as climepi.epimod.EXAMPLE_NAMES, and a description of each example
-        can be accessed via the climepi.epimod.EXAMPLES dictionary (e.g.
-        climepi.epimod.EXAMPLES["mordecai_ae_aegypti_niche"]["doc"]).
+        be accessed as ``climepi.epimod.EXAMPLE_NAMES``, and a description of each
+        example can be accessed via the ``climepi.epimod.EXAMPLES`` dictionary (e.g.,
+        ``climepi.epimod.EXAMPLES['mordecai_ae_aegypti_niche']['doc']``).
 
     Returns
     -------
     epi_model : climepi.epimod.SuitabilityModel
-        An instance of the SuitabilityModel class representing the example model.
+        The example model.
     """
     example_details = _get_example_details(name)
     if "suitability_table_path" in example_details:
@@ -177,7 +177,7 @@ def get_example_model(name: str) -> SuitabilityModel:
     ):
         # Create a suitability table with suitability 1 in the relevant ranges and 0
         # outside them (with the range limits equidistant from two adjacent grid points
-        # to ensure the correct ranges are enforced with nearest-neighbour
+        # to ensure the correct ranges are enforced with nearest-neighbor
         # interpolation).
         temperature_range = example_details["temperature_range"]
         precipitation_range = example_details["precipitation_range"]
@@ -248,30 +248,29 @@ def get_example_temperature_response_data(name: str) -> pd.DataFrame:
     """
     Get example temperature response data.
 
-    Available datasets are "mordecai_ae_aegypti" (data used to fit the Aedes aegypti
+    Available datasets are 'mordecai_ae_aegypti' (data used to fit the Aedes aegypti
     model in Mordecai et al., PLoS Negl Trop Dis 2017,
-    https://doi.org/10.1371/journal.pntd.0005568) and "mordecai_ae_albopictus" (data
+    https://doi.org/10.1371/journal.pntd.0005568) and 'mordecai_ae_albopictus' (data
     used to fit the Aedes albopictus model in the same paper).
 
     Parameters
     ----------
     name : str
         The name of the example temperature response data to return. Available names
-        are "mordecai_ae_aegypti" and "mordecai_ae_albopictus".
+        are 'mordecai_ae_aegypti' and 'mordecai_ae_albopictus'.
 
     Returns
     -------
     pandas.DataFrame
-        The temperature response data. The DataFrame has columns 'trait_name',
-        'temperature' (for the temperature values), 'trait_value' (for the corresponding
-        trait values), and 'reference' (giving original source information for the
-        data).
+        The temperature response data. Has columns 'trait_name', 'temperature' (for the
+        temperature values), 'trait_value' (for the corresponding trait values), and
+        'reference' (giving original source information for the data).
     """
     if name == "mordecai_ae_aegypti":
         return pd.read_csv(
             pathlib.Path(__file__).parent / "_example_data/mordecai_ae_aegypti_data.csv"
         )
-    elif name == "mordecai_ae_albopictus":
+    if name == "mordecai_ae_albopictus":
         return pd.read_csv(
             pathlib.Path(__file__).parent
             / "_example_data/mordecai_ae_albopictus_data.csv"
@@ -284,7 +283,7 @@ def get_example_temperature_response_data(name: str) -> pd.DataFrame:
 
 def _get_example_details(name: str) -> dict[str, Any]:
     # Helper function for extracting the details of an example model from the
-    # EXAMPLES dictionary in this module, and raising a customised error message
+    # EXAMPLES dictionary in this module, and raising a customized error message
     # listing the available examples if the requested example is not found.
     try:
         example_details = EXAMPLES[name]

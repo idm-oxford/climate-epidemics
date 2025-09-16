@@ -29,7 +29,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
     https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
 
     Available years that can be specified in the `subset` argument of the class
-    constructor range from 2015 to 2100, and a single realization (here labelled as 0)
+    constructor range from 2015 to 2100, and a single realization (here labeled as 0)
     is available for a variety of emissions scenarios ("ssp126", "ssp370", and "ssp585")
     and models ("gfdl-esm4", "ipsl-cm6a-lr", "mpi-esm1-2-hr", "mri-esm2-0",
     "ukesm1-0-ll", "canesm5", "cnrm-cm6-1", "cnrm-esm2-1", "ec-earth3", and "miroc6");
@@ -291,7 +291,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
 
     def _open_temp_data(self, **kwargs: Any) -> None:
         # Extends the parent method by defining a custom preprocess function to enable
-        # the data to be opened as a single dataset, concantenating along new 'scenario'
+        # the data to be opened as a single dataset, concatenating along new 'scenario'
         # and 'model' dimensions.
 
         def _preprocess(ds: xr.Dataset) -> xr.Dataset:

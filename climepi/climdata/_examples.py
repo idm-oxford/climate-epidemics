@@ -88,22 +88,21 @@ def get_example_dataset(
     ----------
     name : str
         Name of the example dataset to load. Currently available examples are:
-        "isimip_cities_daily" (ISIMIP daily projections for London, Paris, Los
-        Angeles, Cape Town and Istanbul for 2030-2100) and "lens2_2020_2100_monthly"
+        'isimip_cities_daily' (ISIMIP daily projections for London, Paris, Los
+        Angeles, Cape Town and Istanbul for 2030-2100) and 'lens2_2020_2100_monthly'
         (CESM LENS2 monthly projections for 2020 and 2100).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same
-        name as the `name` argument. If not specified, a directory within the OS cache
+        name as the ``name`` argument. If not specified, a directory within the OS cache
         will be used.
     force_remake : bool, optional
-        If True, force the download/formatting of the raw underlying data, even if the
-        formatted dataset already exists locally and/or is available for direct
-        download (default is False).
+        If ``True``, force the download/formatting of the raw underlying data, even if
+        the formatted dataset already exists locally and/or is available for direct
+        download (default is ``False``).
     **kwargs
-        Additional keyword arguments to pass to xarray.open_mfdataset when opening
-        downloaded data files.
-
+        Additional keyword arguments to pass to :func:`xarray.open_mfdataset` when
+        opening downloaded data files.
 
     Returns
     -------
@@ -113,10 +112,10 @@ def get_example_dataset(
     data_dir = _get_data_dir(name, base_dir)
     example_details = _get_example_details(name)
     # If the formatted example dataset is available for direct download, download it
-    # if neccessary
+    # if necessary
     if example_details.get("formatted_data_downloadable", False) and not force_remake:
         _fetch_formatted_example_dataset(name, data_dir)
-    # Download and format the raw underlying data if neccessary, and return the dataset
+    # Download and format the raw underlying data if necessary, and return the dataset
     data_source = example_details["data_source"]
     frequency = example_details["frequency"]
     subset = example_details["subset"]
@@ -134,7 +133,7 @@ def get_example_dataset(
 
 def _get_example_details(name: str) -> dict[str, Any]:
     # Helper function for extracting the details of an example dataset from the
-    # EXAMPLES dictionary in this module, and raising a customised error message
+    # EXAMPLES dictionary in this module, and raising a customized error message
     # listing the available examples if the requested example is not found.
     try:
         example_details = EXAMPLES[name]
@@ -225,7 +224,3 @@ def _make_all_examples(
             f"Downloads for the following examples timed out: {', '.join(timed_out)}."
             "\n Please check the output above for more information."
         )
-
-
-if __name__ == "__main__":
-    _make_all_examples(force_remake=True)  # pragma: no cover

@@ -25,17 +25,17 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
     climate variables. Provides methods for inferring the dependence of parameters on
     temperature from laboratory data.
 
-    Subclass of SuitabilityModel.
+    Subclass of :class:`~climepi.epimod.SuitabilityModel`.
 
     Parameters
     ----------
     parameters : dict
         Dictionary of model parameters. Each key is a parameter name, and the value
         is either a number (constant parameter), a callable (function which takes
-        keyword arguments 'temperature' and, if the model is dependent on precipitation,
-        'precipitation', which should be able to handle xarray DataArrays as inputs),
-        or, for temperature-dependent parameters that are to be fitted, a dictionary
-        with the following keys:
+        keyword arguments ``temperature`` and, if the model is dependent on
+        precipitation, ``precipitation``, which should be able to handle
+        :class:`xarray.DataArray` objects as inputs), or, for temperature-dependent
+        parameters that are to be fitted, a dictionary with the following keys:
 
             curve_type : str
                 The type of curve to fit. Options are 'quadratic' (response =
@@ -47,25 +47,28 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                 assumed on the response.
 
             probability : bool, optional
-                If True, the fitted curve is constrained to be between 0 and 1. Default
-                is False.
+                If ``True``, the fitted curve is constrained to be between 0 and 1.
+                Default is ``False``.
 
             priors : dict, optional
                 Dictionary of priors for the parameters of the model. The keys should be
                 the parameter names ('scale', 'temperature_min', 'temperature_max',
                 and either 'noise_std' or 'noise_precision' - see description for
                 'curve_type' above) and the values should callable functions that return
-                pymc distributions. Where not specified, default priors are used based
-                on the curve type (as used by Mordecai et al., PLoS Negl Trop Dis 2017).
+                :mod:`pymc` distributions. Where not specified, default priors are used
+                based on the curve type (as used by Mordecai et al., PLoS Negl Trop Dis
+                2017).
 
             attrs : dict, optional
                 Additional attributes to assign to the trait variable in the posterior
-                response DataArray (in particular, the 'long_name' and 'units'
-                attributes are used by hvplot to automatically label axes in the
-                plot_fitted_temperature_responses() method).
+                response :class:`xarray.DataArray` (in particular, the 'long_name' and
+                'units' attributes are used by :mod:`hvplot` to automatically label axes
+                in the
+                :meth:`~climepi.epimod.ParameterizedSuitabilityModel.plot_fitted_temperature_responses`
+                method).
 
         Additionally, the following can either be provided as part of the parameter
-        dictionary, or will be automatically extracted from the `data` argument if
+        dictionary, or will be automatically extracted from the ``data`` argument if
         provided:
 
             temperature_data: array-like
@@ -77,15 +80,15 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
     suitability_function : callable
         A callable that takes the model parameters as keyword arguments and returns a
         suitability metric (e.g., the basic reproduction number). The callable should
-        be able to handle xarray DataArrays as inputs.
+        be able to handle :class:`xarray.DataArray` objects as inputs.
     data : pandas.DataFrame, optional
         A DataFrame containing the temperature and trait data for the parameters to be
-        fitted. The DataFrame should have columns "trait_name", "temperature", and
-        "trait_value".
+        fitted. The DataFrame should have columns 'trait_name', 'temperature', and
+        'trait_value'.
     suitability_var_name : str, optional
-        The name of the suitability variable. Default is "suitability".
+        The name of the suitability variable. Default is 'suitability'.
     suitability_var_long_name : str, optional
-        The long name of the suitability variable. Default is "Suitability".
+        The long name of the suitability variable. Default is 'Suitability'.
     """
 
     def __init__(
@@ -115,19 +118,19 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         Parameters
         ----------
         step : callable, optional
-            A callable that returns a pymc step method for sampling. If None, the
-            default step method (DEMetropolisZ) is used.
+            A callable that returns a :mod:`pymc` step method for sampling. If ``None``,
+            the default step method (DEMetropolisZ) is used.
         thin : int, optional
-            Only keep one in every `thin` samples. Default is 1 (no thinning).
+            Only keep one in every ``thin`` samples. Default is 1 (no thinning).
         **kwargs_sample : dict, optional
-            Keyword arguments to pass to pymc.sample().
+            Keyword arguments to pass to :func:`pymc.sample()`.
 
         Returns
         -------
         dict
-            A dictionary with fitted trait names as keys, and arviz.InferenceData
-            objects giving posterior distributions of response curve parameters for
-            that trait as corresponding values.
+            A dictionary with fitted trait names as keys, and
+            :class:`arviz.InferenceData` objects giving posterior distributions of
+            response curve parameters for that trait as corresponding values.
         """
         parameters = self._parameters
         idata_dict = {}
@@ -162,12 +165,14 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         Plot the fitted temperature responses.
 
         Note that this method requires that the model has been fitted to data
-        using fit_temperature_responses() before it can be called.
+        using
+        :meth:`~climepi.epimod.ParameterizedSuitabilityModel.fit_temperature_responses()`
+        before it can be called.
 
         Parameters
         ----------
         parameter_names : str or list of str, optional
-            The name of the parameter(s) to plot. If None, all fitted parameters
+            The name of the parameter(s) to plot. If ``None``, all fitted parameters
             will be plotted.
         temperature_vals : array-like, optional
             Vector of temperature values for which each response is to be plotted.
@@ -175,19 +180,18 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             based on the minimum and maximum temperature values in the posterior
             distribution.
         kwargs_scatter : dict, optional
-            Keyword arguments to pass to hvplot.scatter() when plotting the response
-            data.
+            Keyword arguments to pass to :meth:`hvplot.hvPlot.scatter()` when plotting
+            the response data.
         kwargs_area : dict, optional
-            Keyword arguments to pass to hvplot.area() when plotting the credible
-            intervals.
+            Keyword arguments to pass to :meth:`hvplot.hvPlot.area()` when plotting the
+            credible intervals.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to hvplot.line().
+            Additional keyword arguments to pass to :meth:`hvplot.hvPlot.line()`.
 
         Returns
         -------
         holoviews.Layout
-            A holoviews Layout object containing the plots of the fitted temperature
-            responses for the specified parameters.
+            The plots of the fitted temperature responses for the specified parameters.
         """
         if parameter_names is None:
             parameter_names = [
@@ -227,11 +231,11 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         """
         Construct a suitability table based on the fitted parameters.
 
-        Note that this method requires that the model has been fitted to data
-        using fit_temperature_responses() before it can be called. The suitability
-        table is retained as an attribute of the ParameterizedSuitabilityModel instance
-        (which can be accessed via the `suitability_table` attribute), and a copy is
-        also returned.
+        Note that this method requires that the model has been fitted to data using
+        :meth:`~climepi.epimod.ParameterizedSuitabilityModel.fit_temperature_responses()`
+        before it can be called. The suitability table is retained as an attribute
+        of the ``ParameterizedSuitabilityModel`` instance (which can be accessed via
+        the ``suitability_table`` attribute), and a copy is also returned.
 
         Parameters
         ----------
@@ -243,7 +247,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             Only needed for models that depend on precipitation.
         num_samples : int, optional
             Number of samples to draw from the posterior distribution of the fitted
-            parameters. If None, all samples are used.
+            parameters. If ``None``, all samples are used.
 
         Returns
         -------
@@ -306,9 +310,11 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         suitability is at its peak.
 
         Note that this method requires that the model has been fitted to data using
-        fit_temperature_responses() and that a suitability table has been constructed
-        using construct_suitability_table() before it can be called. Note also that
-        this method will only work if suitability is a function of temperature only.
+        :meth:`~climepi.epimod.ParameterizedSuitabilityModel.fit_temperature_responses()`
+        and that the suitability table has been constructed using
+        :meth:`~climepi.epimod.ParameterizedSuitabilityModel.construct_suitability_table()`
+        before it can be called. Note also that this method will only work if
+        suitability is a function of temperature only.
 
         Parameters
         ----------
@@ -391,7 +397,9 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         """
         Run the epidemiological model on a given climate dataset.
 
-        See the documentation for SuitabilityModel.run() for details.
+        See the documentation for
+        :meth:`SuitabilityModel.run() <climepi.epimod.SuitabilityModel.run()>` for
+        details.
         """
         self._check_fitting()
         self._check_suitability_table()
@@ -401,7 +409,9 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         """
         Plot suitability against temperature and (if relevant) precipitation.
 
-        See the documentation for SuitabilityModel.plot_suitability() for details.
+        See the documentation for
+        :meth:`SuitabilityModel.plot_suitability() <climepi.epimod.SuitabilityModel.plot_suitability()>`
+        for details.
         """
         self._check_fitting()
         self._check_suitability_table()
@@ -411,8 +421,9 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         """
         Get the maximum suitability value.
 
-        See the documentation for SuitabilityModel.get_max_suitability() for
-        details.
+        See the documentation for
+        :meth:`SuitabilityModel.get_max_suitability() <climepi.epimod.SuitabilityModel.get_max_suitability()>`
+        for details.
         """
         self._check_fitting()
         self._check_suitability_table()
@@ -478,22 +489,22 @@ def fit_temperature_response(
         the maximum temperature, and normally distributed noise is assumed on the
         response.
     probability : bool, optional
-        If True, the fitted curve is constrained to be between 0 and 1. Default is
-        False.
+        If ``True``, the fitted curve is constrained to be between 0 and 1. Default is
+        ``False``.
     priors : dict, optional
         Dictionary of priors for the parameters of the model. The keys should be the
         parameter names ('scale', 'temperature_min', 'temperature_max', and either
         'noise_std' or 'noise_precision' - see description for 'curve_type' above) and
-        the values should callable functions that return pymc distributions. Where not
-        specified, default priors are used based on the curve type (as used by Mordecai
-        et al., PLoS Negl Trop Dis 2017).
+        the values should callable functions that return :mod:`pymc` distributions.
+        Where not specified, default priors are used based on the curve type (as used by
+        Mordecai et al., PLoS Negl Trop Dis 2017).
     step : callable, optional
-        A callable that returns a pymc step method for sampling. If None, the default
-        step method (DEMetropolisZ) is used.
+        A callable that returns a :mod:`pymc` step method for sampling. If ``None``, the
+        default step method (DEMetropolisZ) is used.
     thin: int, optional
-        Only keep one in every `thin` samples. Default is 1 (no thinning).
+        Only keep one in every ``thin`` samples. Default is 1 (no thinning).
     **kwargs_sample : dict
-        Keyword arguments to pass to pymc.sample().
+        Keyword arguments to pass to :func:`pymc.sample()`.
 
     Returns
     -------
@@ -589,30 +600,31 @@ def get_posterior_temperature_response(
     ----------
     idata : arviz.InferenceData
         The posterior distribution of the fitted parameters (as returned by
-        fit_temperature_response()).
+        :func:`climepi.epimod.fit_temperature_response()`).
     curve_type : str
         The type of curve fitted. Options are 'quadratic' and 'briere'.
     num_samples : int, optional
-        Number of samples to draw from the posterior distribution. If None, all samples
-        are used.
+        Number of samples to draw from the posterior distribution. If ``None``, all
+        samples are used.
     temperature_vals : array-like, optional
         Vector of temperature values for which the response is to be computed. If not
         provided, a default range is generated based on the minimum and maximum
         temperature values in the posterior distribution.
     probability : bool, optional
-        If True, the response is constrained to be between 0 and 1. Default is False.
+        If ``True``, the response is constrained to be between 0 and 1. Default is
+        ``False``.
     trait_name : str, optional
-        The name of the trait variable. If None, the response variable is named
-        "response".
+        The name of the trait variable. If ``None``, the response variable is named
+        'response'.
     trait_attrs : dict, optional
         Additional attributes to assign to the trait variable in the returned dataset.
-        If None, no additional attributes are assigned.
+        If ``None``, no additional attributes are assigned.
 
     Returns
     -------
     xarray.DataArray
         The posterior distribution of the fitted temperature response, with dimensions
-        "temperature" and "sample".
+        'temperature' and 'sample'.
     """
     curve_func = _get_curve_func(curve_type)
     ds_posterior = az.extract(
@@ -684,22 +696,26 @@ def plot_fitted_temperature_response(
     trait_data : array-like, optional
         Vector of values of the trait variable for the corresponding temperature values.
     probability : bool, optional
-        If True, the response is constrained to be between 0 and 1. Default is False.
+        If ``True``, the response is constrained to be between 0 and 1. Default is
+        ``False``.
     trait_name : str, optional
         The name of the trait variable.
     trait_attrs : dict, optional
         Additional attributes to assign to the trait variable in the plotted dataset.
     kwargs_scatter : dict, optional
-        Keyword arguments to pass to hvplot.scatter() when plotting the response data.
+        Keyword arguments to pass to :meth:`hvplot.hvPlot.scatter()` when plotting the
+        response data.
     kwargs_area : dict, optional
-        Keyword arguments to pass to hvplot.area() when plotting the credible interval.
+        Keyword arguments to pass to :meth:`hvplot.hvPlot.area()` when plotting the
+        credible interval.
     **kwargs : dict, optional
-        Additional keyword arguments to pass to hvplot.line().
+        Additional keyword arguments to pass to :meth:`hvplot.hvPlot.line()`.
 
     Returns
     -------
     holoviews.Overlay
-        The plot object containing the fitted temperature response curve.
+        The plot object containing the response data (if provided), the median response
+        curve, and the credible interval.
     """
     da_posterior_response = get_posterior_temperature_response(
         idata=idata,

@@ -10,47 +10,50 @@ climate datasets and climate-sensitive epidemiological models.
 Core dependencies
 -----------------
 
-climepi relies heavily on the ``xarray`` package for working with labelled
-multi-dimensional arrays and datasets. We highly recommend familiarizing yourself
-with the `xarray documentation <https://docs.xarray.dev/en/stable/>`_ before using
-climepi.
+climepi relies heavily on the `xarray <https://xarray.dev/>`_ package for working with
+labelled multi-dimensional arrays and datasets. We highly recommend familiarizing
+yourself with the `xarray documentation <https://docs.xarray.dev/en/stable/>`_ before
+using climepi.
 
 Other key dependencies include:
 
-- ``dask``: used under the hood by ``xarray`` for parallel computing and handling large
-  datasets (see https://docs.xarray.dev/en/stable/user-guide/dask.html).
-- ``xcdat``: a package for climate data analysis with ``xarray``, providing (among other
-  features) methods for temporal averaging and bounds handling that are wrapped by
-  climepi.
-- ``hvplot``: a high-level plotting API which is used within climepi's plotting methods.
-- ``panel``: used to build the browser-based front-end application.
+- `Dask <https://docs.dask.org/en/latest/>`_: used under the hood by xarray for
+  parallel computing and handling large datasets (see
+  https://docs.xarray.dev/en/stable/user-guide/dask.html).
+- `xCDAT <https://xcdat.readthedocs.io/en/latest/>`_: a package for climate data
+  analysis with xarray, providing (among other features) methods for temporal
+  averaging and bounds handling that are wrapped by climepi.
+- `hvPlot <https://hvplot.holoviz.org/en/docs/latest/>`_: a high-level plotting API
+  which is used within climepi's plotting methods.
+- `Panel <https://panel.holoviz.org/>`_: used to build the browser-based front-end
+  application.
 
 Conventions
 -----------
 
-climepi's features assume that climate datasets are represented as ``xarray.Dataset``
-objects and follow certain naming conventions:
+climepi's features assume that climate datasets are represented as xarray
+:py:class:`~xarray.Dataset` objects and follow certain naming conventions:
 
 - Data variables describing temperature and precipitation values (where present) should
-  be named "temperature" and "precipitation", respectively. Inbuilt example
+  be named 'temperature' and 'precipitation', respectively. Inbuilt example
   epidemiological models assume temperature values in °C and precipitation values in
   mm/day, respectively.
-- The time dimension should be named "time".
-
-- Longitude and latitude coordinates should be named "lon" and "lat", respectively. Note
-  that some climepi methods return datasets with a dimension "location" indexing
+- The time dimension should be named 'time'.
+- Longitude and latitude coordinates should be named 'lon' and 'lat', respectively. Note
+  that some climepi methods return datasets with a dimension 'location' indexing
   named locations.
 - For ensemble datasets, multiple realizations of a single climate model under a single
-  scenario should be indexed by a dimension named "realization" (typically provided
+  scenario should be indexed by a dimension named 'realization' (typically provided
   as integer values starting from 0). If multiple models and/or scenarios are included,
-  they should be indexed by dimensions named "model" and "scenario", respectively.
+  they should be indexed by dimensions named 'model' and 'scenario', respectively.
 - If temporal bounds are present, they should be included as a data variable named
-  "time_bnds", with dimensions "time" and "bnds".
+  'time_bnds', with dimensions 'time' and 'bnds'.
 
 We welcome requests or contributions for relaxing these requirements (for example, using
-``cf_xarray``) or converting other data structures (such as climate time series stored
-as ``pandas.DataFrame`` objects) to compliant ``xarray.Dataset`` objects (see
-:doc:`/development/contributing`).
+`cf_xarray <https://cf-xarray.readthedocs.io/en/latest/>`_) or converting other data
+structures (such as climate time series stored as `pandas <https://pandas.pydata.org/>`_
+:py:class:`~pandas.DataFrame` objects) to compliant xarray :py:class:`~xarray.Dataset`
+objects (see :doc:`/development/contributing`).
 
 Functionality
 -------------
@@ -97,14 +100,14 @@ temperature range can be defined as follows:
 
     suitability_model = epimod.SuitabilityModel(temperature_range=(15, 30))
 
-Running the model on a climate dataset (either using the
-:py:meth:`SuitabilityModel.run()` method, or via the ``climepi`` accessor as described
-below) will then yield a dataset with a boolean data variable "suitability" indicating
+Running the model on a climate dataset (either using :py:meth:`suitability_model.run()
+<climepi.epimod.SuitabilityModel.run()>`, or via the ``climepi`` accessor as described
+below) will then yield a dataset with a Boolean data variable 'suitability' indicating
 whether or not each temperature value falls within the specified range).
 
 Methods are also provided for inferring temperature responses of vector and pathogen
 traits in order to construct suitability models in the
-:py:class:`~epimod.ParameterizedSuitabilityModel` class. See :doc:`/gallery` for
+:py:class:`~climepi.epimod.ParameterizedSuitabilityModel` class. See :doc:`/gallery` for
 detailed usage examples.
 
 .. _`getting-started/overview:functionality/climepi-accessor`:
@@ -112,13 +115,14 @@ detailed usage examples.
 Accessor class for xarray datasets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``climepi`` accessor class for ``xarray.Dataset`` objects provides methods for
-running epidemiological models on climate datasets, and for analyzing and visualizing
-the impact of climate uncertainty sources, as well as other utility methods.
+The ``climepi`` accessor class for :py:class:`~xarray.Dataset` objects provides methods 
+for running epidemiological models on climate datasets, and for analyzing and
+visualizing the impact of climate uncertainty sources, as well as other utility methods.
 
-The accessor class can be used by chaining the ``climepi`` attribute to a ``Dataset``.
-For example, the :py:meth:`~xarray.Dataset.climepi.run_epi_model()` method can be used
-to run an epidemiological model on a climate dataset as follows:
+The accessor class can be used by chaining the ``climepi`` attribute to a
+:py:class:`~xarray.Dataset`. For example, the
+:py:meth:`~xarray.Dataset.climepi.run_epi_model()` method can be used to run an
+epidemiological model on a climate dataset as follows:
 
 .. code-block:: python
 

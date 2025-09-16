@@ -109,6 +109,23 @@ napoleon_preprocess_types = True
 nbsphinx_requirejs_path = ""
 nbsphinx_widgets_path = ""
 
+# intersphinx:
+intersphinx_mapping = {
+    "arviz": ("https://python.arviz.org/en/stable/", None),
+    "dask": ("https://docs.dask.org/en/stable/", None),
+    "geopy": ("https://geopy.readthedocs.io/en/stable/", None),
+    "holoviews": ("https://holoviews.org/", None),
+    "hvplot": ("https://hvplot.holoviz.org/en/docs/latest/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
+    "panel": ("https://panel.holoviz.org/", None),
+    "pymc": ("https://www.pymc.io/projects/docs/en/stable/", None),
+    "python": ("https://docs.python.org/3/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "xarray": ("https://docs.xarray.dev/en/stable/", None),
+    "xcdat": ("https://xcdat.readthedocs.io/en/stable/", None),
+}
+
 
 # based on xarray doc/conf.py
 def linkcode_resolve(domain, info):
