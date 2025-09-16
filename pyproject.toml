@@ -50,7 +50,7 @@ scipy = "*"
 siphon = "*"
 tqdm = "*"
 urllib3 = "*"
-xarray = "!=2025.7.0,!=2025.7.1" # https://github.com/pydata/xarray/issues/10536
+xarray = "!=2025.7" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
 
 [tool.pixi.pypi-dependencies]
