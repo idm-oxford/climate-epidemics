@@ -10,8 +10,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://www.mypy-lang.org/)
 
-Python package and web app for integrating climate projection data into epidemiological
-models.
+Python package and web app for combining climate projection datasets and epidemiological models characterising climate suitability for vector-borne disease.
 
 Documentation: https://climate-epidemics.readthedocs.io/en/latest/
 
