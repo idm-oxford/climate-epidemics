@@ -25,30 +25,87 @@ def get_climate_data(
     **kwargs: Any,
 ) -> xr.Dataset:
     """
-    Retrieve and download climate projection data from a remote server.
+    Retrieve climate projection data.
 
-    Currently available data sources are CESM2 LENS (data_source='lens2'), CESM2 ARISE
-    (data_source='arise'), CESM1 GLENS (data_source='glens'), and ISIMIP
-    (data_source='isimip'). CESM2 LENS 2 and ARISE data are taken from AWS servers
-    (https://registry.opendata.aws/ncar-cesm2-lens/ and
-    https://registry.opendata.aws/ncar-cesm2-arise/), while CESM1 GLENS data are taken
-    from the NSF NCAR Research Data archive (https://rda.ucar.edu/datasets/d651064/).
-    Terms of use for CESM data can be found at https://www.ucar.edu/terms-of-use/data.
-    ISIMIP data are taken from the ISIMIP repository (https://data.isimip.org/), and
-    terms of use can be found at
-    https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
+    Remotely stored climate projection data are formatted and downloaded (if
+    ``download=True``). If data have been downloaded previously (and
+    ``force_remake=False``), rerunning this function will simply open the local data
+    files.
 
-    Note that for GLENS data, no server-side subsetting is performed, and downloaded
-    full data files are only cleared up after all data have been downloaded and
-    processed; splitting the data retrieval into multiple calls to this function may
-    reduce the disk space overhead.
+    Currently available data sources are:
+
+    - LENS2 (``data_source='lens2'``): Community Earth System Model (CESM) version 2
+      Large Ensemble data (https://www.cesm.ucar.edu/community-projects/lens2).
+      Possible values for subsetting options (items in ``subset``) are (all ranges here
+      are inclusive):
+
+      - years: 1850 to 2100.
+      - scenarios: 'ssp370' (SSP3-7.0; note that historical and future data are
+        combined for convenience).
+      - models: 'cesm2'.
+      - realizations: 0 to 99 (100 ensemble members).
+
+      Data are taken from AWS (https://registry.opendata.aws/ncar-cesm2-lens/).
+      Terms of data use can be found at https://www.ucar.edu/terms-of-use/data.
+    - ARISE-SAI (``data_source='arise'``): CESM2 Assessing Responses and Impacts of
+      Solar intervention on the Earth system with Stratospheric Aerosol Injection data
+      (https://www.cesm.ucar.edu/community-projects/arise-sai). Possible values for
+      subsetting options are:
+
+      - years: 2035 to 2069 (feedback simulations), 2015 to 2100 (reference
+        simulations 0-4), 2015 to 2069 (reference simulations 5-9).
+      - scenarios: 'sai15' (feedback simulations with climate intervention) and
+        'ssp245' (reference simulations under SSP2-4.5 without climate intervention).
+      - models: 'cesm2'.
+      - realizations: 0 to 9 (10 ensemble members per scenario).
+
+      Data are taken from AWS (https://registry.opendata.aws/ncar-cesm2-arise/).
+      Terms of data use can be found at https://www.ucar.edu/terms-of-use/data.
+    - GLENS (``data_source='glens'``): CESM1 Geoengineering Large Ensemble data
+      (https://www.cesm.ucar.edu/community-projects/glens). Possible values for
+      subsetting options are:
+
+      - years: 2020 to 2099 (feedback simulations), 2010 to 2097 (reference
+        simulations 0-2), 2010 to 2030 (reference simulations 3-19).
+      - scenarios: 'sai' (feedback simulations with climate intervention) and 'rcp85'
+        (reference simulations under RCP8.5 without climate intervention).
+      - models: 'cesm1'.
+      - realizations: 0 to 19 (20 ensemble members per scenario).
+
+      Data are taken from the NSF NCAR Research Data archive
+      (https://rda.ucar.edu/datasets/d651064/). Terms of data use can be found at
+      https://www.ucar.edu/terms-of-use/data.
+    - ISIMIP (``data_source='isimip'``): Inter-Sectoral Impact Model Intercomparison
+      Project phase 3b data (https://www.isimip.org/). Possible values for subsetting
+      options are:
+
+      - years: 2015 to 2100.
+      - scenarios: 'ssp126' (SSP1-2.6), 'ssp370' (SSP3-7.0),'ssp585' (SSP5-8.5) for
+        all models. Additionally, 'ssp245' (SSP2-4.5) for the first five models listed
+        below.
+      - models: 'gfdl-esm4', 'ipsl-cm6a-lr', 'mpi-esm1-2-hr', 'mri-esm2-0',
+        'ukesm1-0-ll', 'canesm5', 'cnrm-cm6-1', 'cnrm-esm2-1', 'ec-earth3', 'miroc6'.
+        See https://www.isimip.org/gettingstarted/isimip3b-bias-adjustment/ for
+        details of the models.
+      - realizations: 0 (single ensemble member per model/scenario pair).
+
+      Data are taken from the ISIMIP repository (https://data.isimip.org/). Terms of
+      data use can be found at
+      https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
+
+    For each data source, global data are available. Server-side spatial subsetting is
+    performed for LENS2, ARISE, and ISIMIP data (see subsetting options below). For
+    GLENS data, no server-side subsetting is performed, and downloaded full data files
+    are only cleared up after all data have been downloaded and processed; splitting the
+    data retrieval into multiple calls to this function may reduce the disk space
+    overhead.
 
     Parameters
     ----------
     data_source : str
         Data source to retrieve data from. Currently supported sources are 'lens2' (for
-        CESM2 LENS data), 'arise' (CESM2 ARISE data), 'glens' (CESM1 GLENS data), and
-        'isimip' (ISIMIP data).
+        LENS2 data), 'arise' (ARISE data), 'glens' (GLENS data), and 'isimip' (ISIMIP
+        data).
     frequency : str, optional
         Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
         'yearly' (default is 'monthly').
@@ -100,11 +157,11 @@ def get_climate_data(
         For CESM2 LENS and ARISE data only; whether to download the data to the
         ``save_dir`` directory if not found locally (default is ``True``). If ``False``
         and the data are not found locally, a lazily opened dataset linked to the remote
-        data is returned. For ISIMIP data, the data must be downloaded if not found
-        locally.
+        data is returned. For GLENS and ISIMIP data, the data must be downloaded if not
+        found locally.
     force_remake : bool, optional
         Whether to force re-download and re-formatting of the data even if found
-        locally (default is False). Can only be used if ``download`` is ``True``.
+        locally (default is ``False``). Can only be used if ``download`` is ``True``.
     subset_check_interval : float, optional
         For ISIMIP data only; time interval in seconds between checks for server-side
         data subsetting completion (default is 10).
