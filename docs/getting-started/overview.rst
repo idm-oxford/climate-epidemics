@@ -66,9 +66,23 @@ Climate data subpackage
 The ``climdata`` subpackage contains methods for retrieving climate projection data.
 It provides a single interface for obtaining projections of key climate variables
 used in climate-VBD models (currently, temperature and precipitation) from various
-sources (currently supported data sources include the
-`LENS2 <https://www.cesm.ucar.edu/community-projects/lens2>`_ and
-`ISIMIP <https://www.isimip.org/>`_ projects). For example,
+sources. Currently supported data sources are:
+
+- `LENS2 <https://www.cesm.ucar.edu/community-projects/lens2>`_ (Community Earth System
+  Model version 2 Large Ensemble), which provides 100 ensemble members for analyzing
+  internal climate variability.
+- `ISIMIP <https://www.isimip.org/>`_ (Inter-Sectoral Impact Model Intercomparison
+  Project Phase 3b), which provides downscaled and bias-adjusted data from multiple
+  `CMIP6 <https://wcrp-cmip.org/cmip-phases/cmip6/>`_ climate models and scenarios.
+- `ARISE-SAI <https://www.cesm.ucar.edu/community-projects/arise-sai/>`_ (Assessing
+  Responses and Impacts of Solar intervention on the Earth system with Stratospheric
+  Aerosol Injection), which supports analysis of the impacts of solar climate
+  intervention.
+- `GLENS <https://www.cesm.ucar.edu/community-projects/glens>`_ (Geoengineering Large
+  Ensemble), which also supports analysis of the impacts of solar climate intervention.
+
+For example, LENS2 data for London and Paris from 2030 to 2100 for the first two
+ensemble members can be retrieved as follows:
 
 .. code-block:: python
 
@@ -83,7 +97,13 @@ sources (currently supported data sources include the
             "realizations": [0, 1],
         },
     )
-    
+
+See the documentation for
+:py:meth:`climdata.get_climate_data() <climepi.climdata.get_climate_data()>` for details
+of data sources and subsetting options. Example datasets are also provided (see the
+documentation for
+:py:meth:`climdata.get_example_dataset() <climepi.climdata.get_example_dataset()>`).
+
 .. _`getting-started/overview:functionality/epimod`:
 
 Epidemiological model subpackage
