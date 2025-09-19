@@ -7,8 +7,8 @@ climepi documentation
 =====================
 
 climepi is a Python package for combining ensemble climate projections with models of
-climate suitability for vector-borne diseases to analyze the impacts of climate change
-and its uncertainties on disease risks.
+climate suitability for vector-borne diseases, in order to analyze the impacts of
+climate change and its uncertainties on disease risks.
 
 .. toctree::
    :maxdepth: 2
