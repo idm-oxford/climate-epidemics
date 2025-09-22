@@ -2,8 +2,7 @@
 Contributing
 ************
 
-.. note::
-  Large portions of this document came from or are inspired by the `xCDAT Contributing
+.. note:: Large portions of this document came from or are inspired by the `xCDAT Contributing
   Guide <https://xcdat.readthedocs.io/en/latest/contributing.html>`_.
 
 Overview
@@ -21,7 +20,7 @@ climepi is distributed under the `GNU General Public License v3.0`_.
 Where to start?
 ---------------
 
-If you are brand new to climepi or open-source development, we recommend going
+If you are new to climepi or open-source development, we recommend going
 through the `GitHub Issues`_ page to find issues that interest you.
 
 Documentation updates
