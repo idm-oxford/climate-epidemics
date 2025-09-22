@@ -155,7 +155,7 @@ Acknowledgement
 
 This package has been developed as part of a project funded by a Digital Technology
 Development Award (Climate-Sensitive Infectious Disease Modelling) from
-`Wellcome <https://wellcome.org/>`_.
+`Wellcome <https://wellcome.org/>`_ (grant number 226057/Z/22/Z).
 
 .. image:: /_static/wellcome-logo-black.png
    :alt: Wellcome logo
