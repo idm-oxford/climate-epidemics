@@ -112,7 +112,7 @@ Epidemiological model subpackage
 The ``epimod`` subpackage contains classes and methods for climate-sensitive
 epidemiological models, particularly models describing climate suitability for VBDs.
 For example, a simple model in which transmission is possible within a certain
-temperature range can be defined as follows:
+temperature range (in the example below, in the range 15-30 degrees celsius) can be defined as follows:
 
 .. code-block:: python
 
@@ -155,7 +155,7 @@ Acknowledgement
 
 This package has been developed as part of a project funded by a Digital Technology
 Development Award (Climate-Sensitive Infectious Disease Modelling) from
-`Wellcome <https://wellcome.org/>`_.
+`Wellcome <https://wellcome.org/>`_ (grant number 226057/Z/22/Z).
 
 .. image:: /_static/wellcome-logo-black.png
    :alt: Wellcome logo
