@@ -25,15 +25,15 @@ bibliography: paper.bib
 climepi (clim-epi) is a Python package for combining climate projections with models of
 climate suitability for vector-borne diseases (VBDs). Built on top of the [xarray](
 https://xarray.dev/) library [@hoyer_xarray_2017] for handling labeled multi-dimensional
-arrays, climepi provides methods for accessing climate projection data from a range of
-sources, for defining and running models of climate suitability for disease, and for
-assessing the impacts of different sources of climate uncertainty (uncertainty in
-emissions scenarios, structural uncertainty across climate models, and natural
-climate fluctuations that occur alongside anthropogenic climate change). The package
-also defines a front-end application that can be used to explore the impacts of climate
-change and its uncertainties using example climate datasets and climate-disease
-suitability models (the application can be run locally, and a [web application](
-https://idm-oxford.github.io/climate-epidemics/) is also available).
+arrays, climepi provides methods for: accessing climate projection data from a range of
+sources; defining, parameterizing, and running models of climate suitability for
+disease; and assessing the impacts of different sources of climate uncertainty
+(uncertainty in emissions scenarios, structural uncertainty across climate models, and
+natural climate fluctuations that occur alongside anthropogenic climate change). The
+package also defines a front-end application that can be used to explore the impacts of
+climate change and its uncertainties using example climate datasets and climate-disease
+suitability models (a [web interface](https://idm-oxford.github.io/climate-epidemics/)
+is available).
 
 # Statement of need
 
@@ -45,15 +45,19 @@ assessing climate-sensitive disease risks [@ryan_current_2023]. climepi addresse
 gap by providing a flexible and extensible Python package, as well as a user-friendly
 front-end application, which can be used by climate-health researchers and other
 potential users such as public health professionals to assess future climate suitability
-for VBDs.
+for VBDs and uncertainty therein.
 
 # Main features
 
 climepi is designed with a modular structure, comprising four main components:
 
-1. Climate data (`climdata`) subpackage: enables users to easily access climate
-   projection data from different data sources through a single interface. Supported
-   data sources include the [Inter-Sectoral Impact Model Intercomparison Project](
+1. Climate data (`climdata`) subpackage: enables users to access climate projection data
+   from different data sources through a single interface. Rather than providing
+   comprehensive access options for a large number of datasets, the focus is on enabling
+   straightforward access to data sources and climate variables (temperature and
+   precipitation) that are particularly useful for analyzing the impacts of different
+   types of climate uncertainty on future climate-VBD suitability. Supported data
+   sources include the [Inter-Sectoral Impact Model Intercomparison Project](
    https://www.isimip.org/) (ISIMIP) [@lange_isimip3b_2021], which provides downscaled
    and bias-adjusted data from multiple [Coupled Model Intercomparison Project Phase 6](
    https://wcrp-cmip.org/cmip-phases/cmip6/) (CMIP6) [@eyring_overview_2016] climate
@@ -68,11 +72,12 @@ climepi is designed with a modular structure, comprising four main components:
    suitability models by fitting the temperature dependence of model parameters
    describing vector and pathogen traits to laboratory data [@mordecai_detecting_2017].
    A selection of climate-VBD suitability models from the literature are also available
+   as built-in examples
    [@kaye_impact_2024;@mordecai_detecting_2017;@parham_modelling_2010;@ryan_global_2019;@taylor_predicting_2019;@villena_temperature_2022;@yang_assessing_2009].
 3. Accessor class for `xarray` datasets (`xarray.Dataset.climepi`): provides methods for
    combining climate data with epidemiological models, and for assessing and visualizing
-   the importance of different climate uncertainty sources [@hawkins_potential_2009], as
-   well as other utility methods.
+   the importance of different climate uncertainty sources
+   [@hawkins_potential_2009,@hart_climate_2025], as well as other utility methods.
 4. Front-end application (`app`) subpackage: provides a method for running the front-end
    application locally.
 
@@ -83,12 +88,12 @@ scenario and model uncertainty, as well as internal climate variability, to unce
 in future climate suitability for dengue in a range of locations that do not currently
 experience substantial transmission [@hart_climate_2025]. The climepi [documentation](
 https://climate-epidemics.readthedocs.io/en/stable/) includes a detailed usage example
-demonstrating how results from that study can be reproduced [@hart_climate_2025].
-Further example pages describe applications reproducing results from two other studies
-(that did not originally use climepi): parameterizing the temperature-dependent dengue
-suitability model developed by @mordecai_detecting_2017, and recreating the analysis
-of the impact of internal climate variability on climate suitability for the dengue
-vector, *Aedes aegypti*, by @kaye_impact_2024.
+demonstrating how results from that study [@hart_climate_2025] can be reproduced.
+Further example pages show how climepi can be used to reproduce results from two other
+studies (that did not originally use climepi): parameterizing the temperature-dependent
+dengue suitability model developed by @mordecai_detecting_2017, and recreating the
+analysis of the impact of internal climate variability on climate suitability for the
+dengue vector, *Aedes aegypti*, by @kaye_impact_2024.
 
 # Acknowledgements
 
