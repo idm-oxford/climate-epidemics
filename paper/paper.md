@@ -30,7 +30,7 @@ sources; defining, parameterizing, and running models of climate suitability for
 disease; and assessing the impacts of different sources of climate uncertainty
 (uncertainty in emissions scenarios, structural uncertainty across climate models, and
 natural climate fluctuations that occur alongside anthropogenic climate change). The
-package also defines a front-end application that can be used to explore the impacts of
+package also defines a front-end application that can be used to explore impacts of
 climate change and its uncertainties using example climate datasets and climate-disease
 suitability models (a [web interface](https://idm-oxford.github.io/climate-epidemics/)
 is available).
@@ -53,18 +53,18 @@ climepi is designed with a modular structure, comprising four main components:
 
 1. Climate data (`climdata`) subpackage: enables users to access climate projection data
    from different data sources through a single interface. Rather than providing
-   comprehensive access options for a large number of datasets, the focus is on enabling
-   straightforward access to data sources and climate variables (temperature and
-   precipitation) that are particularly useful for analyzing the impacts of different
-   types of climate uncertainty on future climate-VBD suitability. Supported data
-   sources include the [Inter-Sectoral Impact Model Intercomparison Project](
-   https://www.isimip.org/) (ISIMIP) [@lange_isimip3b_2021], which provides downscaled
-   and bias-adjusted data from multiple [Coupled Model Intercomparison Project Phase 6](
-   https://wcrp-cmip.org/cmip-phases/cmip6/) (CMIP6) [@eyring_overview_2016] climate
-   models and scenarios, and the [Community Earth System Model version 2 Large
-   Ensemble](https://www.cesm.ucar.edu/community-projects/lens2) (LENS2)
-   [@rodgers_ubiquity_2021], which provides 100 ensemble members for analyzing internal
-   (natural) climate variability.
+   comprehensive access options for a large number of datasets, the focus is on
+   facilitating straightforward access to data sources and climate variables
+   (temperature and precipitation) that are particularly useful for analyzing the
+   impacts of different types of climate uncertainty on future climate-VBD suitability.
+   Supported data sources include the [Inter-Sectoral Impact Model Intercomparison
+   Project](https://www.isimip.org/) (ISIMIP) [@lange_isimip3b_2021], which provides
+   downscaled and bias-adjusted data from multiple [Coupled Model Intercomparison
+   Project Phase 6](https://wcrp-cmip.org/cmip-phases/cmip6/) (CMIP6)
+   [@eyring_overview_2016] climate models and scenarios, and the [Community Earth System
+   Model version 2 Large Ensemble](https://www.cesm.ucar.edu/community-projects/lens2)
+   (LENS2) [@rodgers_ubiquity_2021], which provides 100 ensemble members for analyzing
+   internal (natural) climate variability.
 2. Epidemiological model (`epimod`) subpackage: provides classes and methods for
    models of climate suitability for disease transmission, in which a suitability metric
    (e.g., the basic reproduction number, $R_0$) is defined as a function of temperature
@@ -89,11 +89,13 @@ in future climate suitability for dengue in a range of locations that do not cur
 experience substantial transmission [@hart_climate_2025]. The climepi [documentation](
 https://climate-epidemics.readthedocs.io/en/stable/) includes a detailed usage example
 demonstrating how results from that study [@hart_climate_2025] can be reproduced.
-Further example pages show how climepi can be used to reproduce results from two other
-studies (that did not originally use climepi): parameterizing the temperature-dependent
-dengue suitability model developed by @mordecai_detecting_2017, and recreating the
-analysis of the impact of internal climate variability on climate suitability for the
-dengue vector, *Aedes aegypti*, by @kaye_impact_2024.
+Further example pages show how climepi can be used to recreate results from two other
+studies (that did not originally use climepi)
+[@mordecai_detecting_2017;@kaye_impact_2024]: specifically, these examples involve
+parameterizing the temperature-dependent dengue suitability model developed by
+@mordecai_detecting_2017, and recreating the analysis of the impact of internal climate
+variability on climate suitability for the dengue vector, *Aedes aegypti*, by
+@kaye_impact_2024.
 
 # Acknowledgements
 
