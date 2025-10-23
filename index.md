@@ -31,7 +31,7 @@ redirect_from:
         to handle multiple users simultaneously. For more advanced usage, consider
         running the app locally or using the accompanying Python package (see the Python
         package
-        <a href="https://climate-epidemics.readthedocs.io/en/latest/usage.html">
+        <a href="https://climate-epidemics.readthedocs.io/en/stable">
             documentation</a>).
     </p>
     <p>
