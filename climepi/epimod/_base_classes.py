@@ -438,6 +438,7 @@ class SuitabilityModel(EpiModel):
                 "models."
             )
         suitability_var_name = self._suitability_var_name
+        suitability_var_long_name = self._suitability_var_long_name
         da_suitability = self.suitability_table[suitability_var_name]
         if suitability_threshold is not None:
             da_suitability = da_suitability > suitability_threshold
@@ -522,5 +523,10 @@ class SuitabilityModel(EpiModel):
                 )
                 return SuitabilityModel(
                     temperature_range=(min_temp, max_temp),
+                    suitability_var_name=suitability_var_name,
+                    suitability_var_long_name=suitability_var_long_name,
                 )
-        return SuitabilityModel(suitability_table=suitability_table_new)
+        return SuitabilityModel(
+            suitability_table=suitability_table_new,
+            suitability_var_long_name=suitability_var_long_name,
+        )
