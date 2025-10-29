@@ -23,6 +23,9 @@ Other key dependencies include:
 - `xCDAT <https://xcdat.readthedocs.io/en/latest/>`_: a package for climate data
   analysis with xarray, providing (among other features) methods for temporal
   averaging and bounds handling that are wrapped by climepi.
+- `pymc <https://www.pymc.io/en/stable/>`_: used for parameterizing climate-VBD
+  suitability models by fitting temperature response curves of vector and pathogen
+  traits to laboratory data.
 - `hvPlot <https://hvplot.holoviz.org/en/docs/latest/>`_: a high-level plotting API
   which is used within climepi's plotting methods.
 - `Panel <https://panel.holoviz.org/>`_: used to build the browser-based front-end
