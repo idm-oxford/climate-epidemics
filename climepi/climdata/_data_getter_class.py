@@ -138,10 +138,10 @@ class ClimateDataGetter:
     ) -> None:
         self._frequency = frequency
         subset_full: Subset = {
-            "years": self.available_years,
-            "scenarios": self.available_scenarios,
-            "models": self.available_models,
-            "realizations": self.available_realizations,
+            "years": self.available_years.copy(),
+            "scenarios": self.available_scenarios.copy(),
+            "models": self.available_models.copy(),
+            "realizations": self.available_realizations.copy(),
             "locations": None,
             "lons": None,
             "lats": None,
