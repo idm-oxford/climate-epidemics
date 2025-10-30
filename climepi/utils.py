@@ -101,7 +101,7 @@ def get_data_var_and_bnds(ds: xr.Dataset, data_var: str | list[str]) -> xr.Datas
     if isinstance(data_var, str):
         data_var_list = [data_var]
     elif isinstance(data_var, list):
-        data_var_list = data_var
+        data_var_list = data_var.copy()
     else:
         raise ValueError("data_var must be a string or list")
     for bnd_var in ["lat_bnds", "lon_bnds", "time_bnds"]:
