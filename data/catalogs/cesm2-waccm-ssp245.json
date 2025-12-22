@@ -1,5 +1,5 @@
 {
-  "catalog_file": "cesm2-waccm-ssp245",
+  "catalog_file": "cesm2-waccm-ssp245.csv",
   "attributes": [
     {
       "column_name": "path",
