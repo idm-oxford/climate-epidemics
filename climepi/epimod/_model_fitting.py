@@ -2,7 +2,6 @@ import copy
 import numbers
 from typing import Any, Callable, Literal, Union, cast
 
-import arviz as az
 import holoviews as hv
 import hvplot.xarray  # noqa
 import numpy as np
@@ -14,6 +13,11 @@ import xarray as xr
 from numpy.typing import ArrayLike, NDArray
 
 from climepi.epimod._base_classes import SuitabilityModel
+
+try:
+    import arviz.preview as az
+except ImportError:
+    import arviz as az
 
 
 class ParameterizedSuitabilityModel(SuitabilityModel):
@@ -111,7 +115,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
     def fit_temperature_responses(
         self, step: Callable | None = None, thin: int = 1, **kwargs_sample: Any
-    ) -> dict[str, az.InferenceData]:
+    ) -> dict[str, xr.DataTree]:
         """
         Fit the model to data.
 
@@ -129,7 +133,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         -------
         dict
             A dictionary with fitted trait names as keys, and
-            :class:`arviz.InferenceData` objects giving posterior distributions of
+            :class:`xarray.DataTree` objects giving posterior distributions of
             response curve parameters for that trait as corresponding values.
         """
         parameters = self._parameters
@@ -470,7 +474,7 @@ def fit_temperature_response(
     step: Callable | None = None,
     thin: int = 1,
     **kwargs_sample: Any,
-) -> az.InferenceData:
+) -> xr.DataTree:
     """
     Fit the dependence of a parameter on temperature.
 
@@ -508,7 +512,7 @@ def fit_temperature_response(
 
     Returns
     -------
-    arviz.InferenceData
+    xarray.DataTree
         The posterior distribution of the fitted parameters.
     """
     curve_func = _get_curve_func(curve_type)
@@ -598,7 +602,7 @@ def get_posterior_temperature_response(
 
     Parameters
     ----------
-    idata : arviz.InferenceData
+    idata : xarray.DataTree
         The posterior distribution of the fitted parameters (as returned by
         :func:`climepi.epimod.fit_temperature_response()`).
     curve_type : str
@@ -683,7 +687,7 @@ def plot_fitted_temperature_response(
 
     Parameters
     ----------
-    idata : arviz.InferenceData
+    idata : xarray.DataTree
         The posterior distribution of the fitted parameters.
     curve_type : str
         The type of curve fitted. Options are 'quadratic' and 'briere'.
