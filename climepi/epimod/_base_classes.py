@@ -123,7 +123,7 @@ class SuitabilityModel(EpiModel):
                     "suitability_table argument is provided (the name of the single "
                     "data variable in the suitability table will be used instead)."
                 )
-            suitability_var_name = list(suitability_table.data_vars)[0]
+            suitability_var_name = str(list(suitability_table.data_vars)[0])
             suitability_var_long_name = suitability_var_long_name or suitability_table[
                 suitability_var_name
             ].attrs.get(

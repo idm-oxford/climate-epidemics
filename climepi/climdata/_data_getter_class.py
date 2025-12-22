@@ -430,12 +430,14 @@ class ClimateDataGetter:
             ds_processed["lon_bnds"] = xr.concat(
                 [ds_processed.lon - lon_res / 2, ds_processed.lon + lon_res / 2],
                 dim="bnds",
+                combine_attrs="drop",
             ).T
             ds_processed["lon"].attrs.update(bounds="lon_bnds")
         if "lat_bnds" not in ds_processed and lat_res is not None:
             ds_processed["lat_bnds"] = xr.concat(
                 [ds_processed.lat - lat_res / 2, ds_processed.lat + lat_res / 2],
                 dim="bnds",
+                combine_attrs="drop",
             ).T
             ds_processed["lat"].attrs.update(bounds="lat_bnds")
         ds_processed = ds_processed.bounds.add_missing_bounds(axes=["X", "Y"])

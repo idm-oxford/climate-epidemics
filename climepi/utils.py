@@ -1,5 +1,7 @@
 """Module containing utility functions for working with xarray datasets."""
 
+from typing import Hashable
+
 import xarray as xr
 
 
@@ -19,7 +21,7 @@ def add_var_attrs_from_other(
         The dataset to add the variable attributes to.
     ds_from : xarray.Dataset
         The dataset to add the variable attributes from.
-    var : str or list, optional
+    var : str or list of str, optional
         The name(s) of the variable(s) to add the attributes for (provided both datasets
         contain variable(s) with these names). If None, all variables in ds are used.
 
@@ -30,14 +32,14 @@ def add_var_attrs_from_other(
     """
     ds_out = ds.copy()
     if var is None:
-        var = list(ds.data_vars) + list(ds.coords)
-    elif isinstance(var, str):
-        var = [var]
-    for var_curr in var:
-        try:
-            ds_out[var_curr].attrs = ds_from[var_curr].attrs
-        except KeyError:
-            pass
+        var_list: list[str] | list[Hashable] = list(ds.data_vars) + list(ds.coords)
+    elif isinstance(var, list):
+        var_list = var
+    else:
+        var_list = [var]
+    for name in var_list:
+        if name in ds_out and name in ds_from:
+            ds_out[name].attrs = ds_from[name].attrs
     return ds_out
 
 
@@ -125,7 +127,7 @@ def list_non_bnd_data_vars(ds: xr.Dataset) -> list[str]:
     list
         Names of the non-bound variables in the dataset.
     """
-    data_vars = list(ds.data_vars)
+    data_vars = [str(k) for k in ds.data_vars]
     bnd_vars = ["lat_bnds", "lon_bnds", "time_bnds"]
     non_bnd_data_vars = [
         data_vars[i] for i in range(len(data_vars)) if data_vars[i] not in bnd_vars

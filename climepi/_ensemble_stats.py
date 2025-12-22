@@ -80,7 +80,7 @@ def _ensemble_mean_var_polyfit(
     if "realization" in ds_in.dims:
         return _ensemble_mean_var_polyfit_multiple_realizations(ds_in, deg=deg)
     fitted_polys = ds_in.polyfit(dim="time", deg=deg, full=True)
-    data_var_list = list(ds_in.data_vars)
+    data_var_list = [str(k) for k in ds_in.data_vars]
     poly_coeff_data_var_list = [x + "_polyfit_coefficients" for x in data_var_list]
     ds_mean = xr.polyval(
         coord=ds_in.time,
