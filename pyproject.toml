@@ -24,7 +24,10 @@ channels = ["conda-forge", "microsoft"]
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 
 [tool.pixi.dependencies]
-arviz = "*"
+arviz = ">=0.19" # first version allowing v1-like API via arviz.preview
+arviz-base = "*"
+arviz-plots="*"
+arviz-stats = "*"
 bottleneck = "*"
 dask = "*"
 datashader = "*"                 #dependency of hvplot but not always installed automatically
