@@ -129,7 +129,5 @@ def list_non_bnd_data_vars(ds: xr.Dataset) -> list[Hashable]:
     """
     data_vars = list(ds.data_vars)
     bnd_vars = ["lat_bnds", "lon_bnds", "time_bnds"]
-    non_bnd_data_vars = [
-        data_vars[i] for i in range(len(data_vars)) if data_vars[i] not in bnd_vars
-    ]
+    non_bnd_data_vars = [var for var in data_vars if var not in bnd_vars]
     return non_bnd_data_vars
