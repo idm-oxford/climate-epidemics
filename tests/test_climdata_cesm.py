@@ -473,7 +473,7 @@ class TestARISEDataGetter:
     """Class for testing the ARISEDataGetter class."""
 
     @patch.object(xr, "open_mfdataset", autospec=True)
-    @patch("climepi.climdata._cesm._get_data_version", return_value=_get_git_branch())
+    @patch("climepi.climdata._cesm._get_data_version", side_effect=_get_git_branch)
     @pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
     def test_find_remote_data(self, _, mock_open_mfdataset, frequency):
         """Test the _find_remote_data method of the ARISEDataGetter class."""
