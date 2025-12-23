@@ -80,8 +80,10 @@ def _ensemble_mean_var_polyfit(
     if "realization" in ds_in.dims:
         return _ensemble_mean_var_polyfit_multiple_realizations(ds_in, deg=deg)
     fitted_polys = ds_in.polyfit(dim="time", deg=deg, full=True)
-    data_var_list = [str(k) for k in ds_in.data_vars]
-    poly_coeff_data_var_list = [x + "_polyfit_coefficients" for x in data_var_list]
+    data_var_list = list(ds_in.data_vars)
+    if not all(isinstance(x, str) for x in data_var_list):
+        raise ValueError("Data variable names must be strings.")
+    poly_coeff_data_var_list = [str(x) + "_polyfit_coefficients" for x in data_var_list]
     ds_mean = xr.polyval(
         coord=ds_in.time,
         coeffs=fitted_polys[poly_coeff_data_var_list],
@@ -91,7 +93,7 @@ def _ensemble_mean_var_polyfit(
     # Note that the calls to broadcast_like ensure broadcasting along the time
     # dimension (this should be equivalent to adding coords="minimal" when
     # concatenating the datasets, but is done explicitly here for clarity).
-    poly_residual_data_var_list = [x + "_polyfit_residuals" for x in data_var_list]
+    poly_residual_data_var_list = [str(x) + "_polyfit_residuals" for x in data_var_list]
     ds_var = (fitted_polys[poly_residual_data_var_list] / ds_in.time.size).rename(
         dict(zip(poly_residual_data_var_list, data_var_list, strict=True))
     )

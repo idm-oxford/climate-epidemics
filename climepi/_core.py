@@ -4,7 +4,7 @@ Core module for the climepi package.
 Contains the ClimEpiDatasetAccessor class for xarray datasets.
 """
 
-from typing import Any, Literal, overload
+from typing import Any, Hashable, Literal, overload
 
 import geopy
 import geoviews.feature as gf
@@ -178,7 +178,7 @@ class ClimEpiDatasetAccessor:
 
     def temporal_group_average(
         self,
-        data_var: str | list[str] | None = None,
+        data_var: Hashable | list[Hashable] | None = None,
         frequency: Literal["daily", "monthly", "yearly"] = "yearly",
         **kwargs: Any,
     ) -> xr.Dataset:
@@ -189,7 +189,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str or list, optional
+        data_var : Hashable or list of Hashable, optional
             Name(s) of the data variable(s) to compute the group average for. If not
             provided, all non-bounds data variables will be used.
         frequency : str, optional
@@ -246,7 +246,7 @@ class ClimEpiDatasetAccessor:
         return ds_m
 
     def yearly_average(
-        self, data_var: str | list[str] | None = None, **kwargs: Any
+        self, data_var: Hashable | list[Hashable] | None = None, **kwargs: Any
     ) -> xr.Dataset:
         """
         Compute the yearly mean of a data variable.
@@ -255,7 +255,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str or list, optional
+        data_var : Hashable or list of Hashable, optional
             Name(s) of the data variable(s) to compute the yearly mean for. If not
             provided, all non-bounds data variables will be used.
         **kwargs : dict, optional
@@ -272,7 +272,7 @@ class ClimEpiDatasetAccessor:
         )
 
     def monthly_average(
-        self, data_var: str | list[str] | None = None, **kwargs: Any
+        self, data_var: Hashable | list[Hashable] | None = None, **kwargs: Any
     ) -> xr.Dataset:
         """
         Compute the monthly mean of a data variable.
@@ -281,7 +281,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str or list, optional
+        data_var : Hashable or list of Hashable, optional
             Name(s) of the data variable(s) to compute the monthly mean for. If not
             provided, all non-bounds data variables will be used.
         **kwargs : dict, optional
@@ -300,7 +300,7 @@ class ClimEpiDatasetAccessor:
 
     def yearly_portion_suitable(
         self,
-        suitability_var_name: str | None = None,
+        suitability_var_name: Hashable | None = None,
         suitability_threshold: float = 0,
     ) -> xr.Dataset:
         """
@@ -312,7 +312,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        suitability_var_name : str, optional
+        suitability_var_name : Hashable, optional
             Name of the suitability variable to use. If not provided, the method will
             attempt to automatically select a suitable variable.
         suitability_threshold : float, optional
@@ -370,7 +370,7 @@ class ClimEpiDatasetAccessor:
 
     def ensemble_stats(
         self,
-        data_var: str | list[str] | None = None,
+        data_var: Hashable | list[Hashable] | None = None,
         uncertainty_level: float = 90,
         internal_variability_method: Literal["direct", "polyfit", "splinefit"]
         | None = None,
@@ -382,7 +382,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str or list, optional
+        data_var : Hashable or list of Hashable, optional
             Name(s) of the data variable(s) to compute the ensemble statistics for.
             If not provided, all non-bounds data variables will be used.
         uncertainty_level : float, optional
@@ -447,7 +447,7 @@ class ClimEpiDatasetAccessor:
 
     def variance_decomposition(
         self,
-        data_var: str | list[str] | None = None,
+        data_var: Hashable | list[Hashable] | None = None,
         fraction: bool = False,
         internal_variability_method: Literal["direct", "polyfit", "splinefit"]
         | None = None,
@@ -462,7 +462,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str or list of str, optional
+        data_var : Hashable or list of Hashable, optional
             Name of the data variable(s) to decompose.
         fraction : bool, optional
             Whether to calculate the variance contributions as fractions of the total
@@ -556,13 +556,13 @@ class ClimEpiDatasetAccessor:
                     )
                 else:
                     ds_var_decomp[data_var_curr].attrs["long_name"] = (
-                        "Variance of " + data_var_curr
+                        "Variance of " + str(data_var_curr)
                     )
         return ds_var_decomp
 
     def uncertainty_interval_decomposition(
         self,
-        data_var: str | list[str] | None = None,
+        data_var: Hashable | list[Hashable] | None = None,
         uncertainty_level: float = 90,
         internal_variability_method: Literal["direct", "polyfit", "splinefit"]
         | None = None,
@@ -578,7 +578,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str or list of str, optional
+        data_var : Hashable or list of Hashable, optional
             Name(s) of the data variable to decompose.
         uncertainty_level : float, optional
             Uncertainty level for the uncertainty intervals (percentage). Default is 90.
@@ -731,7 +731,7 @@ class ClimEpiDatasetAccessor:
         return ds_decomp
 
     def plot_time_series(
-        self, data_var: str | None = None, **kwargs: Any
+        self, data_var: Hashable | None = None, **kwargs: Any
     ) -> param.Parameterized:
         """
         Generate a time series plot of a data variable.
@@ -740,7 +740,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str, optional
+        data_var : Hashable, optional
             Name of the data variable to plot. If not provided, the function
             will attempt to automatically select a suitable variable.
         **kwargs : dict
@@ -759,7 +759,7 @@ class ClimEpiDatasetAccessor:
 
     def plot_map(
         self,
-        data_var: str | None = None,
+        data_var: Hashable | None = None,
         mask_ocean: bool = True,
         mask_lakes: bool = True,
         **kwargs: Any,
@@ -771,7 +771,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str, optional
+        data_var : Hashable, optional
             Name of the data variable to plot. Should be provided unless there is a
             single non-bounds data variable.
         mask_ocean : bool, optional
@@ -815,7 +815,7 @@ class ClimEpiDatasetAccessor:
 
     def plot_variance_decomposition(
         self,
-        data_var: str | None = None,
+        data_var: Hashable | None = None,
         fraction: bool = False,
         internal_variability_method: Literal["direct", "polyfit", "splinefit"]
         | None = None,
@@ -834,7 +834,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str, optional
+        data_var : Hashable, optional
             Name of the data variable to plot. Should be provided unless there is a
             single non-bounds data variable.
         fraction : bool, optional
@@ -900,7 +900,7 @@ class ClimEpiDatasetAccessor:
 
     def plot_uncertainty_interval_decomposition(
         self,
-        data_var: str | None = None,
+        data_var: Hashable | None = None,
         uncertainty_level: float = 90,
         internal_variability_method: Literal["direct", "polyfit", "splinefit"]
         | None = None,
@@ -920,7 +920,7 @@ class ClimEpiDatasetAccessor:
 
         Parameters
         ----------
-        data_var : str, optional
+        data_var : Hashable, optional
             Name of the data variable to plot. Should be provided unless there is a
             single non-bounds data variable.
         uncertainty_level : float, optional
@@ -1053,33 +1053,33 @@ class ClimEpiDatasetAccessor:
     @overload
     def _process_data_var_argument(
         self,
-        data_var_in: str | list[str] | None = ...,
+        data_var_in: Hashable | list[Hashable] | None = ...,
         as_list: Literal[False] = ...,
-    ) -> str: ...
+    ) -> Hashable: ...
     @overload
     def _process_data_var_argument(
         self,
-        data_var_in: str | list[str] | None = ...,
+        data_var_in: Hashable | list[Hashable] | None = ...,
         as_list: Literal[True] = ...,
-    ) -> list[str]: ...
+    ) -> list[Hashable]: ...
     def _process_data_var_argument(self, data_var_in=None, as_list=False):
         # Method for processing the data_var argument in the various methods of the
         # ClimEpiDatasetAccessor class, in order to allow for automatic specification of
         # the data variable(s) if not provided, when this is possible.
         if data_var_in is not None:
             if as_list:
-                if isinstance(data_var_in, str):
-                    return [data_var_in]
                 if isinstance(data_var_in, list):
                     return data_var_in
+                if isinstance(data_var_in, Hashable):
+                    return [data_var_in]
                 raise ValueError(
-                    """The method only accepts a scalar string or list argument for the
+                    """The method only accepts a Hashable or list argument for the
                     data variable."""
                 )
-            if isinstance(data_var_in, str):
+            if isinstance(data_var_in, Hashable):
                 return data_var_in
             raise ValueError(
-                """The method only accepts a scalar string argument for the data
+                """The method only accepts a Hashable argument for the data
                 variable."""
             )
         non_bnd_data_vars = list_non_bnd_data_vars(self._obj)
