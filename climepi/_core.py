@@ -537,8 +537,7 @@ class ClimEpiDatasetAccessor:
         if fraction:
             for data_var_curr in data_var_list:
                 ds_var_decomp[data_var_curr].attrs["long_name"] = "Fraction of variance"
-                if "units" in ds_var_decomp[data_var_curr].attrs:
-                    del ds_var_decomp[data_var_curr].attrs["units"]
+                ds_var_decomp[data_var_curr].attrs.pop("units", None)
         else:
             ds_var_decomp = add_var_attrs_from_other(
                 ds_var_decomp, self._obj, var=data_var_list
