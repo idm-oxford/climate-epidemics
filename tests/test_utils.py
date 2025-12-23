@@ -67,7 +67,7 @@ def test_get_data_var_and_bnds():
     xrt.assert_identical(
         result3, ds[["temperature", "kenobi", "lat_bnds", "lon_bnds", "time_bnds"]]
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(KeyError):
         get_data_var_and_bnds(ds, ("temperature", "precipitation"))
 
 

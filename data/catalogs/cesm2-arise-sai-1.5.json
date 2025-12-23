@@ -1,5 +1,5 @@
 {
-  "catalog_file": "cesm2-arise-sai-1.5",
+  "catalog_file": "cesm2-arise-sai-1.5.csv",
   "attributes": [
     {
       "column_name": "path",

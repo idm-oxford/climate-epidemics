@@ -1,10 +1,12 @@
 """Module containing utility functions for working with xarray datasets."""
 
+from typing import Hashable
+
 import xarray as xr
 
 
 def add_var_attrs_from_other(
-    ds: xr.Dataset, ds_from: xr.Dataset, var: str | list[str] | None = None
+    ds: xr.Dataset, ds_from: xr.Dataset, var: Hashable | list[Hashable] | None = None
 ) -> xr.Dataset:
     """
     Copy variable attributes from one xarray dataset to another.
@@ -19,7 +21,7 @@ def add_var_attrs_from_other(
         The dataset to add the variable attributes to.
     ds_from : xarray.Dataset
         The dataset to add the variable attributes from.
-    var : str or list, optional
+    var : Hashable or list of Hashable, optional
         The name(s) of the variable(s) to add the attributes for (provided both datasets
         contain variable(s) with these names). If None, all variables in ds are used.
 
@@ -30,14 +32,14 @@ def add_var_attrs_from_other(
     """
     ds_out = ds.copy()
     if var is None:
-        var = list(ds.data_vars) + list(ds.coords)
-    elif isinstance(var, str):
-        var = [var]
-    for var_curr in var:
-        try:
-            ds_out[var_curr].attrs = ds_from[var_curr].attrs
-        except KeyError:
-            pass
+        var_list = list(ds.data_vars) + list(ds.coords)
+    elif isinstance(var, list):
+        var_list = var
+    else:
+        var_list = [var]
+    for name in var_list:
+        if name in ds_out and name in ds_from:
+            ds_out[name].attrs = ds_from[name].attrs
     return ds_out
 
 
@@ -78,7 +80,9 @@ def add_bnds_from_other(ds: xr.Dataset, ds_from: xr.Dataset) -> xr.Dataset:
     return ds_out
 
 
-def get_data_var_and_bnds(ds: xr.Dataset, data_var: str | list[str]) -> xr.Dataset:
+def get_data_var_and_bnds(
+    ds: xr.Dataset, data_var: Hashable | list[Hashable]
+) -> xr.Dataset:
     """
     Get a dataset with only the selected data variable(s) and any bounds variables.
 
@@ -89,7 +93,7 @@ def get_data_var_and_bnds(ds: xr.Dataset, data_var: str | list[str]) -> xr.Datas
     ----------
     ds : xarray.Dataset
         The dataset to select the data variable(s) from.
-    data_var : str or list, optional
+    data_var : Hashable or list of Hashable, optional
         Name(s) of the data variable(s) to select.
 
     Returns
@@ -98,12 +102,10 @@ def get_data_var_and_bnds(ds: xr.Dataset, data_var: str | list[str]) -> xr.Datas
         A new dataset containing the selected data variable(s) and any bounds
         variables.
     """
-    if isinstance(data_var, str):
-        data_var_list = [data_var]
-    elif isinstance(data_var, list):
+    if isinstance(data_var, list):
         data_var_list = data_var.copy()
     else:
-        raise ValueError("data_var must be a string or list")
+        data_var_list = [data_var]
     for bnd_var in ["lat_bnds", "lon_bnds", "time_bnds"]:
         if bnd_var in ds:
             data_var_list.append(bnd_var)
@@ -111,7 +113,7 @@ def get_data_var_and_bnds(ds: xr.Dataset, data_var: str | list[str]) -> xr.Datas
     return ds_out
 
 
-def list_non_bnd_data_vars(ds: xr.Dataset) -> list[str]:
+def list_non_bnd_data_vars(ds: xr.Dataset) -> list[Hashable]:
     """
     List the names of the non-bound variables in the dataset.
 
@@ -127,7 +129,5 @@ def list_non_bnd_data_vars(ds: xr.Dataset) -> list[str]:
     """
     data_vars = list(ds.data_vars)
     bnd_vars = ["lat_bnds", "lon_bnds", "time_bnds"]
-    non_bnd_data_vars = [
-        data_vars[i] for i in range(len(data_vars)) if data_vars[i] not in bnd_vars
-    ]
+    non_bnd_data_vars = [var for var in data_vars if var not in bnd_vars]
     return non_bnd_data_vars
