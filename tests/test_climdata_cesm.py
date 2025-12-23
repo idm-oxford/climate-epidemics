@@ -20,7 +20,6 @@ import requests
 import siphon.catalog
 import xarray as xr
 import xarray.testing as xrt
-from git import InvalidGitRepositoryError, Repo
 
 from climepi.climdata._cesm import (
     ARISEDataGetter,
@@ -31,16 +30,6 @@ from climepi.climdata._cesm import (
     _preprocess_glens_dataset,
 )
 from climepi.testing.fixtures import generate_dataset
-
-
-def _get_git_branch():
-    path = pathlib.Path(__file__).parents[1]
-    try:
-        repo = Repo(path, search_parent_directories=True)
-        return repo.active_branch.name
-    except InvalidGitRepositoryError:
-        print("Warning: Not in a git repository, using 'main' as fallback.")
-        return "main"
 
 
 class TestCESMDataGetter:
@@ -473,9 +462,8 @@ class TestARISEDataGetter:
     """Class for testing the ARISEDataGetter class."""
 
     @patch.object(xr, "open_mfdataset", autospec=True)
-    @patch("climepi.climdata._cesm._get_data_version", side_effect=_get_git_branch)
     @pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
-    def test_find_remote_data(self, _, mock_open_mfdataset, frequency):
+    def test_find_remote_data(self, mock_open_mfdataset, frequency):
         """Test the _find_remote_data method of the ARISEDataGetter class."""
         data_getter = ARISEDataGetter(
             frequency=frequency,
