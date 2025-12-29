@@ -2,7 +2,7 @@ import copy
 import numbers
 from typing import Any, Callable, Literal, Union, cast
 
-import arviz as az
+import arviz_base as azb
 import holoviews as hv
 import hvplot.xarray  # noqa
 import numpy as np
@@ -111,7 +111,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
 
     def fit_temperature_responses(
         self, step: Callable | None = None, thin: int = 1, **kwargs_sample: Any
-    ) -> dict[str, az.InferenceData]:
+    ) -> dict[str, xr.DataTree]:
         """
         Fit the model to data.
 
@@ -129,7 +129,7 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
         -------
         dict
             A dictionary with fitted trait names as keys, and
-            :class:`arviz.InferenceData` objects giving posterior distributions of
+            :class:`xarray.DataTree` objects giving posterior distributions of
             response curve parameters for that trait as corresponding values.
         """
         parameters = self._parameters
@@ -470,7 +470,7 @@ def fit_temperature_response(
     step: Callable | None = None,
     thin: int = 1,
     **kwargs_sample: Any,
-) -> az.InferenceData:
+) -> xr.DataTree:
     """
     Fit the dependence of a parameter on temperature.
 
@@ -508,7 +508,7 @@ def fit_temperature_response(
 
     Returns
     -------
-    arviz.InferenceData
+    xarray.DataTree
         The posterior distribution of the fitted parameters.
     """
     curve_func = _get_curve_func(curve_type)
@@ -579,6 +579,9 @@ def fit_temperature_response(
             **kwargs_sample,
         }
         idata = pm.sample(**kwargs_sample)
+    idata = azb.convert_to_datatree(  # for consistency of output across pymc versions
+        idata
+    )
     idata = idata.sel(draw=slice(None, None, thin))
     return idata
 
@@ -598,7 +601,7 @@ def get_posterior_temperature_response(
 
     Parameters
     ----------
-    idata : arviz.InferenceData
+    idata : xarray.DataTree
         The posterior distribution of the fitted parameters (as returned by
         :func:`climepi.epimod.fit_temperature_response()`).
     curve_type : str
@@ -627,7 +630,7 @@ def get_posterior_temperature_response(
         'temperature' and 'sample'.
     """
     curve_func = _get_curve_func(curve_type)
-    ds_posterior = az.extract(
+    ds_posterior = azb.extract(
         data=idata,
         var_names=["scale", "temperature_min", "temperature_max"],
         num_samples=num_samples,
@@ -683,7 +686,7 @@ def plot_fitted_temperature_response(
 
     Parameters
     ----------
-    idata : arviz.InferenceData
+    idata : xarray.DataTree
         The posterior distribution of the fitted parameters.
     curve_type : str
         The type of curve fitted. Options are 'quadratic' and 'briere'.
