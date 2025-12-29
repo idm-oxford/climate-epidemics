@@ -2,6 +2,7 @@ import copy
 import numbers
 from typing import Any, Callable, Literal, Union, cast
 
+import arviz as az
 import holoviews as hv
 import hvplot.xarray  # noqa
 import numpy as np
@@ -13,11 +14,6 @@ import xarray as xr
 from numpy.typing import ArrayLike, NDArray
 
 from climepi.epimod._base_classes import SuitabilityModel
-
-try:
-    import arviz.preview as az
-except ImportError:
-    import arviz as az
 
 
 class ParameterizedSuitabilityModel(SuitabilityModel):
