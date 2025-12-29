@@ -6772,8 +6772,8 @@ packages:
   timestamp: 1733750069604
 - pypi: ./
   name: climepi
-  version: 0.6.1+26.g18af2fe.dirty
-  sha256: 9df5f220fcc85fd9911d81359856a005d031bb84c00ceb0ad4860a283843218c
+  version: 0.6.1+27.g39ac848.dirty
+  sha256: d69cdead83d5087e75c355438aec1200cb835b0dfc56331346b89fbe37ead70d
   requires_python: '>=3.11'
 - conda: https://conda.anaconda.org/conda-forge/noarch/cloudpickle-3.1.2-pyhcf101f3_1.conda
   sha256: 4c287c2721d8a34c94928be8fe0e9a85754e90189dd4384a31b1806856b50a67

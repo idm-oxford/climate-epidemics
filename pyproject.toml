@@ -49,6 +49,7 @@ s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS serve
 scipy = "*"
 siphon = "*"
 tqdm = "*"
+typing-extensions = "*"
 urllib3 = "*"
 xarray = "!=2025.7" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
