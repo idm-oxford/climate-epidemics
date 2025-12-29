@@ -86,7 +86,7 @@ python = "3.11.*"
 default = { features = ["dev"], solve-group = "default" }
 py311 = { features = ["py311"], solve-group = "py311" }
 
-[tool.pixi.feature.dev.tasks]
+[tool.pixi.tasks]
 app = "python -m climepi.app"
 lint = "ruff check"
 lint-gh-actions = "ruff check --output-format=github"
@@ -95,9 +95,6 @@ test = "pytest"
 docs = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs docs/_build/html"
 docs-rtd = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs $READTHEDOCS_OUTPUT/html"
 remake-examples = "python -c 'from climepi.climdata._examples import _make_all_examples; _make_all_examples(force_remake=True)'"
-
-[tool.pixi.feature.py311.tasks]
-test = "pytest"
 
 [tool.setuptools.packages.find]
 include = ["climepi*"]
