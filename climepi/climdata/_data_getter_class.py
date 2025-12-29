@@ -3,13 +3,14 @@ import os
 import pathlib
 import tempfile
 import warnings
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 
 import dask.diagnostics
 import numpy as np
 import pooch
 import pydantic
 import xarray as xr
+from typing_extensions import TypedDict
 
 # Cache directory for storing any temporary files created when downloading data.
 # Note: the code could be improved to ensure that the temporary files are deleted if an

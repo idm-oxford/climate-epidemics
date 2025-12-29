@@ -49,6 +49,7 @@ s3fs = ">=2021.4" #needed when using intake-esm to access CESM data on AWS serve
 scipy = "*"
 siphon = "*"
 tqdm = "*"
+typing-extensions = "*"
 urllib3 = "*"
 xarray = "!=2025.7" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
@@ -79,10 +80,14 @@ versioneer = "==0.29"
 [tool.pixi.feature.dev.pypi-dependencies]
 pytest-playwright = "*" # conda version giving errors in Windows
 
+[tool.pixi.feature.py311.dependencies]
+python = "3.11.*"
+
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "default" }
+py311 = { features = ["py311", "dev"], solve-group = "py311" }
 
-[tool.pixi.feature.dev.tasks]
+[tool.pixi.tasks]
 app = "python -m climepi.app"
 lint = "ruff check"
 lint-gh-actions = "ruff check --output-format=github"

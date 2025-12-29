@@ -12,33 +12,44 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            environment: default
+          - os: ubuntu-latest
+            environment: py311
+          - os: windows-latest
+            environment: default
+          - os: macos-latest
+            environment: default
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: Setup pixi
-      uses: prefix-dev/setup-pixi@v0.8.14
+      uses: prefix-dev/setup-pixi@v0.9.3
       with:
         cache: true
+        environments: ${{ matrix.environment }}
     - name: Lint
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      run: pixi run lint-gh-actions
+      if: ${{ matrix.environment == 'default' && matrix.os == 'ubuntu-latest' }}
+      run: pixi run -e "${{ matrix.environment }}" lint-gh-actions
     - name: Type check
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      run: pixi run type-check
+      if: ${{ matrix.environment == 'default' && matrix.os == 'ubuntu-latest' }}
+      run: pixi run -e "${{ matrix.environment }}" type-check
     - name: Install browsers for Playwright tests
-      run: pixi run playwright install chromium --with-deps
+      run: pixi run -e "${{ matrix.environment }}" playwright install chromium --with-deps
     - name: Test with pytest
-      run: pixi run test
+      run: pixi run -e "${{ matrix.environment }}" test
     - name: Upload coverage to Codecov
+      if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: ${{ matrix.os }}
     - name: Upload test results to Codecov
-      if: ${{ !cancelled()}}
-      uses: codecov/test-results-action@v1
+      if: ${{ !cancelled() }}
+      uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{ matrix.os }}
+        flags: ${{ matrix.os }},${{ matrix.environment }}
+        report_type: test_results
