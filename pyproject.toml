@@ -99,19 +99,9 @@ remake-examples = "python -c 'from climepi.climdata._examples import _make_all_e
 
 [tool.hatch.build.targets.sdist]
 packages = ["climepi"]
-include = [
-  "climepi/climdata/_example_registry_files/*.txt",
-  "climepi/epimod/_example_data/*.nc",
-  "climepi/epimod/_example_data/*.csv",
-]
 
 [tool.hatch.build.targets.wheel]
 packages = ["climepi"]
-include = [
-  "climepi/climdata/_example_registry_files/*.txt",
-  "climepi/epimod/_example_data/*.nc",
-  "climepi/epimod/_example_data/*.csv",
-]
 
 [tool.hatch.version]
 source = "version-pioneer"
