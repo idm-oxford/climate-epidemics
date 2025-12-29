@@ -12,8 +12,15 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        environment: [default, py311]
+        include:
+          - os: ubuntu-latest
+            environment: default
+          - os: ubuntu-latest
+            environment: py311
+          - os: windows-latest
+            environment: default
+          - os: macos-latest
+            environment: default
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout repository
@@ -24,25 +31,21 @@ jobs:
         cache: true
         environments: ${{ matrix.environment }}
     - name: Lint
-      if: ${{ matrix.os == 'ubuntu-latest' && matrix.environment == 'default' }}
       run: pixi run lint-gh-actions
     - name: Type check
-      if: ${{ matrix.os == 'ubuntu-latest' && matrix.environment == 'default' }}
       run: pixi run type-check
     - name: Install browsers for Playwright tests
-      if: ${{ matrix.environment == 'default' || matrix.os == 'ubuntu-latest' }}
       run: pixi run playwright install chromium --with-deps
     - name: Test with pytest
-      if: ${{ matrix.environment == 'default' || matrix.os == 'ubuntu-latest' }}
       run: pixi run test
     - name: Upload coverage to Codecov
-      if: ${{ !cancelled() && (matrix.environment == 'default' || matrix.os == 'ubuntu-latest')}}
+      if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: ${{ matrix.os }}
     - name: Upload test results to Codecov
-      if: ${{ !cancelled() && (matrix.environment == 'default' || matrix.os == 'ubuntu-latest')}}
+      if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
