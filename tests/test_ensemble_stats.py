@@ -288,6 +288,16 @@ class TestEnsembleMeanVarPolyfit:
                 expected[i],
             )
 
+    def test_ensemble_mean_var_polyfit_non_string_data_var(self):
+        """Test with a dataset where the data variable is not a string."""
+        ds = generate_dataset(
+            data_var=[("hello",)],
+            frequency="monthly",
+            has_bounds=False,
+        ).isel(lat=0, lon=0, drop=True)
+        with pytest.raises(ValueError, match="Data variable names must be strings."):
+            _ensemble_mean_var_polyfit(ds, deg=3)
+
 
 def test_ensemble_mean_var_polyfit_multiple_realizations():
     """Test for the _ensemble_mean_var_polyfit_multiple_realizations function."""
