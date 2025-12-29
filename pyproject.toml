@@ -152,7 +152,7 @@ warn_redundant_casts = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["geopy.*","intake.*","pooch.*","pymc.*","siphon.*","xcdat.*"]
+module = ["geopy.*","intake.*","pooch.*","pymc.*","siphon.*","version_pioneer.*","xcdat.*"]
 follow_untyped_imports = true
 
 [[tool.mypy.overrides]]
