@@ -84,7 +84,7 @@ python = "3.11.*"
 
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "default" }
-py311 = { features = ["py311"], solve-group = "py311" }
+py311 = { features = ["py311", "dev"], solve-group = "py311" }
 
 [tool.pixi.tasks]
 app = "python -m climepi.app"
