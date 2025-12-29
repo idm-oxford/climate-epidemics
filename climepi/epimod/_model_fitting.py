@@ -2,7 +2,7 @@ import copy
 import numbers
 from typing import Any, Callable, Literal, Union, cast
 
-import arviz as az
+import arviz_base as azb
 import holoviews as hv
 import hvplot.xarray  # noqa
 import numpy as np
@@ -579,6 +579,9 @@ def fit_temperature_response(
             **kwargs_sample,
         }
         idata = pm.sample(**kwargs_sample)
+    idata = azb.convert_to_datatree(  # for consistency of output across pymc versions
+        idata
+    )
     idata = idata.sel(draw=slice(None, None, thin))
     return idata
 
@@ -627,7 +630,7 @@ def get_posterior_temperature_response(
         'temperature' and 'sample'.
     """
     curve_func = _get_curve_func(curve_type)
-    ds_posterior = az.extract(
+    ds_posterior = azb.extract(
         data=idata,
         var_names=["scale", "temperature_min", "temperature_max"],
         num_samples=num_samples,

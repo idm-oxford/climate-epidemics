@@ -36,17 +36,21 @@ def test_fit_temperature_response(mock_briere, mock_pm, specify_std_prior):
         chains=4,
         **kwargs,
     ):
-        return xr.Dataset(
+        return xr.DataTree.from_dict(
             {
-                "response_parameter": (
-                    ["chain", "draw"],
-                    np.zeros((chains, draws)),
-                ),
-            },
-            coords={
-                "chain": np.arange(chains),
-                "draw": np.arange(draws),
-            },
+                "posterior": xr.Dataset(
+                    {
+                        "response_parameter": (
+                            ["chain", "draw"],
+                            np.zeros((chains, draws)),
+                        ),
+                    },
+                    coords={
+                        "chain": np.arange(chains),
+                        "draw": np.arange(draws),
+                    },
+                )
+            }
         )
 
     mock_pm.sample.side_effect = mock_sample
@@ -99,7 +103,7 @@ def test_fit_temperature_response(mock_briere, mock_pm, specify_std_prior):
         step="step",
         tune=500,
     )
-    assert result.response_parameter.shape == (4, 1000)
+    assert result.posterior["response_parameter"].shape == (4, 1000)
 
 
 def test_get_posterior_temperature_response():
