@@ -12,8 +12,8 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        environment: [default, py311]
         os: [ubuntu-latest, windows-latest, macos-latest]
+        environment: [default, py311]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout repository
@@ -36,14 +36,15 @@ jobs:
       if: ${{ matrix.environment == 'default' || matrix.os == 'ubuntu-latest' }}
       run: pixi run test
     - name: Upload coverage to Codecov
-      if: ${{ matrix.environment == 'default' || matrix.os == 'ubuntu-latest' }}
+      if: ${{ !cancelled() && (matrix.environment == 'default' || matrix.os == 'ubuntu-latest')}}
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: ${{ matrix.os }}
     - name: Upload test results to Codecov
       if: ${{ !cancelled() && (matrix.environment == 'default' || matrix.os == 'ubuntu-latest')}}
-      uses: codecov/test-results-action@v1
+      uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{ matrix.os }}
+        flags: ${{ matrix.os }}, ${{ matrix.environment }}
+        report_type: test_results
