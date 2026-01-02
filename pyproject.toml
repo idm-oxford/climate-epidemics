@@ -83,9 +83,21 @@ version-pioneer = "*"
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"
 
+[tool.pixi.feature.py312.dependencies]
+python = "3.12.*"
+
+[tool.pixi.feature.py313.dependencies]
+python = "3.13.*"
+
+[tool.pixi.feature.py314.dependencies]
+python = "3.14.*"
+
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "default" }
 py311 = { features = ["py311", "dev"], solve-group = "py311" }
+py312 = { features = ["py312", "dev"], solve-group = "py312" }
+py313 = { features = ["py313", "dev"], solve-group = "py313" }
+py314 = { features = ["py314", "dev"], solve-group = "py314" }
 
 [tool.pixi.tasks]
 app = "python -m climepi.app"
