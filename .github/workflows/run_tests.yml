@@ -53,11 +53,11 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{ matrix.os }}-${{ matrix.environment }},coverage
+        flags: ${{ matrix.os }}-${{ matrix.environment }}
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{ matrix.os }}-${{ matrix.environment }},test-results
+        flags: ${{ matrix.os }}-${{ matrix.environment }}
         report_type: test_results
