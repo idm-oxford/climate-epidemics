@@ -12,10 +12,12 @@ def test_get_data_version():
     Should default to "main" for development versions.
     """
     with patch.object(
-        climdata._utils, "get_versions", return_value={"version": "4.2.0"}
+        climdata._utils, "get_version_dict", return_value={"version": "4.2.0"}
     ):
         assert climdata._utils._get_data_version() == "v4.2.0"
     with patch.object(
-        climdata._utils, "get_versions", return_value={"version": "4.2.0+10.8dl8dh9"}
+        climdata._utils,
+        "get_version_dict",
+        return_value={"version": "4.2.0+10.8dl8dh9"},
     ):
         assert climdata._utils._get_data_version() == "main"

@@ -3,4 +3,4 @@
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi import _version
 
-__version__ = _version.get_versions()["version"]
+__version__ = _version.get_version_dict()["version"]

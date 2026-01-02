@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0", "versioneer[toml]==0.29"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "version-pioneer"]
+build-backend = "hatchling.build"
 
 [project]
 name = "climepi"
@@ -75,10 +75,10 @@ sphinx-copybutton = "*"
 ipykernel = "*"
 jupyter_bokeh = "*"
 pip = "*"                          # needed for notebooks
-versioneer = "==0.29"
 
 [tool.pixi.feature.dev.pypi-dependencies]
 pytest-playwright = "*" # conda version giving errors in Windows
+version-pioneer = "*"
 
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"
@@ -97,20 +97,22 @@ docs = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs 
 docs-rtd = "python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs $READTHEDOCS_OUTPUT/html"
 remake-examples = "python -c 'from climepi.climdata._examples import _make_all_examples; _make_all_examples(force_remake=True)'"
 
-[tool.setuptools.packages.find]
-include = ["climepi*"]
+[tool.hatch.build.targets.sdist]
+packages = ["climepi"]
 
-[tool.setuptools.package-data]
-"climepi.climdata._example_registry_files" = ["*.txt"]
-"climepi.epimod._example_data" = ["*.nc", "*.csv"]
+[tool.hatch.build.targets.wheel]
+packages = ["climepi"]
 
-[tool.versioneer]
-VCS = "git"
-style = "pep440"
-versionfile_source = "climepi/_version.py"
-versionfile_build = "climepi/_version.py"
-tag_prefix = "v"
-parentdir_prefix = "climepi-"
+[tool.hatch.version]
+source = "version-pioneer"
+
+[tool.hatch.build.hooks.version-pioneer]
+# section is empty because we read config from `[tool.version-pioneer]` section.
+
+[tool.version-pioneer]
+versionscript = "climepi/_version.py"
+versionfile-sdist = "climepi/_version.py"
+versionfile-wheel = "climepi/_version.py"
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib --cov=climepi --cov-config=pyproject.toml --cov-report=xml --junitxml=testreport.junit.xml"
@@ -140,7 +142,7 @@ warn_redundant_casts = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["geopy.*","intake.*","pooch.*","pymc.*","siphon.*","xcdat.*"]
+module = ["geopy.*","intake.*","pooch.*","pymc.*","siphon.*","version_pioneer.*","xcdat.*"]
 follow_untyped_imports = true
 
 [[tool.mypy.overrides]]
