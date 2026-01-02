@@ -12,7 +12,7 @@ on:
 jobs:
   build:
     strategy:
-      max-parallel: 5
+      max-parallel: 7
       matrix:
         include:
           - os: ubuntu-latest
