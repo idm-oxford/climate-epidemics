@@ -67,6 +67,7 @@ pandas-stubs = "*"
 types-requests = "*"
 pytest = "*"
 pytest-cov = "*"
+sphinx = "<9.0.0"  # https://github.com/xarray-contrib/sphinx-autosummary-accessors/issues/165
 jupyter_sphinx = "*"
 nbsphinx = "*"
 pydata-sphinx-theme = "*"
