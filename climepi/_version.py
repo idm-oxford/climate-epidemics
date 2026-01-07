@@ -267,7 +267,7 @@ class GitMasterDistance:
             out, _rc = git_runner(["rev-list", "-1", tag_of_interest], cwd=cwd)
             master_commit = out.strip()
             if len(master_commit) != 40:
-                raise NotThisMethodError("Something is strange in you git commit hash")
+                raise NotThisMethodError("Something is strange in your git commit hash")
 
         return cls(
             current_branch=current_branch,
