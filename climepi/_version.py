@@ -360,11 +360,13 @@ class GitPieces:
             # If we aren't exactly on a branch, pick a branch which represents
             # the current commit. If all else fails, we are on a branchless
             # commit.
-            branches, rc = runner(GIT_COMMANDS, ["branch", "--contains"], cwd=cwd)
+            branches_output, rc = runner(
+                GIT_COMMANDS, ["branch", "--contains"], cwd=cwd
+            )
             # --contains was added in git-1.5.4
-            if rc != 0 or branches is None:
+            if rc != 0 or branches_output is None:
                 raise NotThisMethodError("'git branch --contains' returned error")
-            branches = branches.split("\n")
+            branches = branches_output.split("\n")
 
             # Remove the first line if we're running detached
             if "(" in branches[0]:
@@ -717,10 +719,11 @@ class GitPieces:
 
         version = closest_tag
         if self.distance or self.dirty:
+            distance = self.distance or 0
             if self.dirty:
-                version += f".{self.distance + 1}"
+                version += f".{distance + 1}"
             else:
-                version += f".{self.distance}"
+                version += f".{distance}"
 
         return version
 
@@ -937,32 +940,17 @@ def get_version_from_parentdir(
         return None
 
     def try_all_parentdir_in_pyproject_toml(pyproject: dict) -> "VersionDict | None":
+        for url_key in ("homepage", "Homepage", "source", "Source"):
+            with contextlib.suppress(KeyError):
+                version_dict = try_parentdir_from_source_url(
+                    pyproject["project"]["urls"][url_key]
+                )
+                if version_dict:
+                    return version_dict
         with contextlib.suppress(KeyError):
-            version_dict = try_parentdir_from_source_url(
-                pyproject["project"]["urls"]["homepage"]
-            )
+            version_dict = try_parentdir(root, pyproject["project"]["name"] + "-")
             if version_dict:
                 return version_dict
-        with contextlib.suppress(KeyError):
-            version_dict = try_parentdir_from_source_url(
-                pyproject["project"]["urls"]["Homepage"]
-            )
-            if version_dict:
-                return version_dict
-        with contextlib.suppress(KeyError):
-            version_dict = try_parentdir_from_source_url(
-                pyproject["project"]["urls"]["source"]
-            )
-            if version_dict:
-                return version_dict
-        with contextlib.suppress(KeyError):
-            version_dict = try_parentdir_from_source_url(
-                pyproject["project"]["urls"]["Source"]
-            )
-            if version_dict:
-                return version_dict
-        with contextlib.suppress(KeyError):
-            return try_parentdir(root, pyproject["project"]["name"] + "-")
         return None
 
     if parentdir_prefix is None:
