@@ -961,9 +961,9 @@ def get_version_from_parentdir(
             )
             if version_dict:
                 return version_dict
-            return None
         with contextlib.suppress(KeyError):
             return try_parentdir(root, pyproject["project"]["name"] + "-")
+        return None
 
     if parentdir_prefix is None:
         # NOTE: New in Version-Pioneer
