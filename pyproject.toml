@@ -58,6 +58,7 @@ xcdat = "*"
 climepi = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.dependencies]
+version-pioneer = "*"
 arviz-plots="*" # used in example notebooks
 arviz-stats = "*" # used in example notebooks
 ruff = "*"
