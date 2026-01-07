@@ -79,7 +79,6 @@ pip = "*"                          # needed for notebooks
 
 [tool.pixi.feature.dev.pypi-dependencies]
 pytest-playwright = "*" # conda version giving errors in Windows
-version-pioneer = "*"
 
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"
