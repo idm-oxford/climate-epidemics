@@ -264,7 +264,7 @@ class GitMasterDistance:
                     "Maybe detached head or you don't use master?"
                 )
 
-            out, _re = git_runner(["rev-list", "-1", tag_of_interest], cwd=cwd)
+            out, _rc = git_runner(["rev-list", "-1", tag_of_interest], cwd=cwd)
             master_commit = out.strip()
             if len(master_commit) != 40:
                 raise NotThisMethodError("Something is strange in you git commit hash")
