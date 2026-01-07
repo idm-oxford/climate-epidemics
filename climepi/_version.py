@@ -132,48 +132,6 @@ else:
 env = os.environ.copy()
 env.pop("GIT_DIR", None)
 
-
-# https://github.com/pypa/packaging/blob/24.2/src/packaging/version.py#L117-L146
-# Make parentdir-prefix only match version strings.
-# Example:
-#     the GitHub repo can be myprogram-python and the package name is myprogram,
-#     leading to parse "python" as a version string.
-#     So we restrict it to search myprogram-python-1.0.0 styled folders only.
-# Note:
-#     - The check passes version strings other than PEP440. This is good because there are projects other than Python.
-#     - Use with re.VERBOSE: `re.match(_VERSION_PATTERN, "1.0.0", re.VERBOSE)`
-_VERSION_PATTERN = r"""
-    v?
-    (?:
-        (?:(?P<epoch>[0-9]+)!)?                           # epoch
-        (?P<release>[0-9]+(?:\.[0-9]+)*)                  # release segment
-        (?P<pre>                                          # pre-release
-            [-_\.]?
-            (?P<pre_l>alpha|a|beta|b|preview|pre|c|rc)
-            [-_\.]?
-            (?P<pre_n>[0-9]+)?
-        )?
-        (?P<post>                                         # post release
-            (?:-(?P<post_n1>[0-9]+))
-            |
-            (?:
-                [-_\.]?
-                (?P<post_l>post|rev|r)
-                [-_\.]?
-                (?P<post_n2>[0-9]+)?
-            )
-        )?
-        (?P<dev>                                          # dev release
-            [-_\.]?
-            (?P<dev_l>dev)
-            [-_\.]?
-            (?P<dev_n>[0-9]+)?
-        )?
-    )
-    (?:\+(?P<local>[a-z0-9]+(?:[-_\.][a-z0-9]+)*))?       # local version
-"""
-
-
 class NotThisMethodError(Exception):
     """Exception raised if a method is not valid for the current scenario."""
 
@@ -925,21 +883,36 @@ def get_version_from_parentdir(
         for _ in range(3):
             dirname = project_root.name
             if dirname.startswith(parentdir_prefix):
-                version_candidate = dirname[len(parentdir_prefix) :]
-                if re.match(_VERSION_PATTERN, version_candidate, re.VERBOSE):
+                candidate_raw = dirname[len(parentdir_prefix):]
+                m = re.match(
+                    r'^\s*v?(?:(?P<epoch>\d+)!)?(?P<release>\d+(?:[._]\d+)*)',
+                    candidate_raw,
+                    re.IGNORECASE,
+                )
+                if m:
+                    release = m.group('release')
+                    endpos = m.end('release')
+                    remainder = candidate_raw[endpos:]
+                    candidate = re.sub(r'[_]+', '.', release).strip('.')
+                    if (
+                        remainder
+                        and remainder[0].isalpha()
+                        and not re.compile(r'^[._-]?(?:a|alpha|b|beta|preview|pre|c|rc|post|rev|r|dev)', re.IGNORECASE).match(remainder)
+                    ):
+                        parts = candidate.split('.')
+                        if len(parts) > 1:
+                            candidate = '.'.join(parts[:-1])
                     return {
-                        "version": version_candidate,
+                        "version": candidate,
                         "full_revisionid": None,
                         "dirty": False,
                         "error": None,
                         "date": None,
                     }
             rootdirs.append(project_root)
-
             if project_root.parent.samefile(project_root):
                 break
             project_root = project_root.parent
-
         return None
 
     def get_prefix_from_source_url(source_url: str) -> "str | None":
@@ -1117,15 +1090,15 @@ def get_version_dict_with_all_methods(
         pass
 
     try:
-        return GitPieces.from_git(cfg.tag_prefix, cwd=cwd, verbose=cfg.verbose).render(
-            cfg.style
+        return get_version_from_parentdir(
+            cfg.parentdir_prefix, cwd, verbose=cfg.verbose
         )
     except NotThisMethodError:
         pass
 
     try:
-        return get_version_from_parentdir(
-            cfg.parentdir_prefix, cwd, verbose=cfg.verbose
+        return GitPieces.from_git(cfg.tag_prefix, cwd=cwd, verbose=cfg.verbose).render(
+            cfg.style
         )
     except NotThisMethodError:
         pass
