@@ -1,4 +1,5 @@
 # Example _version.py, completely non-vendored.
+import re
 from pathlib import Path
 
 from typing import Any, Dict
