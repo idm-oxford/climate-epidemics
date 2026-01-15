@@ -49,7 +49,17 @@ professionals) to assess future climate suitability for VBDs and uncertainty the
 
 # Software design
 
-climepi is designed with a modular structure, comprising four components:
+climepi represents climate datasets and epidemiological model outputs as xarray
+`Dataset` objects, enabling seamless integration of climepi with the range of tools for
+analyzing gridded datasets provided by xarray and its wider [ecosystem](
+https://docs.xarray.dev/en/stable/user-guide/ecosystem.html). In particular, climepi
+supports xarray's [integration](
+https://docs.xarray.dev/en/stable/user-guide/dask.html) with [Dask](https://dask.org/),
+enabling lazy evaluation and parallel computation on larger-than-memory datasets.
+
+climepi is designed with a modular structure, comprising three main components
+corresponding to different stages of a typical climate-VBD suitability modeling
+workflow:
 
 1. Climate data (`climdata`) subpackage: enables users to access climate projection data
    from different sources through a single interface. Rather than providing
@@ -94,8 +104,9 @@ examples.](schematic.pdf)
    combining climate data with epidemiological models and for assessing and visualizing
    the importance of different climate uncertainty sources
    [@hawkins_potential_2009;@hart_climate_2025], as well as other supporting functions.
-4. Front-end application (`app`) subpackage: provides a method for running the front-end
-   application locally.
+
+In addition, climepi includes an `app` subpackage that can be used to run the front-end
+application locally.
 
 # Research impact statement
 
