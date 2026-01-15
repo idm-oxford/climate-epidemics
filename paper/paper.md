@@ -113,8 +113,8 @@ specifically, these examples involve parameterizing the temperature-dependent de
 virus transmission suitability model developed by @mordecai_detecting_2017 and
 recreating the analysis of the impact of internal climate variability on climate
 suitability for *Aedes aegypti* (a vector of VBDs including dengue and yellow fever) by
-@kaye_impact_2024. These examples illustrate the wide applicability of climepi for
-conducting climate-VBD suitability modeling workflows.
+@kaye_impact_2024. These detailed examples illustrate the wide applicability of climepi
+for conducting climate-VBD suitability modeling workflows.
 
 # AI usage disclosure
 
