@@ -56,7 +56,6 @@ https://docs.xarray.dev/en/stable/user-guide/ecosystem.html). In particular, cli
 supports xarray's [integration](
 https://docs.xarray.dev/en/stable/user-guide/dask.html) with [Dask](https://dask.org/),
 enabling lazy evaluation and parallel computation on larger-than-memory datasets.
-
 climepi is designed with a modular structure, comprising three main components
 corresponding to different stages of a typical climate-VBD suitability modeling
 workflow:
@@ -105,8 +104,8 @@ examples.](schematic.pdf)
    the importance of different climate uncertainty sources
    [@hawkins_potential_2009;@hart_climate_2025], as well as other supporting functions.
 
-In addition, climepi includes an `app` subpackage that can be used to run the front-end
-application locally.
+In addition, climepi includes a further subpackage (`app`) that can be used to run the
+front-end application locally.
 
 # Research impact statement
 
