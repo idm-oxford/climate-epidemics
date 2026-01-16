@@ -16,7 +16,7 @@ authors:
 affiliations:
  - name: Mathematical Institute, University of Oxford, Oxford, OX2 6GG, UK
    index: 1
-date: 29 September 2025
+date: 16 January 2026
 bibliography: paper.bib
 ---
 
@@ -47,9 +47,18 @@ and extensible Python package, as well as a user-friendly front-end application,
 can be used by climate-health researchers and other users (such as public health
 professionals) to assess future climate suitability for VBDs and uncertainty therein.
 
-# Main features
+# Software design
 
-climepi is designed with a modular structure, comprising four components:
+climepi represents climate datasets and epidemiological model outputs as xarray
+`Dataset` objects, enabling seamless integration of climepi with the range of tools for
+analyzing gridded datasets provided by xarray and its wider [ecosystem](
+https://docs.xarray.dev/en/stable/user-guide/ecosystem.html). In particular, climepi
+supports xarray's [integration](
+https://docs.xarray.dev/en/stable/user-guide/dask.html) with [Dask](https://dask.org/),
+enabling lazy evaluation and parallel computation on larger-than-memory datasets.
+climepi is designed with a modular structure, comprising three main components
+corresponding to different stages of a typical climate-VBD suitability modeling
+workflow:
 
 1. Climate data (`climdata`) subpackage: enables users to access climate projection data
    from different sources through a single interface. Rather than providing
@@ -75,7 +84,8 @@ parameters using laboratory data (left plot), and determine the overall temperat
 dependence of the suitability metric (right plot). Pre-defined epidemiological models
 from the literature are also available as built-in examples. (3) The `climepi` accessor
 for xarray datasets can be used to combine a climate dataset with an epidemiological
-model of climate suitability for VBD to obtain suitability projections, to assess the contributions of different sources of climate uncertainty, and to visualize results. See
+model of climate suitability for VBD to obtain suitability projections, to assess the
+contributions of different sources of climate uncertainty, and to visualize results. See
 the package [documentation](
 https://climate-epidemics.readthedocs.io/en/stable/gallery.html) for detailed usage
 examples.](schematic.pdf)
@@ -93,10 +103,11 @@ examples.](schematic.pdf)
    combining climate data with epidemiological models and for assessing and visualizing
    the importance of different climate uncertainty sources
    [@hawkins_potential_2009;@hart_climate_2025], as well as other supporting functions.
-4. Front-end application (`app`) subpackage: provides a method for running the front-end
-   application locally.
 
-# Example applications
+In addition, climepi includes a further subpackage (`app`) that can be used to run the
+front-end application locally.
+
+# Research impact statement
 
 In a recent study, we used climepi to assess the relative contributions of climate
 scenario uncertainty and climate model uncertainty, as well as internal climate
@@ -104,14 +115,24 @@ variability, to uncertainty in future climate suitability for dengue virus trans
 in a range of locations that do not currently experience substantial outbreaks
 [@hart_climate_2025]. The climepi [documentation](
 https://climate-epidemics.readthedocs.io/en/stable/gallery.html) includes a detailed
-usage example demonstrating how results from that study can be reproduced. Further
-example pages show how climepi can be used to recreate results from two other studies
-(that did not originally use climepi) [@mordecai_detecting_2017;@kaye_impact_2024]:
+usage example demonstrating how results from that study can be reproduced.
+
+Further example pages show how climepi can be used to recreate results from two other
+studies (that did not originally use climepi) [@mordecai_detecting_2017;@kaye_impact_2024]:
 specifically, these examples involve parameterizing the temperature-dependent dengue
 virus transmission suitability model developed by @mordecai_detecting_2017 and
 recreating the analysis of the impact of internal climate variability on climate
 suitability for *Aedes aegypti* (a vector of VBDs including dengue and yellow fever) by
-@kaye_impact_2024.
+@kaye_impact_2024. These detailed examples illustrate the wide applicability of climepi
+for conducting climate-VBD suitability modeling workflows.
+
+# AI usage disclosure
+
+Generative AI tools (ChatGPT and GitHub Copilot) were used to suggest and autocomplete
+short segments of code and documentation, to assist with code review and to provide
+grammar and style recommendations in the manuscript. All AI-assisted outputs were
+reviewed, edited and validated by the authors, who made all of the core design
+decisions.
 
 # Acknowledgements
 
