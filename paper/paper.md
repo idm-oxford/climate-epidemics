@@ -16,7 +16,7 @@ authors:
 affiliations:
  - name: Mathematical Institute, University of Oxford, Oxford, OX2 6GG, UK
    index: 1
-date: 15 January 2026
+date: 16 January 2026
 bibliography: paper.bib
 ---
 
@@ -128,10 +128,11 @@ for conducting climate-VBD suitability modeling workflows.
 
 # AI usage disclosure
 
-Generative AI tools (ChatGPT and GitHub Copilot) were used for suggestions and
-autocompletion of short code and documentation fragments, code review, and grammar and
-style suggestions on the manuscript. Human authors reviewed, edited, and validated all
-AI-assisted outputs and made the core design decisions.
+Generative AI tools (ChatGPT and GitHub Copilot) were used to suggest and autocomplete
+short segments of code and documentation, to assist with code review and to provide
+grammar and style recommendations in the manuscript. All AI-assisted outputs were
+reviewed, edited and validated by the authors, who made all of the core design
+decisions.
 
 # Acknowledgements
 
