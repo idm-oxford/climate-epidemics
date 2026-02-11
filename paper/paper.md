@@ -23,11 +23,11 @@ bibliography: paper.bib
 # Summary
 
 climepi (clim-epi) is a Python package for combining climate projections with models of
-climate suitability for vector-borne diseases (VBDs). Utilizing the [xarray](
+climate suitability for vector-borne disease (VBD). Utilizing the [xarray](
 https://xarray.dev/) library [@hoyer_xarray_2017] for handling labeled multi-dimensional
 arrays, climepi provides methods for: accessing climate projection data from a range of
 sources; defining, parameterizing, and running models of climate suitability for
-VBDs; and assessing the impacts of different sources of climate uncertainty
+VBD; and assessing the impacts of different sources of climate uncertainty
 (uncertainty in emissions scenarios, structural uncertainty across climate models, and
 natural climate fluctuations that occur alongside anthropogenic climate change). The
 package also provides a front-end application that can be used to explore impacts of
@@ -45,11 +45,20 @@ that few operational software tools exist for assessing climate-sensitive diseas
 [@ryan_current_2023]. climepi contributes to addressing this gap by providing a flexible
 and extensible Python package, as well as a user-friendly front-end application, which
 can be used by climate-health researchers and other users (such as public health
-professionals) to assess future climate suitability for VBDs and uncertainty therein.
+professionals) to assess future climate suitability for VBD and uncertainty therein.
 
 # State of the field
 
-The review by Ryan and colleagues [@ryan_current_2023] identified 30 fully developed software tools for climate-sensitive VBD modelling. However, most of these tools are implementations of specific models for particular vector-pathogen systems. We are not aware of existing software providing a general framework for parameterizing mechanistic models of climate suitability for VBDs and combining them with climate data or projections, with previous studies relying on custom code written in R [@mordecai_detecting_2017;@taylor_predicting_2019;@villena_temperature_2022] and MATLAB [@kaye_impact_2024].
+The review article by Ryan and colleagues [@ryan_current_2023] identified 30 fully
+developed software tools for climate-sensitive VBD modeling. However, most of these
+tools are implementations of specific models for particular vector-pathogen systems.
+We are not aware of existing software providing a general framework for parameterizing
+mechanistic models of climate suitability for VBD and combining them with climate data
+or projections, with previous studies relying on custom code written in R
+[@mordecai_detecting_2017;@taylor_predicting_2019;@villena_temperature_2022] and MATLAB
+[@kaye_impact_2024]. Consequently, we have opted to build this extensible and open
+source software framework, in which different climate data and epidemiological models
+describing climate suitability for VBD can be incorporated straightforwardly.
 
 # Software design
 
