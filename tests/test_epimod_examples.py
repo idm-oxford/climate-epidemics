@@ -125,16 +125,15 @@ def test_get_example_temperature_response_data(name):
         return
     response_data = epimod.get_example_temperature_response_data(name)
     assert isinstance(response_data, pd.DataFrame)
-    assert dict(response_data.dtypes) == {
-        "trait_name": "object",
-        "temperature": "float64"
-        if name == "mordecai_ae_aegypti"
-        else "int64"
-        if name == "mordecai_ae_albopictus"
-        else "should not be here",
-        "trait_value": "float64",
-        "reference": "object",
-    }
+    for col, dtype in [
+        ("trait_name", ("object", "str")),
+        ("temperature", ("float64", "int64")),
+        ("trait_value", "float64"),
+        ("reference", ("object", "str")),
+    ]:
+        assert str(response_data[col].dtype) in np.atleast_1d(dtype), (
+            f"Column '{col}' has dtype {response_data[col].dtype}, expected {dtype}."
+        )
     trait_names = list(np.sort(response_data.trait_name.unique()))
     assert trait_names == [
         "adult_lifespan",

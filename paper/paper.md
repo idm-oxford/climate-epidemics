@@ -23,11 +23,11 @@ bibliography: paper.bib
 # Summary
 
 climepi (clim-epi) is a Python package for combining climate projections with models of
-climate suitability for vector-borne diseases (VBDs). Utilizing the [xarray](
+climate suitability for vector-borne disease (VBD). Utilizing the [xarray](
 https://xarray.dev/) library [@hoyer_xarray_2017] for handling labeled multi-dimensional
 arrays, climepi provides methods for: accessing climate projection data from a range of
 sources; defining, parameterizing, and running models of climate suitability for
-VBDs; and assessing the impacts of different sources of climate uncertainty
+VBD; and assessing the impacts of different sources of climate uncertainty
 (uncertainty in emissions scenarios, structural uncertainty across climate models, and
 natural climate fluctuations that occur alongside anthropogenic climate change). The
 package also provides a front-end application that can be used to explore impacts of
@@ -45,7 +45,20 @@ that few operational software tools exist for assessing climate-sensitive diseas
 [@ryan_current_2023]. climepi contributes to addressing this gap by providing a flexible
 and extensible Python package, as well as a user-friendly front-end application, which
 can be used by climate-health researchers and other users (such as public health
-professionals) to assess future climate suitability for VBDs and uncertainty therein.
+professionals) to assess future climate suitability for VBD and uncertainty therein.
+
+# State of the field
+
+The review article by Ryan and colleagues [@ryan_current_2023] identified 30 fully
+developed software tools for climate-sensitive VBD modeling. However, most of these
+tools are implementations of specific models for particular vector-pathogen systems.
+We are not aware of existing software providing a general framework for parameterizing
+mechanistic models of climate suitability for VBD and combining them with climate data
+or projections, with previous studies relying on custom code written in R
+[@mordecai_detecting_2017;@taylor_predicting_2019;@villena_temperature_2022] and MATLAB
+[@kaye_impact_2024]. Consequently, we have opted to build this extensible and open
+source software framework, in which different climate data and epidemiological models
+describing climate suitability for VBD can be incorporated straightforwardly.
 
 # Software design
 
@@ -58,7 +71,21 @@ https://docs.xarray.dev/en/stable/user-guide/dask.html) with [Dask](https://dask
 enabling lazy evaluation and parallel computation on larger-than-memory datasets.
 climepi is designed with a modular structure, comprising three main components
 corresponding to different stages of a typical climate-VBD suitability modeling
-workflow:
+workflow (\autoref{fig:schematic}):
+
+![Schematic illustrating typical workflows using climepi. (1) The `climdata` subpackage
+can be used to access climate data from an external source, or to load a pre-defined
+example climate dataset. (2) The `epimod` subpackage can be used to define a mechanistic
+model describing climate suitability for VBD, infer temperature response curves of trait 
+parameters using laboratory data (left plot), and determine the overall temperature
+dependence of the suitability metric (right plot). Pre-defined epidemiological models
+from the literature are also available as built-in examples. (3) The `climepi` accessor
+for xarray datasets can be used to combine a climate dataset with an epidemiological
+model of climate suitability for VBD to obtain suitability projections, to assess the
+contributions of different sources of climate uncertainty, and to visualize results. See
+the package [documentation](
+https://climate-epidemics.readthedocs.io/en/stable/gallery.html) for detailed usage
+examples.\label{fig:schematic}](schematic.pdf)
 
 1. Climate data (`climdata`) subpackage: enables users to access climate projection data
    from different sources through a single interface. Rather than providing
@@ -75,21 +102,6 @@ workflow:
    https://www.cesm.ucar.edu/community-projects/lens2) (LENS2) [@rodgers_ubiquity_2021],
    which provides 100 ensemble members for analyzing internal (natural) climate
    variability.
-
-![Schematic illustrating typical workflows using climepi. (1) The `climdata` subpackage
-can be used to access climate data from an external source, or to load a pre-defined
-example climate dataset. (2) The `epimod` subpackage can be used to define a mechanistic
-model describing climate suitability for VBD, infer temperature response curves of trait 
-parameters using laboratory data (left plot), and determine the overall temperature
-dependence of the suitability metric (right plot). Pre-defined epidemiological models
-from the literature are also available as built-in examples. (3) The `climepi` accessor
-for xarray datasets can be used to combine a climate dataset with an epidemiological
-model of climate suitability for VBD to obtain suitability projections, to assess the
-contributions of different sources of climate uncertainty, and to visualize results. See
-the package [documentation](
-https://climate-epidemics.readthedocs.io/en/stable/gallery.html) for detailed usage
-examples.](schematic.pdf)
-
 2. Epidemiological model (`epimod`) subpackage: provides classes and methods for models
    of climate suitability for VBD, in which a suitability metric (e.g., the basic
    reproduction number, $R_0$) is defined as a function of temperature and/or

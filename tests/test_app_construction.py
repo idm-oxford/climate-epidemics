@@ -11,6 +11,7 @@ from playwright.sync_api import expect
 
 import climepi.app._app_classes_methods as app_classes_methods
 import climepi.app._app_construction as app_construction
+from climepi import epimod
 from climepi.testing.fixtures import generate_dataset
 
 dask.config.set(scheduler="synchronous")  # enforce synchronous scheduler
@@ -63,7 +64,7 @@ def cache_cleanup():
     "climepi.app._app_classes_methods.epimod.EXAMPLES",
     {"model": {}},
 )
-def test_run_app(mock_get_example_dataset, _, capsys, port, page):
+def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port, page):
     """
     Test the run_app method.
 
@@ -73,9 +74,13 @@ def test_run_app(mock_get_example_dataset, _, capsys, port, page):
         data_var="temperature", frequency="monthly", extra_dims={"realization": 2}
     ).climepi.sel_geo("SCG")
     mock_get_example_dataset.return_value = ds
+    mock_get_example_model.return_value = epimod.SuitabilityModel(
+        temperature_range=[-5, 55]
+    )
 
     server = app_construction.run_app(port=port, threaded=True, show=False)
     time.sleep(0.1)
+
     captured = capsys.readouterr()
     assert "Setting up the app" in captured.out
     assert "Using the Dask single-machine scheduler" in captured.out
