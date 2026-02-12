@@ -163,8 +163,8 @@ class _Plotter:
     def generate_plot(self) -> None:
         """Generate the plot."""
         self._get_ds_plot()
-        ds_plot = self._ds_plot
-        assert ds_plot is not None
+        assert self._ds_plot is not None
+        ds_plot = self._ds_plot.compute()
         plot_settings = self._plot_settings
         plot_type = plot_settings["plot_type"]
         if plot_type == "map":
