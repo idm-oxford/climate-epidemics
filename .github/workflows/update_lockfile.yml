@@ -4,7 +4,9 @@ on:
   schedule:
     - cron: "0 3 1 * *"   # 1st of each month, 03:00 UTC
   workflow_dispatch:
-
+concurrency:
+  group: update-lockfile
+  cancel-in-progress: true
 jobs:
   update-lockfile:
     runs-on: ubuntu-latest
