@@ -11,18 +11,26 @@ jobs:
   update-lockfile:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: prefix-dev/setup-pixi@v0.9.5
         with:
           run-install: false
       - name: Update lockfile
         run: pixi update
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Open PR if lockfile changed
         uses: peter-evans/create-pull-request@v8
         with:
+          token: ${{ steps.app-token.outputs.token }}
           branch: update/pixi-lockfile
           commit-message: "chore: update pixi lockfile"
           title: "chore: monthly pixi lockfile update"
