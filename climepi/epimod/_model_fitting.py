@@ -273,20 +273,22 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             elif isinstance(parameter_entry, numbers.Number):
                 parameter_vals[parameter_name] = parameter_entry
             elif callable(parameter_entry):
-                coord_arrays: dict[str, xr.DataArray] = {
-                    "temperature": xr.DataArray(
-                        temperature_vals,
-                        dims="temperature",
-                        attrs={"long_name": "Temperature", "units": "°C"},
-                    )
+                ds_coords = xr.Dataset(coords={"temperature": temperature_vals})
+                ds_coords["temperature"].attrs = {
+                    "long_name": "Temperature",
+                    "units": "°C",
                 }
                 if precipitation_vals is not None:
-                    coord_arrays["precipitation"] = xr.DataArray(
-                        precipitation_vals,
-                        dims="precipitation",
-                        attrs={"long_name": "Precipitation", "units": "mm/day"},
+                    ds_coords = ds_coords.assign_coords(
+                        precipitation=("precipitation", precipitation_vals)
                     )
-                parameter_vals[parameter_name] = parameter_entry(**coord_arrays)
+                    ds_coords["precipitation"].attrs = {
+                        "long_name": "Precipitation",
+                        "units": "mm/day",
+                    }
+                parameter_vals[parameter_name] = parameter_entry(
+                    **{str(k): v for k, v in ds_coords.coords.items()}
+                )
             else:
                 raise ValueError(
                     f"Invalid parameter entry for '{parameter_name}': {parameter_entry}"
