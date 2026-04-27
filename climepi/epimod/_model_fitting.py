@@ -273,20 +273,20 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             elif isinstance(parameter_entry, numbers.Number):
                 parameter_vals[parameter_name] = parameter_entry
             elif callable(parameter_entry):
-                ds_coords = xr.Dataset(coords={"temperature": temperature_vals})
-                ds_coords["temperature"].attrs = {
-                    "long_name": "Temperature",
-                    "units": "°C",
+                coord_arrays: dict[str, xr.DataArray] = {
+                    "temperature": xr.DataArray(
+                        temperature_vals,
+                        dims="temperature",
+                        attrs={"long_name": "Temperature", "units": "°C"},
+                    )
                 }
                 if precipitation_vals is not None:
-                    ds_coords = ds_coords.assign_coords(
-                        precipitation=("precipitation", precipitation_vals)
+                    coord_arrays["precipitation"] = xr.DataArray(
+                        precipitation_vals,
+                        dims="precipitation",
+                        attrs={"long_name": "Precipitation", "units": "mm/day"},
                     )
-                    ds_coords["precipitation"].attrs = {
-                        "long_name": "Precipitation",
-                        "units": "mm/day",
-                    }
-                parameter_vals[parameter_name] = parameter_entry(**ds_coords.coords)
+                parameter_vals[parameter_name] = parameter_entry(**coord_arrays)
             else:
                 raise ValueError(
                     f"Invalid parameter entry for '{parameter_name}': {parameter_entry}"
@@ -345,15 +345,12 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             .assign_attrs(long_name="Optimal temperature for suitability", units="°C")
         )
         da_suitable = da_suitability_table > suitability_threshold
-        first_suitable_idx = cast(xr.DataArray, da_suitable.argmax(dim="temperature"))
+        first_suitable_idx = da_suitable.argmax(dim="temperature")
         last_suitable_idx = (
             da_suitable.sizes["temperature"]
             - 1
-            - cast(
-                xr.DataArray,
-                da_suitable.isel(temperature=slice(None, None, -1)).argmax(
-                    dim="temperature"
-                ),
+            - da_suitable.isel(temperature=slice(None, None, -1)).argmax(
+                dim="temperature"
             )
         )
         if np.any(first_suitable_idx == 0) or np.any(
