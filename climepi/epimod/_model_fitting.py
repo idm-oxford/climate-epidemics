@@ -286,7 +286,9 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
                         "long_name": "Precipitation",
                         "units": "mm/day",
                     }
-                parameter_vals[parameter_name] = parameter_entry(**ds_coords.coords)
+                parameter_vals[parameter_name] = parameter_entry(
+                    **{str(k): v for k, v in ds_coords.coords.items()}
+                )
             else:
                 raise ValueError(
                     f"Invalid parameter entry for '{parameter_name}': {parameter_entry}"
@@ -345,15 +347,12 @@ class ParameterizedSuitabilityModel(SuitabilityModel):
             .assign_attrs(long_name="Optimal temperature for suitability", units="°C")
         )
         da_suitable = da_suitability_table > suitability_threshold
-        first_suitable_idx = cast(xr.DataArray, da_suitable.argmax(dim="temperature"))
+        first_suitable_idx = da_suitable.argmax(dim="temperature")
         last_suitable_idx = (
             da_suitable.sizes["temperature"]
             - 1
-            - cast(
-                xr.DataArray,
-                da_suitable.isel(temperature=slice(None, None, -1)).argmax(
-                    dim="temperature"
-                ),
+            - da_suitable.isel(temperature=slice(None, None, -1)).argmax(
+                dim="temperature"
             )
         )
         if np.any(first_suitable_idx == 0) or np.any(
