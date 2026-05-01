@@ -19,6 +19,34 @@ dask.config.set(scheduler="synchronous")  # enforce synchronous scheduler
 PORT = [6000]
 
 
+def _wait_for_server_shutdown(server, timeout=5):
+    """
+    Wait for a threaded server to stop.
+
+    Parameters
+    ----------
+    server
+        Threaded Panel server object exposing ``join()`` and ``is_alive()`` methods.
+    timeout : float, default=5
+        Maximum number of seconds to wait for the server thread to stop.
+    """
+    deadline = time.monotonic() + timeout
+
+    if hasattr(server, "join"):
+        server.join(timeout=max(0, deadline - time.monotonic()))
+
+    alive = server.is_alive()
+    if not alive:
+        return
+
+    while alive and time.monotonic() < deadline:
+        time.sleep(0.01)
+        alive = server.is_alive()
+
+    if alive:
+        pytest.fail("Timed out waiting for the app server to stop")
+
+
 @pytest.fixture
 def port():
     """
@@ -78,27 +106,41 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
         temperature_range=[-5, 55]
     )
 
-    server = app_construction.run_app(port=port, threaded=True, show=False)
-    time.sleep(0.1)
+    original_sigint = signal.getsignal(signal.SIGINT)
+    original_sigterm = signal.getsignal(signal.SIGTERM)
+    server = None
 
-    captured = capsys.readouterr()
-    assert "Setting up the app" in captured.out
-    assert "Using the Dask single-machine scheduler" in captured.out
-    assert "Set-up complete. Press Ctrl+C to stop the app" in captured.out
+    try:
+        server = app_construction.run_app(port=port, threaded=True, show=False)
+        time.sleep(0.1)
 
-    page.goto(f"http://localhost:{port}/climepi_app")
-    page.get_by_role("button", name="Load data").wait_for()
-    captured = capsys.readouterr()
-    assert "Session created" in captured.out
-    expect(page).to_have_title("climepi app")
+        captured = capsys.readouterr()
+        assert "Setting up the app" in captured.out
+        assert "Using the Dask single-machine scheduler" in captured.out
+        assert "Set-up complete. Press Ctrl+C to stop the app" in captured.out
 
-    page.get_by_role("button", name="Load data").click()
-    page.get_by_text("Data loaded").wait_for()
-    mock_get_example_dataset.assert_called_once_with("data", base_dir=None)
+        page.goto(f"http://localhost:{port}/climepi_app")
+        page.get_by_role("button", name="Load data").wait_for()
+        captured = capsys.readouterr()
+        assert "Session created" in captured.out
+        expect(page).to_have_title("climepi app")
 
-    assert len(pn.state.cache["controllers"]) == 1
-    server.stop()
-    time.sleep(0.1)
+        page.get_by_role("button", name="Load data").click()
+        page.get_by_text("Data loaded").wait_for()
+        mock_get_example_dataset.assert_called_once_with("data", base_dir=None)
+
+        assert len(pn.state.cache["controllers"]) == 1
+        server.stop()
+        _wait_for_server_shutdown(server)
+    finally:
+        if server is not None and server.is_alive():
+            server.stop()
+            _wait_for_server_shutdown(server)
+        if not page.is_closed():
+            page.close()
+        signal.signal(signal.SIGINT, original_sigint)
+        signal.signal(signal.SIGTERM, original_sigterm)
+
     assert "controllers" not in pn.state.cache
     captured = capsys.readouterr()
     assert "Cleaning up sessions" in captured.out
