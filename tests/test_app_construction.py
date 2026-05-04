@@ -1,7 +1,9 @@
 """Unit tests for the _app_construction module of the app subpackage."""
 
 import signal
+import sys
 import time
+import warnings
 from unittest.mock import MagicMock, patch
 
 import dask
@@ -44,7 +46,13 @@ def _wait_for_server_shutdown(server, timeout=5):
         alive = server.is_alive()
 
     if alive:
-        pytest.fail("Timed out waiting for the app server to stop")
+        msg = "Timed out waiting for the app server to stop"
+        if sys.exc_info()[0] is not None:
+            # Already handling an exception (e.g. called from finally); warn so we
+            # don't replace the original failure with a shutdown-timeout failure.
+            warnings.warn(msg, stacklevel=2)
+        else:
+            pytest.fail(msg)
 
 
 @pytest.fixture
@@ -77,6 +85,23 @@ def cache_cleanup():
     pn.state.clear_caches()
 
 
+@pytest.fixture(autouse=True)
+def restore_signal_handlers():
+    """Restore SIGINT/SIGTERM handlers after each test.
+
+    run_app() always mutates these handlers via _set_shutdown(). This fixture
+    ensures the original handlers are restored regardless of which test called
+    run_app(), preventing leakage between tests.
+    """
+    original_sigint = signal.getsignal(signal.SIGINT)
+    original_sigterm = signal.getsignal(signal.SIGTERM)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, original_sigint)
+        signal.signal(signal.SIGTERM, original_sigterm)
+
+
 @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
 @patch("climepi.app._app_classes_methods.climdata.get_example_dataset", autospec=True)
 @patch("climepi.app._app_classes_methods.climdata.EXAMPLE_NAMES", ["data"])
@@ -106,8 +131,6 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
         temperature_range=[-5, 55]
     )
 
-    original_sigint = signal.getsignal(signal.SIGINT)
-    original_sigterm = signal.getsignal(signal.SIGTERM)
     server = None
 
     try:
@@ -138,8 +161,6 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
             _wait_for_server_shutdown(server)
         if not page.is_closed():
             page.close()
-        signal.signal(signal.SIGINT, original_sigint)
-        signal.signal(signal.SIGTERM, original_sigterm)
 
     assert "controllers" not in pn.state.cache
     captured = capsys.readouterr()
