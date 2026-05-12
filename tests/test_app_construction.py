@@ -1,7 +1,10 @@
 """Unit tests for the _app_construction module of the app subpackage."""
 
+from contextlib import contextmanager
 import signal
+import sys
 import time
+import warnings
 from unittest.mock import MagicMock, patch
 
 import dask
@@ -17,6 +20,55 @@ from climepi.testing.fixtures import generate_dataset
 dask.config.set(scheduler="synchronous")  # enforce synchronous scheduler
 
 PORT = [6000]
+
+
+def _wait_for_server_shutdown(server, timeout=5):
+    """
+    Wait for a threaded server to stop.
+
+    Parameters
+    ----------
+    server
+        Threaded Panel server object exposing ``join()`` and ``is_alive()`` methods.
+    timeout : float, default=5
+        Maximum number of seconds to wait for the server thread to stop.
+    """
+    deadline = time.monotonic() + timeout
+
+    if hasattr(server, "join"):
+        server.join(timeout=max(0, deadline - time.monotonic()))
+
+    alive = server.is_alive()
+    if not alive:
+        return
+
+    while alive and time.monotonic() < deadline:
+        time.sleep(0.01)
+        alive = server.is_alive()
+
+    if alive:
+        msg = "Timed out waiting for the app server to stop"
+        if sys.exc_info()[0] is not None:
+            # Already handling an exception (e.g. called from finally); warn so we
+            # don't replace the original failure with a shutdown-timeout failure.
+            warnings.warn(msg, stacklevel=2)
+        else:
+            pytest.fail(msg)
+
+
+@contextmanager
+def _run_threaded_app(page, **kwargs):
+    """Run the app in a thread and always clean it up."""
+    server = None
+    try:
+        server = app_construction.run_app(threaded=True, show=False, **kwargs)
+        yield server
+    finally:
+        if server is not None and server.is_alive():
+            server.stop()
+            _wait_for_server_shutdown(server)
+        if not page.is_closed():
+            page.close()
 
 
 @pytest.fixture
@@ -49,6 +101,23 @@ def cache_cleanup():
     pn.state.clear_caches()
 
 
+@pytest.fixture(autouse=True)
+def restore_signal_handlers():
+    """Restore SIGINT/SIGTERM handlers after each test.
+
+    run_app() always mutates these handlers via _set_shutdown(). This fixture
+    ensures the original handlers are restored regardless of which test called
+    run_app(), preventing leakage between tests.
+    """
+    original_sigint = signal.getsignal(signal.SIGINT)
+    original_sigterm = signal.getsignal(signal.SIGTERM)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, original_sigint)
+        signal.signal(signal.SIGTERM, original_sigterm)
+
+
 @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
 @patch("climepi.app._app_classes_methods.climdata.get_example_dataset", autospec=True)
 @patch("climepi.app._app_classes_methods.climdata.EXAMPLE_NAMES", ["data"])
@@ -78,27 +147,28 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
         temperature_range=[-5, 55]
     )
 
-    server = app_construction.run_app(port=port, threaded=True, show=False)
-    time.sleep(0.1)
+    with _run_threaded_app(page, port=port) as server:
+        time.sleep(0.1)
 
-    captured = capsys.readouterr()
-    assert "Setting up the app" in captured.out
-    assert "Using the Dask single-machine scheduler" in captured.out
-    assert "Set-up complete. Press Ctrl+C to stop the app" in captured.out
+        captured = capsys.readouterr()
+        assert "Setting up the app" in captured.out
+        assert "Using the Dask single-machine scheduler" in captured.out
+        assert "Set-up complete. Press Ctrl+C to stop the app" in captured.out
 
-    page.goto(f"http://localhost:{port}/climepi_app")
-    page.get_by_role("button", name="Load data").wait_for()
-    captured = capsys.readouterr()
-    assert "Session created" in captured.out
-    expect(page).to_have_title("climepi app")
+        page.goto(f"http://localhost:{port}/climepi_app")
+        page.get_by_role("button", name="Load data").wait_for()
+        captured = capsys.readouterr()
+        assert "Session created" in captured.out
+        expect(page).to_have_title("climepi app")
 
-    page.get_by_role("button", name="Load data").click()
-    page.get_by_text("Data loaded").wait_for()
-    mock_get_example_dataset.assert_called_once_with("data", base_dir=None)
+        page.get_by_role("button", name="Load data").click()
+        page.get_by_text("Data loaded").wait_for()
+        mock_get_example_dataset.assert_called_once_with("data", base_dir=None)
 
-    assert len(pn.state.cache["controllers"]) == 1
-    server.stop()
-    time.sleep(0.1)
+        assert len(pn.state.cache["controllers"]) == 1
+        server.stop()
+        _wait_for_server_shutdown(server)
+
     assert "controllers" not in pn.state.cache
     captured = capsys.readouterr()
     assert "Cleaning up sessions" in captured.out
