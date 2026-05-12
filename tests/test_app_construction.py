@@ -1,5 +1,6 @@
 """Unit tests for the _app_construction module of the app subpackage."""
 
+from contextlib import contextmanager
 import signal
 import sys
 import time
@@ -53,6 +54,21 @@ def _wait_for_server_shutdown(server, timeout=5):
             warnings.warn(msg, stacklevel=2)
         else:
             pytest.fail(msg)
+
+
+@contextmanager
+def _run_threaded_app(page, **kwargs):
+    """Run the app in a thread and always clean it up."""
+    server = None
+    try:
+        server = app_construction.run_app(threaded=True, show=False, **kwargs)
+        yield server
+    finally:
+        if server is not None and server.is_alive():
+            server.stop()
+            _wait_for_server_shutdown(server)
+        if not page.is_closed():
+            page.close()
 
 
 @pytest.fixture
@@ -131,10 +147,7 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
         temperature_range=[-5, 55]
     )
 
-    server = None
-
-    try:
-        server = app_construction.run_app(port=port, threaded=True, show=False)
+    with _run_threaded_app(page, port=port) as server:
         time.sleep(0.1)
 
         captured = capsys.readouterr()
@@ -155,12 +168,6 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
         assert len(pn.state.cache["controllers"]) == 1
         server.stop()
         _wait_for_server_shutdown(server)
-    finally:
-        if server is not None and server.is_alive():
-            server.stop()
-            _wait_for_server_shutdown(server)
-        if not page.is_closed():
-            page.close()
 
     assert "controllers" not in pn.state.cache
     captured = capsys.readouterr()
