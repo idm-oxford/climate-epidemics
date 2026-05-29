@@ -4,6 +4,9 @@ import threading
 from functools import lru_cache
 from typing import Any
 
+# Lazy imports (PEP 810) on Python 3.15+; no-op on earlier versions.
+__lazy_modules__ = ["geopy", "geopy.extra.rate_limiter", "geopy.geocoders"]
+
 from geopy import Location
 from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
