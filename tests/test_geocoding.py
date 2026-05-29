@@ -32,3 +32,11 @@ def test_geocode_exactly_one_false():
     """Test that requesting multiple results raises a ValueError."""
     with pytest.raises(ValueError, match="exactly_one=False"):
         geocoding.geocode("anywhere", exactly_one=False)
+
+
+@patch.object(geocoding, "_geocode")
+def test_geocode_unresolved_query(mock_geocode):
+    """Test that an unresolvable query raises a ValueError."""
+    mock_geocode.return_value = None
+    with pytest.raises(ValueError, match="Could not geocode query 'nowhere-real'"):
+        geocoding.geocode("nowhere-real")

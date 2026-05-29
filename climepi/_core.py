@@ -156,8 +156,6 @@ class ClimEpiDatasetAccessor:
             return ds_new
         if lon is None and lat is None:
             location_geopy = geocode(location, **kwargs)
-            if location_geopy is None:
-                raise ValueError(f"Could not geocode location {location!r}.")
             lat = location_geopy.latitude
             lon = location_geopy.longitude  # in the range [-180, 180]
         elif lon is None or lat is None:

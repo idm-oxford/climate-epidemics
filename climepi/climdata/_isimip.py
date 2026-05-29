@@ -6,7 +6,6 @@ import zipfile
 from copy import deepcopy
 from typing import Any
 
-import geopy
 import numpy as np
 import pandas as pd
 import pooch
@@ -141,7 +140,6 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 return
             if lons in [None, [None]] and lats in [None, [None]]:
                 location_geopy = geocode(locations[0])
-                assert isinstance(location_geopy, geopy.Location)
                 lon = location_geopy.longitude
                 lat = location_geopy.latitude
             else:

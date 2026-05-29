@@ -153,11 +153,14 @@ class TestSelGeo:
         ):
             ds.climepi.sel_geo(location=["Miami"], lon=4, lat=20)
 
-    @patch("climepi._core.geocode", return_value=None)
+    @patch(
+        "climepi._core.geocode",
+        side_effect=ValueError("Could not geocode query 'Nowhere-at-all'."),
+    )
     def test_sel_geo_unresolvable_location(self, mock_geocode):
         """Test that a location that cannot be geocoded raises a ValueError."""
         ds = generate_dataset()
-        with pytest.raises(ValueError, match="Could not geocode location"):
+        with pytest.raises(ValueError, match="Could not geocode query"):
             ds.climepi.sel_geo("Nowhere-at-all")
 
 
