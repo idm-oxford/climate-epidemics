@@ -1,5 +1,8 @@
 """Module for accessing and downloading ISIMIP data."""
 
+# Lazy imports activated on Python 3.15+ (PEP 810); inert on earlier versions.
+__lazy_modules__ = ["requests", "requests.adapters", "urllib3.util"]
+
 import pathlib
 import time
 import zipfile
