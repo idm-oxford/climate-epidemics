@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import geopy
+import pytest
 
 import climepi._geocoding as geocoding
 
@@ -25,3 +26,9 @@ def test_geocode(mock_geocode):
     assert geocoding.geocode("howzat") == "not out"
     assert geocoding.geocode("howzat") == "not out"
     assert mock_geocode.call_count == 1
+
+
+def test_geocode_exactly_one_false():
+    """Test that requesting multiple results raises a ValueError."""
+    with pytest.raises(ValueError, match="exactly_one=False"):
+        geocoding.geocode("anywhere", exactly_one=False)
