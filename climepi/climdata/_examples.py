@@ -63,6 +63,15 @@ EXAMPLES = {
         "2100 from the CESM2 LENS project "
         "(https://registry.opendata.aws/ncar-cesm2-lens/).",
     },
+    "lens2_2020_2100_monthly_one_realization": {
+        "data_source": "lens2",
+        "frequency": "monthly",
+        "subset": {"years": [2020, 2100], "realizations": [0]},
+        "formatted_data_downloadable": True,
+        "doc": "Monthly global temperature and precipitation projections for 2020 and "
+        "2100 from a single CESM2 LENS ensemble member "
+        "(https://registry.opendata.aws/ncar-cesm2-lens/).",
+    },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
@@ -89,8 +98,10 @@ def get_example_dataset(
     name : str
         Name of the example dataset to load. Currently available examples are:
         'isimip_cities_daily' (ISIMIP daily projections for London, Paris, Los
-        Angeles, Cape Town and Istanbul for 2030-2100) and 'lens2_2020_2100_monthly'
-        (CESM LENS2 monthly projections for 2020 and 2100).
+        Angeles, Cape Town and Istanbul for 2030-2100), 'lens2_2020_2100_monthly'
+        (CESM LENS2 monthly projections for 2020 and 2100) and
+        'lens2_2020_2100_monthly_one_realization' (a single-realization subset of
+        the above).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same

@@ -16,3 +16,35 @@ Documentation: https://climate-epidemics.readthedocs.io/en/latest/
 
 Web app: https://idm-oxford.github.io/climate-epidemics/
 
+## Installation
+
+climepi is available on [conda-forge](https://anaconda.org/conda-forge/climepi);
+see the [installation docs](https://climate-epidemics.readthedocs.io/en/latest/getting-started/installation.html)
+for details.
+
+## Quickstart
+
+```python
+import climepi  # registers the .climepi xarray accessor
+from climepi import climdata, epimod
+
+# Load an example climate projection dataset (single CESM2 LENS ensemble member for
+# years 2020 and 2100; triggers a ~10 MB download on first run)
+ds_clim = climdata.get_example_dataset("lens2_2020_2100_monthly_one_realization")
+
+# Define a simple suitability model: transmission possible at 15-30 °C
+suitability_model = epimod.SuitabilityModel(temperature_range=(15, 30))
+
+# Run the epidemiological model on the climate dataset
+ds_epi = ds_clim.climepi.run_epi_model(suitability_model)
+
+# Compute the number of suitable months per year
+ds_months = ds_epi.climepi.yearly_portion_suitable()
+
+# Plot a map of suitable months in 2100
+ds_months.sel(time="2100").climepi.plot_map()
+```
+
+See the [Gallery](https://climate-epidemics.readthedocs.io/en/latest/gallery.html) for
+more in-depth examples.
+
