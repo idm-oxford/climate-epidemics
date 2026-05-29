@@ -41,8 +41,13 @@ ds_epi = ds_clim.climepi.run_epi_model(suitability_model)
 # Compute the number of suitable months per year
 ds_months = ds_epi.climepi.yearly_portion_suitable()
 
-# Plot a map of suitable months in 2100
-ds_months.sel(time="2100").climepi.plot_map()
+# Plot a map of suitable months in 2100 (returns a HoloViews object)
+plot = ds_months.sel(time="2100").climepi.plot_map()
+
+# Show the plot in a notebook (use hvplot.show(plot) in a script, or save using
+# hvplot.save(plot, "filename.html") -- see
+# https://hvplot.holoviz.org/en/docs/latest/user_guide/Viewing.html)
+plot
 ```
 
 See the [Gallery](https://climate-epidemics.readthedocs.io/en/latest/gallery.html) for
