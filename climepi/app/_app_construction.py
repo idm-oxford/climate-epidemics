@@ -211,6 +211,7 @@ def _layout(
     )
 
     data_controls = controller.data_controls
+    assert template.sidebar is not None
     template.sidebar.append(data_controls)
 
     clim_plot_controls = controller.clim_plot_controls
@@ -219,6 +220,7 @@ def _layout(
     epi_model_plot_view = controller.epi_model_plot_view
     epi_plot_view = controller.epi_plot_view
 
+    assert template.main is not None
     template.main.append(
         pn.Tabs(
             ("Climate data", pn.Row(clim_plot_controls, clim_plot_view)),
