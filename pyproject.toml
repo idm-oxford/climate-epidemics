@@ -40,7 +40,7 @@ kerchunk = ">=0.2.9" # https://github.com/fsspec/kerchunk/issues/566
 nc-time-axis = "*"
 numpy = "*"
 pandas = "*"
-panel = "*"
+panel = ">=1.9.0" # widget `label` param (replaces deprecated `name`) added in 1.9.0
 param = "*"
 pooch = "*"
 pydantic = "*"

@@ -1,12 +1,14 @@
 """Module for accessing and downloading ISIMIP data."""
 
+# Lazy imports activated on Python 3.15+ (PEP 810); inert on earlier versions.
+__lazy_modules__ = ["requests", "requests.adapters", "urllib3.util"]
+
 import pathlib
 import time
 import zipfile
 from copy import deepcopy
 from typing import Any
 
-import geopy
 import numpy as np
 import pandas as pd
 import pooch
@@ -141,7 +143,6 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 return
             if lons in [None, [None]] and lats in [None, [None]]:
                 location_geopy = geocode(locations[0])
-                assert isinstance(location_geopy, geopy.Location)
                 lon = location_geopy.longitude
                 lat = location_geopy.latitude
             else:

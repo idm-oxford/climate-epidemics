@@ -1,5 +1,8 @@
 """Module for accessing and downloading CESM LENS2 data."""
 
+# Lazy imports activated on Python 3.15+ (PEP 810); inert on earlier versions.
+__lazy_modules__ = ["intake", "siphon.catalog", "requests"]
+
 import functools
 import time
 from copy import deepcopy

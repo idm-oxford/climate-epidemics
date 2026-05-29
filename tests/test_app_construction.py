@@ -1,10 +1,10 @@
 """Unit tests for the _app_construction module of the app subpackage."""
 
-from contextlib import contextmanager
 import signal
 import sys
 import time
 import warnings
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import dask

@@ -2,6 +2,9 @@
 
 from typing import Literal
 
+# Lazy imports (PEP 810) on Python 3.15+; no-op on earlier versions.
+__lazy_modules__ = ["scipy.interpolate", "scipy.stats"]
+
 import scipy.interpolate
 import scipy.stats
 import xarray as xr

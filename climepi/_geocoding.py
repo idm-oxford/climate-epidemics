@@ -4,6 +4,9 @@ import threading
 from functools import lru_cache
 from typing import Any
 
+# Lazy imports (PEP 810) on Python 3.15+; no-op on earlier versions.
+__lazy_modules__ = ["geopy", "geopy.extra.rate_limiter", "geopy.geocoders"]
+
 from geopy import Location
 from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
@@ -24,23 +27,40 @@ def _initialize_geocode() -> None:
 
 
 @lru_cache(maxsize=1000, typed=True)
-def geocode(*args: Any, **kwargs: Any) -> Location | None | list[Location | None]:
+def geocode(query: str, **kwargs: Any) -> Location:
     """
     Geocode an address using the Nominatim geocoder.
 
-    Uses OpenStreetMap data (https://openstreetmap.org/copyright).
+    Uses OpenStreetMap data (https://openstreetmap.org/copyright). Always returns
+    a single :class:`geopy.Location`; passing ``exactly_one=False`` is rejected,
+    and unresolved queries raise :class:`ValueError`.
 
     Parameters
     ----------
-    *args, **kwargs:
-        Arguments and keyword arguments passed to the Nominatim.geocode method (see
+    query : str
+        Query string passed to the Nominatim.geocode method (see
         https://geopy.readthedocs.io/en/stable/#geopy.geocoders.Nominatim.geocode).
+    **kwargs:
+        Additional keyword arguments passed to the Nominatim.geocode method.
 
     Returns
     -------
-    geopy.Location or None or list:
+    geopy.Location:
         Return value of the Nominatim.geocode method (see the link above).
+
+    Raises
+    ------
+    ValueError
+        If ``exactly_one=False`` is passed, or if the query cannot be resolved.
     """
+    if kwargs.get("exactly_one", True) is False:
+        raise ValueError(
+            "geocode() always returns a single Location; "
+            "'exactly_one=False' is not supported."
+        )
     _initialize_geocode()
     assert _geocode is not None, "Geocode service is not initialized."
-    return _geocode(*args, **kwargs)
+    result = _geocode(query, **kwargs)
+    if result is None:
+        raise ValueError(f"Could not geocode query {query!r}.")
+    return result

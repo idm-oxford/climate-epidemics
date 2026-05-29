@@ -4,15 +4,16 @@ Core module for the climepi package.
 Contains the ClimEpiDatasetAccessor class for xarray datasets.
 """
 
+from __future__ import annotations
+
 from typing import Any, Hashable, Literal, overload
 
-import geopy
-import geoviews.feature as gf
+# Lazy imports (PEP 810) on Python 3.15+; no-op on earlier versions.
+__lazy_modules__ = ["scipy.stats", "holoviews", "xarray.plot.utils"]
+
 import holoviews as hv
-import hvplot.xarray  # noqa
 import numpy as np
 import param
-import scipy.interpolate
 import scipy.stats
 import xarray as xr
 from xarray.plot.utils import label_from_attrs
@@ -155,7 +156,6 @@ class ClimEpiDatasetAccessor:
             return ds_new
         if lon is None and lat is None:
             location_geopy = geocode(location, **kwargs)
-            assert isinstance(location_geopy, geopy.Location)
             lat = location_geopy.latitude
             lon = location_geopy.longitude  # in the range [-180, 180]
         elif lon is None or lat is None:
@@ -751,6 +751,8 @@ class ClimEpiDatasetAccessor:
         :mod:`holoviews` object
             The resulting time series plot.
         """
+        import hvplot.xarray  # noqa  (registers DataArray.hvplot accessor)
+
         data_var = self._process_data_var_argument(data_var)
         da_plot = self._obj[data_var].squeeze()
         kwargs_hvplot = {"x": "time", **kwargs}
@@ -786,6 +788,9 @@ class ClimEpiDatasetAccessor:
         :mod:`holoviews` object
             The resulting map plot.
         """
+        import geoviews.feature as gf
+        import hvplot.xarray  # noqa  (registers DataArray.hvplot accessor)
+
         data_var = self._process_data_var_argument(data_var)
         da_plot = (
             self._obj[data_var]
@@ -863,6 +868,8 @@ class ClimEpiDatasetAccessor:
         :mod:`holoviews` object
             The resulting plot object.
         """
+        import hvplot.xarray  # noqa  (registers Dataset.hvplot accessor)
+
         data_var = self._process_data_var_argument(data_var)
         da_var_decomp = self.variance_decomposition(
             data_var,
@@ -952,6 +959,8 @@ class ClimEpiDatasetAccessor:
         :class:`holoviews.Overlay`
             The resulting plot object.
         """
+        import hvplot.xarray  # noqa  (registers Dataset.hvplot accessor)
+
         data_var = self._process_data_var_argument(data_var)
         da_decomp = self.uncertainty_interval_decomposition(
             data_var,

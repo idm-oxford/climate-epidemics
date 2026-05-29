@@ -4,6 +4,8 @@ Unit tests for the _core module of the climepi package.
 The ClimEpiDatasetAccessor class is tested in this module.
 """
 
+from unittest.mock import patch
+
 import geoviews
 import hvplot.xarray  # noqa
 import numpy as np
@@ -150,6 +152,16 @@ class TestSelGeo:
             ValueError, match="If 'location' is a list, 'lon' and 'lat' must also"
         ):
             ds.climepi.sel_geo(location=["Miami"], lon=4, lat=20)
+
+    @patch(
+        "climepi._core.geocode",
+        side_effect=ValueError("Could not geocode query 'Nowhere-at-all'."),
+    )
+    def test_sel_geo_unresolvable_location(self, mock_geocode):
+        """Test that a location that cannot be geocoded raises a ValueError."""
+        ds = generate_dataset()
+        with pytest.raises(ValueError, match="Could not geocode query"):
+            ds.climepi.sel_geo("Nowhere-at-all")
 
 
 @pytest.mark.parametrize("frequency", ["yearly", "monthly", "daily"])

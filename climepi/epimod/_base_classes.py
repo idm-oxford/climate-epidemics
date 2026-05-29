@@ -212,6 +212,8 @@ class SuitabilityModel(EpiModel):
         :mod:`holoviews` object
             The suitability plot.
         """
+        import hvplot.xarray  # noqa (registers DataArray.hvplot accessor)
+
         suitability_table = self.suitability_table
         suitability_var_name = self._suitability_var_name
         if suitability_table is None:
