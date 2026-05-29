@@ -140,10 +140,10 @@ for conducting climate-VBD suitability modeling workflows.
 
 # AI usage disclosure
 
-Generative AI tools (ChatGPT and GitHub Copilot) were used to suggest and autocomplete
-short segments of code and documentation, to assist with code review and to provide
-grammar and style recommendations in the manuscript. All AI-assisted outputs were
-reviewed, edited and validated by the authors, who made all of the core design
+Generative AI tools (ChatGPT, GitHub Copilot and Claude Code) were used to suggest and
+autocomplete short segments of code and documentation, to assist with code review and to
+provide grammar and style recommendations in the manuscript. All AI-assisted outputs
+were reviewed, edited and validated by the authors, who made all of the core design
 decisions.
 
 # Acknowledgements
