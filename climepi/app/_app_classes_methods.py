@@ -358,7 +358,7 @@ class _PlotController(param.Parameterized):
             "ensemble_stat": {
                 "name": "Ensemble statistic (estimated if only one realization)"
             },
-            "plot_initiator": pn.widgets.Button(name="Generate plot"),
+            "plot_initiator": pn.widgets.Button(label="Generate plot"),
             "plot_status": {
                 "widget_type": pn.widgets.StaticText,
                 "name": "",
@@ -641,7 +641,7 @@ class Controller(param.Parameterized):
             "clim_data_option": {"name": "Climate data option"},
             "clim_example_name": {"name": "Climate dataset"},
             "clim_example_doc": {"widget_type": pn.widgets.StaticText, "name": ""},
-            "clim_data_load_initiator": pn.widgets.Button(name="Load data"),
+            "clim_data_load_initiator": pn.widgets.Button(label="Load data"),
             "clim_data_status": {
                 "widget_type": pn.widgets.StaticText,
                 "name": "",
@@ -652,7 +652,7 @@ class Controller(param.Parameterized):
             "epi_temperature_range": {"name": "Temperature range of suitability (°C)"},
             "epi_output_choice": {"name": "Return"},
             "suitability_threshold": {"name": "Suitability threshold"},
-            "epi_model_run_initiator": pn.widgets.Button(name="Run model"),
+            "epi_model_run_initiator": pn.widgets.Button(label="Run model"),
             "epi_model_status": {
                 "widget_type": pn.widgets.StaticText,
                 "name": "",
