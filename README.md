@@ -3,6 +3,7 @@
 [![Version](https://img.shields.io/conda/vn/conda-forge/climepi.svg)](https://anaconda.org/conda-forge/climepi)
 [![Platform](https://img.shields.io/conda/pn/conda-forge/climepi.svg)](https://anaconda.org/conda-forge/climepi)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14888949.svg)](https://doi.org/10.5281/zenodo.14888949)
+[![JOSS](https://joss.theoj.org/papers/10.21105/joss.10099/status.svg)](https://doi.org/10.21105/joss.10099)
 [![License](https://img.shields.io/github/license/idm-oxford/climate-epidemics.svg)](https://github.com/idm-oxford/climate-epidemics/blob/main/LICENSE)
 [![Tests](https://github.com/idm-oxford/climate-epidemics/actions/workflows/run_tests.yml/badge.svg)](https://github.com/idm-oxford/climate-epidemics/actions/workflows/run_tests.yml?branch=main)
 [![Coverage](https://codecov.io/gh/idm-oxford/climate-epidemics/branch/main/graph/badge.svg)](https://codecov.io/gh/idm-oxford/climate-epidemics)
