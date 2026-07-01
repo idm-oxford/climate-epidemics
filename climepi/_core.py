@@ -141,7 +141,10 @@ class ClimEpiDatasetAccessor:
                     "provided."
                 )
             ds_list = [
-                self.sel_geo(location_curr, lon=lon_curr, lat=lat_curr, **kwargs)
+                self.sel_geo(
+                    location_curr, lon=lon_curr, lat=lat_curr, **kwargs
+                )  # ty: ignore[no-matching-overload]  # ty limitation: recursive
+                # overload call not resolved correctly (astral-sh/ty)
                 for location_curr, lon_curr, lat_curr in zip(
                     location, lon, lat, strict=True
                 )
@@ -415,7 +418,10 @@ class ClimEpiDatasetAccessor:
         # Process the data variable argument
         data_var_list = self._process_data_var_argument(data_var, as_list=True)
         # Drop bounds for now (re-add at end)
-        ds_raw = self._obj[data_var_list]
+        # ty limitation: `list[Hashable]` incorrectly matches the `Hashable`
+        # overload of `Dataset.__getitem__`, so the inferred type is wrongly
+        # narrowed to `DataArray` instead of `Dataset` (astral-sh/ty).
+        ds_raw: xr.Dataset = self._obj[data_var_list]  # ty: ignore[invalid-assignment]
         if internal_variability_method is None:
             internal_variability_method = (
                 "direct"

@@ -5,10 +5,13 @@ import os
 import signal
 import sys
 import traceback
-from typing import Any, Callable, Literal, overload
+from typing import Any, Callable, Literal, cast, overload
 
 import bokeh
+import bokeh.application.application
 import panel as pn
+import panel.io.server
+import panel.io.threads
 from dask.distributed import Client
 
 from climepi.app._app_classes_methods import Controller
@@ -102,6 +105,11 @@ def run_app(
     logger.info("Set-up complete. Press Ctrl+C to stop the app")
 
     if start and not threaded:
+        # `threaded=False` guarantees `pn.serve` returns a `Server`, not a
+        # `StoppableThread` (which has no `io_loop` attribute). A `cast` (rather
+        # than `assert isinstance`) is used since `server` may be a mock object
+        # in tests.
+        server = cast(panel.io.server.Server, server)
         server.start()
         server.io_loop.start()
     return server

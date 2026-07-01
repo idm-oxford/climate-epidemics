@@ -6,6 +6,7 @@ import tempfile
 from typing import Any, Literal
 
 import dask
+import dask.diagnostics
 import numpy as np
 import panel as pn
 import param

@@ -540,6 +540,7 @@ def fit_temperature_response(
             probability=probability,
             backend="pytensor",
         )
+        kwargs_normal: dict[str, Any]
         if "noise_std" in priors:
             noise_std = priors["noise_std"]()
             kwargs_normal = {"sigma": noise_std}

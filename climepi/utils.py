@@ -102,14 +102,22 @@ def get_data_var_and_bnds(
         A new dataset containing the selected data variable(s) and any bounds
         variables.
     """
+    data_var_list: list[Hashable]
     if isinstance(data_var, list):
-        data_var_list = data_var.copy()
+        # ty limitation: `isinstance(data_var, list)` incorrectly narrows the
+        # `Hashable` member of `Hashable | list[Hashable]` to `list[Never]`
+        # rather than eliminating it, since it wrongly treats `list` as
+        # potentially satisfying the `Hashable` protocol (astral-sh/ty).
+        data_var_list = data_var.copy()  # ty: ignore[invalid-assignment]
     else:
         data_var_list = [data_var]
     for bnd_var in ["lat_bnds", "lon_bnds", "time_bnds"]:
         if bnd_var in ds:
             data_var_list.append(bnd_var)
-    ds_out = ds[data_var_list]
+    # ty limitation: `list[Hashable]` incorrectly matches the `Hashable` overload
+    # of `Dataset.__getitem__`, so the inferred type is wrongly narrowed to
+    # `DataArray` instead of `Dataset` (astral-sh/ty).
+    ds_out: xr.Dataset = ds[data_var_list]  # ty: ignore[invalid-assignment]
     return ds_out
 
 

@@ -318,7 +318,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
             # Some data have time at beginning, some at middle - set all to middle
             centered_times: xr.DataArray = ds["time"].dt.floor("D") + pd.Timedelta(
                 "12h"
-            )  # type: ignore[operator]
+            )  # ty: ignore[unsupported-operator]
             centered_times.attrs = ds["time"].attrs
             centered_times.encoding = ds["time"].encoding
             ds["time"] = centered_times

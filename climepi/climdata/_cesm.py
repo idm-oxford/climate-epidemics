@@ -276,7 +276,7 @@ class ARISEDataGetter(CESMDataGetter):
 
         version = _get_data_version()
 
-        urls = []
+        urls: list[str] = []
 
         for scenario in scenarios:
             if scenario == "ssp245":
@@ -311,17 +311,19 @@ class ARISEDataGetter(CESMDataGetter):
                     strict=True,
                 )
             ]
-            urls.extend(
-                [
-                    dataset["url"]
-                    for dataset in datasets
-                    if dataset["member_id"] in member_ids
-                    and np.any(
-                        (np.array(years) >= dataset["start_year"])
-                        & (np.array(years) <= dataset["end_year"])
-                    )
-                ]
-            )
+            # ty limitation: `dataset["url"]` is not narrowed to `str` by its
+            # literal key, so ty joins the value types of all keys in the dict
+            # (astral-sh/ty).
+            new_urls = [
+                dataset["url"]
+                for dataset in datasets
+                if dataset["member_id"] in member_ids
+                and np.any(
+                    (np.array(years) >= dataset["start_year"])
+                    & (np.array(years) <= dataset["end_year"])
+                )
+            ]
+            urls.extend(new_urls)  # ty: ignore[invalid-argument-type]
         _preprocess = functools.partial(
             _preprocess_arise_dataset,
             frequency=frequency,
@@ -397,7 +399,7 @@ class GLENSDataGetter(CESMDataGetter):
         else:
             raise ValueError(f"Frequency {frequency} is not supported.")
 
-        urls = []
+        urls: list[str] = []
 
         for data_var in data_vars:
             if scenario == "rcp85" and frequency in ["monthly", "yearly"]:
@@ -460,17 +462,19 @@ class GLENSDataGetter(CESMDataGetter):
                 }
                 for name in dataset_names
             ]
-            urls.extend(
-                [
-                    dataset["url"]
-                    for dataset in datasets
-                    if dataset["member_id"] in member_ids
-                    and np.any(
-                        (np.array(years) >= dataset["start_year"])
-                        & (np.array(years) <= dataset["end_year"])
-                    )
-                ]
-            )
+            # ty limitation: `dataset["url"]` is not narrowed to `str` by its
+            # literal key, so ty joins the value types of all keys in the dict
+            # (astral-sh/ty).
+            new_urls = [
+                dataset["url"]
+                for dataset in datasets
+                if dataset["member_id"] in member_ids
+                and np.any(
+                    (np.array(years) >= dataset["start_year"])
+                    & (np.array(years) <= dataset["end_year"])
+                )
+            ]
+            urls.extend(new_urls)  # ty: ignore[invalid-argument-type]
         self._urls = urls
 
     def _subset_remote_data(self) -> None:
@@ -545,7 +549,10 @@ def _preprocess_arise_dataset(
     member_id = ds.attrs["case"].split(".")[-1]
     assert member_id in member_ids, f"Unexpected member_id {member_id}"
     data_var = [v for v in ds.data_vars if v in ["TREFHT", "PRECT"]][0]
-    ds = ds[[data_var]]  # drops time_bnds (re-added later)
+    # ty limitation: `list[Hashable]` incorrectly matches the `Hashable` overload
+    # of `Dataset.__getitem__`, so the inferred type is wrongly narrowed to
+    # `DataArray` instead of `Dataset` (astral-sh/ty).
+    ds = ds[[data_var]]  # drops time_bnds (re-added later)  # ty: ignore[invalid-assignment]
     ds[data_var] = ds[data_var].expand_dims(
         member_id=[member_id],
         scenario=np.array([scenario], dtype="object"),
@@ -590,7 +597,10 @@ def _preprocess_glens_dataset(
     data_var = [v for v in ds.data_vars if v in ["TREFHT", "PRECC", "PRECL", "PRECT"]][
         0
     ]
-    ds = ds[[data_var]]  # drops time_bnds (avoids performance issues)
+    # ty limitation: `list[Hashable]` incorrectly matches the `Hashable` overload
+    # of `Dataset.__getitem__`, so the inferred type is wrongly narrowed to
+    # `DataArray` instead of `Dataset` (astral-sh/ty).
+    ds = ds[[data_var]]  # drops time_bnds (avoids performance issues)  # ty: ignore[invalid-assignment]
     ds[data_var] = ds[data_var].expand_dims(
         member_id=[member_id],
         scenario=np.array([scenario], dtype="object"),

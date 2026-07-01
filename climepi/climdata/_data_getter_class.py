@@ -342,15 +342,16 @@ class ClimateDataGetter:
         scenarios = self._subset["scenarios"]
         models = self._subset["models"]
         realizations = self._subset["realizations"]
+        open_mfdataset_kwargs: dict[str, Any] = {
+            "data_vars": "minimal",
+            "chunks": {},
+            "coords": "minimal",  # will become xarray default
+            "compat": "override",  # will become xarray default
+            **kwargs,
+        }
         ds = xr.open_mfdataset(
             [save_dir / file_name for file_name in file_names],
-            **{
-                "data_vars": "minimal",
-                "chunks": {},
-                "coords": "minimal",  # will become xarray default
-                "compat": "override",  # will become xarray default
-                **kwargs,
-            },
+            **open_mfdataset_kwargs,
         )
         if "time_bnds" in ds:
             # Load time bounds to avoid errors saving to file (since no encoding set)
@@ -394,21 +395,22 @@ class ClimateDataGetter:
         temp_file_paths = [
             temp_save_dir / temp_file_name for temp_file_name in temp_file_names
         ]
+        open_mfdataset_kwargs: dict[str, Any] = {
+            "data_vars": "minimal",
+            "chunks": {
+                "realization": 1,
+                "model": 1,
+                "scenario": 1,
+                "location": 1,
+                "time": -1,
+            },
+            "coords": "minimal",  # will become xarray default
+            "compat": "override",  # will become xarray default
+            **kwargs,
+        }
         self._ds_temp = xr.open_mfdataset(
             temp_file_paths,
-            **{
-                "data_vars": "minimal",
-                "chunks": {
-                    "realization": 1,
-                    "model": 1,
-                    "scenario": 1,
-                    "location": 1,
-                    "time": -1,
-                },
-                "coords": "minimal",  # will become xarray default
-                "compat": "override",  # will become xarray default
-                **kwargs,
-            },
+            **open_mfdataset_kwargs,
         )
         self._ds = self._ds_temp.copy()
         if "time_bnds" in self._ds:
