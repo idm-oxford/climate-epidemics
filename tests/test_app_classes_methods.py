@@ -14,7 +14,7 @@ import param
 import pytest
 import xarray as xr
 import xarray.testing as xrt
-from holoviews.element.comparison import Comparison as hvt
+import holoviews.testing as hvt
 
 import climepi  # noqa
 import climepi.app._app_classes_methods as app_classes_methods
@@ -208,7 +208,7 @@ def test_get_view_func():
     plotter.generate_plot()
     expected = plotter.view
     assert isinstance(result[1].object, hv.Overlay)
-    hvt.assertEqual(result[1].object, expected[1].object)
+    hvt.assert_element_equal(result[1].object, expected[1].object)
 
 
 def test_compute_to_file_reopen():
@@ -778,7 +778,7 @@ class TestPlotController:
         plot_controller.param.trigger("plot_initiator")
 
         assert len(plot_controller.view) == 1
-        hvt.assertEqual(
+        hvt.assert_element_equal(
             plot_controller.view[0][1].object,
             app_classes_methods._get_view_func(
                 ds_in=ds_in,
@@ -1017,11 +1017,15 @@ class TestController:
         )
         # Create a panel object as would be done in the app
         view_panel = pn.panel(controller.epi_model_plot_view)
-        hvt.assertEqual(view_panel._pane[0].object, model1.plot_suitability())
+        hvt.assert_element_equal(
+            view_panel._pane[0].object, model1.plot_suitability()
+        )
         # Updating epi_model_name should update the view panel by triggering
         # _get_epi_model
         controller.epi_example_name = "model2"
-        hvt.assertEqual(view_panel._pane[0].object, model2.plot_suitability())
+        hvt.assert_element_equal(
+            view_panel._pane[0].object, model2.plot_suitability()
+        )
         # Check case where epi_model.plot_suitability raises an error
         controller.epi_output_choice = "Suitability values"
         controller.epi_example_name = "model3"
