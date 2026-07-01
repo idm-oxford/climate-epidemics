@@ -13,7 +13,7 @@ import numpy.testing as npt
 import pytest
 import xarray as xr
 import xarray.testing as xrt
-from holoviews.element.comparison import Comparison as hvt
+import holoviews.testing as hvt
 from scipy.stats import norm
 
 from climepi import ClimEpiDatasetAccessor, _ensemble_stats, epimod
@@ -830,7 +830,7 @@ def test_plot_time_series():
     kwargs = {"by": ["realization", "lat", "lon"]}
     result = ds.climepi.plot_time_series("precipitation", **kwargs)
     expected = ds["precipitation"].hvplot.line(x="time", **kwargs)
-    hvt.assertEqual(result, expected)
+    hvt.assert_element_equal(result, expected)
 
 
 def test_plot_map():
@@ -852,7 +852,8 @@ def test_plot_map():
         geo=True,
         rasterize=False,
     )
-    hvt.compare_quadmesh(result.QuadMesh.I, quadmesh_expected)
+    hvt.add_comparison(type(result.QuadMesh.I))
+    hvt.assert_element_equal(result.QuadMesh.I, quadmesh_expected)
     assert isinstance(result.Coastline.I, geoviews.element.geo.Feature)
     assert isinstance(result.Ocean.I, geoviews.element.geo.Feature)
 
