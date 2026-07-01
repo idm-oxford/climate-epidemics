@@ -1,6 +1,7 @@
 """Unit tests for the _app_construction module of the app subpackage."""
 
 import signal
+import socket
 import sys
 import time
 import warnings
@@ -20,6 +21,35 @@ from climepi.testing.fixtures import generate_dataset
 dask.config.set(scheduler="synchronous")  # enforce synchronous scheduler
 
 PORT = [6000]
+
+
+def _wait_for_server_startup(port, timeout=5, connect_timeout=0.1, poll_interval=0.1):
+    """
+    Wait for a local TCP server to start accepting connections.
+
+    Guards against a race condition where the threaded panel/bokeh server has not
+    yet started listening on its port by the time the browser navigation is attempted.
+
+    Parameters
+    ----------
+    port : int
+        Port on localhost to probe.
+    timeout : float, default=5
+        Maximum number of seconds to keep retrying before giving up.
+    connect_timeout : float, default=0.1
+        Maximum number of seconds to wait for each individual connection attempt.
+    poll_interval : float, default=0.1
+        Number of seconds to wait between retries.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            with socket.create_connection(("localhost", port), timeout=connect_timeout):
+                return
+        except OSError:
+            if time.monotonic() >= deadline:
+                pytest.fail(f"Timed out waiting for app server on localhost:{port}")
+            time.sleep(poll_interval)
 
 
 def _wait_for_server_shutdown(server, timeout=5):
@@ -148,7 +178,7 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
     )
 
     with _run_threaded_app(page, port=port) as server:
-        time.sleep(0.1)
+        _wait_for_server_startup(port)
 
         captured = capsys.readouterr()
         assert "Setting up the app" in captured.out
