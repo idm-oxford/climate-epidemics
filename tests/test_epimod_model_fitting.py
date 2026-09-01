@@ -17,6 +17,8 @@ from climepi import epimod
 
 if platform.system() == "Darwin":
     pytensor.config.cxx = "/usr/bin/clang++"
+elif platform.system() == "Windows":
+    pytensor.config.cxx = ""
 
 
 @patch("climepi.epimod._model_fitting.pm", autospec=True)
