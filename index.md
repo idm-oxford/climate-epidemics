@@ -29,8 +29,9 @@ redirect_from:
             here</a>.
         Note that the web app is only intended for exploratory purposes and is not able
         to handle multiple users simultaneously. For more advanced usage, consider
-        running the app locally or using the accompanying Python package (see the Python
-        package
+        <a href="https://climate-epidemics.readthedocs.io/en/stable/getting-started/app.html">
+            running the app locally</a>
+        or using the accompanying Python package (see the Python package
         <a href="https://climate-epidemics.readthedocs.io/en/stable">
             documentation</a>).
     </p>
