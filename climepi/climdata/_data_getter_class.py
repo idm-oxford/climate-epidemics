@@ -1,6 +1,7 @@
 import itertools
 import os
 import pathlib
+import shutil
 import tempfile
 import warnings
 from typing import Any, Literal
@@ -12,10 +13,7 @@ import pydantic
 import xarray as xr
 from typing_extensions import TypedDict
 
-# Cache directory for storing any temporary files created when downloading data.
-# Note: the code could be improved to ensure that the temporary files are deleted if an
-# error occurs, and to use a different temporary file name each time to avoid
-# potential conflicts if multiple instances of the code are run simultaneously.
+# Cache directory for saving processed data.
 CACHE_DIR = pooch.os_cache("climepi")
 
 
@@ -132,13 +130,47 @@ class ClimateDataGetter:
     """
 
     data_source: str = ""
+    source_label: str = ""
     available_years: list[int] = []
     available_scenarios: list[str] = []
     available_models: list[str] = []
     available_realizations: list[int] = []
+    models_by_scenario: dict[str, list[str]] = {}
     lon_res: float | None = None
     lat_res: float | None = None
     remote_open_possible = False
+
+    @classmethod
+    def display_name(cls) -> str:
+        """Return the display name of the source."""
+        return cls.source_label or cls.data_source.upper()
+
+    @classmethod
+    def scenarios_for_subsetting(cls) -> list[str]:
+        """List default scenarios and optional scenarios with compatible models."""
+        extra = [
+            scenario
+            for scenario, models in cls.models_by_scenario.items()
+            if scenario not in cls.available_scenarios
+            and set(models).intersection(cls.available_models)
+        ]
+        return [*cls.available_scenarios, *extra]
+
+    @classmethod
+    def models_for_scenarios(cls, scenarios: list[str]) -> list[str]:
+        """List models available for every selected scenario."""
+        models = set(cls.available_models)
+        for scenario in scenarios:
+            if scenario in cls.models_by_scenario:
+                models.intersection_update(cls.models_by_scenario[scenario])
+        return [model for model in cls.available_models if model in models]
+
+    @classmethod
+    def year_limits(
+        cls, scenarios: list[str], realizations: list[int]
+    ) -> tuple[int, int]:
+        """Return the inclusive years common to the specified selections."""
+        return min(cls.available_years), max(cls.available_years)
 
     def __init__(
         self,
@@ -327,18 +359,22 @@ class ClimateDataGetter:
         print("Subsetting data...")
         self._subset_remote_data()
         print("Data subsetted.")
+        try:
+            if download:
+                self._temp_save_dir = pathlib.Path(tempfile.mkdtemp(suffix="_climepi"))
+                print("Downloading data...")
+                self._download_remote_data()
+                print("Data downloaded.")
+                self._open_temp_data()
+            self._process_data()
+            if download:
+                print("Processing data...")
+                self._save_processed_data()
+                print(f"Formatted data saved to '{self._save_dir}'")
+        finally:
+            if download and self._temp_save_dir is not None:
+                self._delete_temporary()
         if download:
-            self._temp_save_dir = pathlib.Path(tempfile.mkdtemp(suffix="_climepi"))
-            print("Downloading data...")
-            self._download_remote_data()
-            print("Data downloaded.")
-            self._open_temp_data()
-        self._process_data()
-        if download:
-            print("Processing data...")
-            self._save_processed_data()
-            print(f"Formatted data saved to '{self._save_dir}'")
-            self._delete_temporary()
             self._open_local_data(**kwargs)
         assert self._ds is not None
         return self._ds
@@ -491,18 +527,12 @@ class ClimateDataGetter:
             delayed_obj.compute()
 
     def _delete_temporary(self) -> None:
-        # Delete the temporary file(s) created when downloading the data (once the data
-        # have been processed and saved to final files).
-        temp_save_dir = self._temp_save_dir
-        temp_file_names = self._temp_file_names
-        assert temp_save_dir is not None
-        assert temp_file_names is not None
-        assert self._ds_temp is not None
-        self._ds_temp.close()
-        for temp_file_name in temp_file_names:
-            temp_save_path = temp_save_dir / temp_file_name
-            temp_save_path.unlink()
-        temp_save_dir.rmdir()
-        self._ds_temp = None
-        self._temp_save_dir = None
+        dataset, self._ds_temp = self._ds_temp, None
+        temp_save_dir, self._temp_save_dir = self._temp_save_dir, None
         self._temp_file_names = None
+        try:
+            if dataset is not None:
+                dataset.close()
+        finally:
+            if temp_save_dir is not None:
+                shutil.rmtree(temp_save_dir)

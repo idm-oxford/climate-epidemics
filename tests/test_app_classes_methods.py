@@ -10,11 +10,11 @@ import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7
 import numpy as np
 import numpy.testing as npt
 import panel as pn
-import param
 import pytest
 import xarray as xr
 import xarray.testing as xrt
 import holoviews.testing as hvt
+from geopy.location import Location
 
 import climepi  # noqa
 import climepi.app._app_classes_methods as app_classes_methods
@@ -28,6 +28,22 @@ dask.config.set(scheduler="synchronous")  # enforce synchronous scheduler
 def cache_cleanup():
     """Clean up the cache after each test."""
     pn.state.clear_caches()
+
+
+@pytest.fixture(autouse=True)
+def offline_geocoding():
+    """Keep app plot tests independent of the OpenStreetMap geocoder."""
+    coordinates = {
+        "gabba": (-27.4858, 153.0381),
+        "lords": (51.5294, -0.1728),
+        "scg": (-33.8915, 151.2247),
+    }
+
+    def geocode(query, **kwargs):
+        return Location(query, coordinates[query.lower()], {})
+
+    with patch("climepi._core.geocode", side_effect=geocode):
+        yield
 
 
 original_plot_map = climepi.ClimEpiDatasetAccessor.plot_map
@@ -60,16 +76,15 @@ def test_load_clim_data_func(mock_get_example_dataset, mock_open_mfdataset):
         "some_example_name", base_dir="some/dir"
     )
     assert result == "mocked_example_dataset"
-    # Check cached version is returned if the same example_name and base_dir are
-    # provided
-    mock_get_example_dataset.return_value = "another_mocked_dataset"
-    result_cached = app_classes_methods._load_clim_data_func(
+    # A new session needs an independent dataset handle to the cached files.
+    mock_get_example_dataset.return_value = "new_dataset_handle"
+    result_reopened = app_classes_methods._load_clim_data_func(
         "Example dataset",
         clim_example_name="some_example_name",
         clim_example_base_dir="some/dir",
     )
-    assert result_cached == "mocked_example_dataset"
-    mock_get_example_dataset.assert_called_once()
+    assert result_reopened == "new_dataset_handle"
+    assert mock_get_example_dataset.call_count == 2
     # Test with custom dataset option
     result_custom = app_classes_methods._load_clim_data_func(
         "Custom dataset", custom_clim_data_dir="path/to/custom/data"
@@ -144,7 +159,9 @@ def test_run_epi_model_func(mock_path_unlink, mock_compute_to_file_reopen):
         result, epi_model.run(ds_clim, return_yearly_portion_suitable=True)
     )
     assert mock_compute_to_file_reopen.call_count == 2
-    mock_path_unlink.assert_called_once_with(pathlib.Path("some/dir/ds_suitability.nc"))
+    mock_path_unlink.assert_called_once_with(
+        pathlib.Path("some/dir/ds_suitability.nc"), missing_ok=True
+    )
 
 
 @pytest.mark.parametrize("temporal", ["daily", "monthly", "yearly"])
@@ -194,7 +211,7 @@ def test_get_view_func():
         "data_var": "temperature",
         "temporal_scope": "monthly",
         "year_range": [2000, 2001],
-        "location_string": "not used",
+        "location_string": "SCG",
         "realization": "not used",
         "ensemble_stat": "not used",
         "model": "not used",
@@ -343,6 +360,63 @@ class TestPlotter:
         else:
             raise ValueError("Unexpected plot type provided to test.")
 
+    @pytest.mark.parametrize("frequency", ["daily", "yearly"])
+    def test_time_series_with_one_timestamp(self, frequency):
+        """Plot a single annual point from either daily data or an annual result."""
+        dataset = generate_dataset(
+            frequency=frequency,
+            extra_dims={"scenario": 1, "model": 1, "realization": 1},
+            random=False,
+        ).isel(lat=[0], lon=[0])
+        if frequency == "yearly":
+            dataset = dataset.isel(time=[0])
+        controller = app_classes_methods._PlotController(dataset)
+        assert controller.temporal_scope == frequency
+
+        controller.temporal_scope = "yearly"
+        controller.param.trigger("plot_initiator")
+
+        assert controller.plot_status == "Plot generated"
+        scatter = controller.view.select(pn.pane.HoloViews)[0].object
+        assert isinstance(scatter, hv.Scatter)
+        assert len(scatter.dimension_values("time")) == 1
+        npt.assert_allclose(scatter.dimension_values("temperature"), [1.0])
+        left, right = scatter.opts.get("plot").kwargs["xlim"]
+        assert left < right
+
+    def test_short_single_realization_series_keeps_observed_values(self):
+        """Draw the series without a fit when there are too few observations."""
+        dataset = generate_dataset(frequency="monthly", extra_dims={"realization": 1})
+        dataset = dataset.isel(time=slice(0, 2), lat=[0], lon=[0])
+        controller = app_classes_methods._PlotController(dataset)
+        controller.param.trigger("plot_initiator")
+
+        plot = controller.view.select(pn.pane.HoloViews)[0].object
+        assert isinstance(plot, hv.Curve)
+        npt.assert_allclose(
+            plot.dimension_values("temperature"), dataset.temperature.values.ravel()
+        )
+
+    def test_single_timestamp_variance_error(self):
+        """Explain why a one-point selection cannot draw a variance series."""
+        dataset = generate_dataset().isel(time=[0], lat=[0], lon=[0])
+        controller = app_classes_methods._PlotController(dataset)
+        controller.plot_type = "variance decomposition"
+        with pytest.raises(ValueError, match="needs at least two timestamps"):
+            controller.param.trigger("plot_initiator")
+
+    def test_single_realization_change_map(self):
+        """Keep the observed change when a change map has one ensemble member."""
+        dataset = generate_dataset(extra_dims={"realization": 1}, random=False)
+        controller = app_classes_methods._PlotController(dataset)
+        controller.plot_type = "map"
+        controller.temporal_scope = "difference between years"
+        plotter = app_classes_methods._Plotter(dataset, controller.param.values())
+        plotter._get_ds_plot()
+        assert "time" not in plotter._ds_plot.dims
+        assert "realization" not in plotter._ds_plot.dims
+        npt.assert_allclose(plotter._ds_plot.temperature, 0)
+
     def test_get_ds_plot(self):
         """Unit test for the _get_ds_plot method."""
         ds_in = generate_dataset(
@@ -459,46 +533,24 @@ class TestPlotter:
     @pytest.mark.parametrize("scope_base", ["single", "multiple"])
     @pytest.mark.parametrize("sel_plot", ["single", "all"])
     def test_ensemble_model_scenario_index_ds_plot(self, dim, scope_base, sel_plot):
-        """
-        Test _ensemble_index_ds_plot, _model_index_ds_plot, and _scenario_index_ds_plot.
-
-        The three methods are tested together because they are very similar.
-        """
+        """Select scenario, model and realization coordinates consistently."""
         ds_in = generate_dataset(
             data_var="temperature", extra_dims={dim: ["a", "b", "c"]}
         )
         if scope_base == "single":
             ds_in = ds_in.isel(**{dim: 0})
-        plot_settings = {
-            "model": "a",
-            "scenario": "b",
-            "realization": "c",
-        }
-        if sel_plot == "all":
-            plot_settings.update({dim: "all"})
+        plot_settings = dict.fromkeys(("model", "scenario", "realization"), "all")
+        if sel_plot == "single":
+            plot_settings[dim] = "b"
         plotter = app_classes_methods._Plotter(ds_in=ds_in, plot_settings=plot_settings)
         plotter._ds_plot = ds_in
-        if dim == "realization":
-            plotter._ensemble_index_ds_plot()
-        elif dim == "model":
-            plotter._model_index_ds_plot()
-        elif dim == "scenario":
-            plotter._scenario_index_ds_plot()
-        else:
-            raise ValueError(f"Unexpected dimension provided to test: {dim}")
-        if scope_base == "single" or sel_plot == "all":
-            xrt.assert_identical(plotter._ds_plot, ds_in)
-        elif dim == "realization" and sel_plot == "single":
-            xrt.assert_identical(plotter._ds_plot, ds_in.sel(realization="c"))
-        elif dim == "model" and sel_plot == "single":
-            xrt.assert_identical(plotter._ds_plot, ds_in.sel(model="a"))
-        elif dim == "scenario" and sel_plot == "single":
-            xrt.assert_identical(plotter._ds_plot, ds_in.sel(scenario="b"))
-        else:
-            raise ValueError(
-                "Unexpected combination of dimension, scope_base, and sel_plot "
-                f"provided to test: {dim}, {scope_base}, {sel_plot}"
-            )
+        plotter._ensemble_index_ds_plot()
+        expected = (
+            ds_in.sel({dim: "b"})
+            if scope_base == "multiple" and sel_plot == "single"
+            else ds_in
+        )
+        xrt.assert_identical(plotter._ds_plot, expected)
 
     @pytest.mark.parametrize("temporal_scope", ["yearly", "difference between years"])
     @pytest.mark.parametrize("temporal_scope_base", ["monthly", "yearly"])
@@ -568,7 +620,7 @@ class TestPlotController:
         for attr, value in [
             ("plot_type", "time series" if ds_provided else None),
             ("data_var", "temperature" if ds_provided else None),
-            ("location_string", "[Type location]"),
+            ("location_string", ""),
             ("location_selection", None),
             ("temporal_scope", "yearly" if ds_provided else None),
             ("year_range", (2000, 2001) if ds_provided else None),
@@ -579,7 +631,6 @@ class TestPlotController:
             ("plot_initiator", False),
             ("plot_generated", False),
             ("plot_status", "Plot not yet generated"),
-            ("view_refresher", False),
             ("_ds_base", ds_in if ds_provided else None),
             (
                 "_scope_dict_base",
@@ -619,9 +670,9 @@ class TestPlotController:
                 2000,
                 2000,
             )
-            assert plot_controller.location_string == "[Type location]"
+            assert plot_controller.location_string == ""
             assert len(plot_controller.controls) == 1
-            assert plot_controller.controls[0].widgets is not None
+            assert plot_controller.controls[0][0].widgets is not None
             assert len(plot_controller.view) == 0
         elif ds_option == "remove":
             plot_controller.initialize()
@@ -704,9 +755,9 @@ class TestPlotController:
         for attr, value in [
             ("plot_type", "time series"),
             ("data_var", "precipitation"),
-            ("location_string", "[Type location]"),
+            ("location_string", ""),
             ("location_selection", "all" if spatial_scope_base == "list" else None),
-            ("temporal_scope", "yearly"),
+            ("temporal_scope", "daily" if temporal_scope_base == "daily" else "yearly"),
             ("scenario", "all" if scenario_scope_base == "multiple" else None),
             ("model", "all" if model_scope_base == "multiple" else None),
             ("realization", "all" if ensemble_scope_base == "multiple" else None),
@@ -756,6 +807,13 @@ class TestPlotController:
             )
         assert plot_controller.param.ensemble_stat.precedence == -1
 
+    def test_one_year_monthly_dataset_defaults_to_monthly(self):
+        """Keep native resolution as the default for a single year of monthly data."""
+        dataset = generate_dataset(frequency="monthly").sel(time="2000")
+        controller = app_classes_methods._PlotController(dataset)
+        assert controller.temporal_scope == "monthly"
+        assert controller.param.temporal_scope.objects == ["yearly", "monthly"]
+
     def test_update_view(self):
         """
         Unit test for the _update_view method.
@@ -768,18 +826,11 @@ class TestPlotController:
         plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
         plot_controller.view.append("some_view")
 
-        view_refresher_trigger_count = 0
-
-        @param.depends(plot_controller.param.view_refresher, watch=True)
-        def _update_view_refresher_triggers(view_refresher):
-            nonlocal view_refresher_trigger_count
-            view_refresher_trigger_count += 1
-
         plot_controller.param.trigger("plot_initiator")
 
         assert len(plot_controller.view) == 1
         hvt.assert_element_equal(
-            plot_controller.view[0][1].object,
+            plot_controller.view.select(pn.pane.HoloViews)[0].object,
             app_classes_methods._get_view_func(
                 ds_in=ds_in,
                 plot_settings={
@@ -794,15 +845,15 @@ class TestPlotController:
                     "model": "not used",
                     "scenario": "not used",
                 },
-            )[1].object,
+            ).select(pn.pane.HoloViews)[0].object,
         )
         assert plot_controller.plot_generated
         assert plot_controller.plot_status == "Plot generated"
-        assert view_refresher_trigger_count == 2  # refreshed at start/end of generation
 
-        # Check that the view is not updated if the plot has already been generated
+        # Check that the view is reused if the plot has already been generated
+        view = plot_controller.view[0]
         plot_controller.param.trigger("plot_initiator")
-        assert view_refresher_trigger_count == 2
+        assert plot_controller.view[0] is view
 
         # Check error handling
         plot_controller.initialize(ds_in)
@@ -948,43 +999,8 @@ class TestController:
             controller.epi_plot_controller, app_classes_methods._PlotController
         )
         assert controller.epi_plot_controller._ds_base is None
-        assert isinstance(controller.data_controls, pn.Param)
-
-    def test_clim_plot_controls(self):
-        """
-        Unit test for the clim_plot_controls method.
-
-        Focuses on whether the controls are updated when expected when passed to a
-        Panel app.
-        """
-        controller = app_classes_methods.Controller()
-        controller.clim_plot_controller.controls = "some controls"
-        # Create a panel object as would be done in the app
-        controls_panel = pn.panel(controller.clim_plot_controls)
-        assert controls_panel._pane.object == "some controls"
-        # Updating any parameter in controller should update the controls panel
-        controller.clim_plot_controller.controls = "new controls"
-        assert controls_panel._pane.object == "some controls"
-        controller.clim_data_loaded = True
-        assert controls_panel._pane.object == "new controls"
-
-    def test_clim_plot_view(self):
-        """
-        Unit test for the clim_plot_view method.
-
-        Focuses on whether the view is updated when expected when passed to a Panel app.
-        """
-        controller = app_classes_methods.Controller()
-        controller.clim_plot_controller.view = "some view"
-        # Create a panel object as would be done in the app
-        view_panel = pn.panel(controller.clim_plot_view)
-        assert view_panel._pane.object == "some view"
-        # Updating clim_plot_controller.view should only update the view panel when the
-        # view_refresher event is triggered
-        controller.clim_plot_controller.view = "new view"
-        assert view_panel._pane.object == "some view"
-        controller.clim_plot_controller.param.trigger("view_refresher")
-        assert view_panel._pane.object == "new view"
+        assert isinstance(controller.data_controls, pn.Column)
+        assert len(controller.data_controls) == 2
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     @patch.dict(
@@ -1017,15 +1033,11 @@ class TestController:
         )
         # Create a panel object as would be done in the app
         view_panel = pn.panel(controller.epi_model_plot_view)
-        hvt.assert_element_equal(
-            view_panel._pane[0].object, model1.plot_suitability()
-        )
+        hvt.assert_element_equal(view_panel._pane[0].object, model1.plot_suitability())
         # Updating epi_model_name should update the view panel by triggering
         # _get_epi_model
         controller.epi_example_name = "model2"
-        hvt.assert_element_equal(
-            view_panel._pane[0].object, model2.plot_suitability()
-        )
+        hvt.assert_element_equal(view_panel._pane[0].object, model2.plot_suitability())
         # Check case where epi_model.plot_suitability raises an error
         controller.epi_output_choice = "Suitability values"
         controller.epi_example_name = "model3"
@@ -1034,42 +1046,6 @@ class TestController:
             == "Error generating plot: 'str' object has no attribute "
             "'plot_suitability'"
         )
-
-    def test_epi_plot_controls(self):
-        """
-        Unit test for the epi_plot_controls method.
-
-        Focuses on whether the controls are updated when expected when passed to a
-        Panel app.
-        """
-        controller = app_classes_methods.Controller()
-        controller.epi_plot_controller.controls = "some controls"
-        # Create a panel object as would be done in the app
-        controls_panel = pn.panel(controller.epi_plot_controls)
-        assert controls_panel._pane.object == "some controls"
-        # Updating any parameter in controller should update the controls panel
-        controller.epi_plot_controller.controls = "new controls"
-        assert controls_panel._pane.object == "some controls"
-        controller.epi_model_ran = True
-        assert controls_panel._pane.object == "new controls"
-
-    def test_epi_plot_view(self):
-        """
-        Unit test for the epi_plot_view method.
-
-        Focuses on whether the view is updated when expected when passed to a Panel app.
-        """
-        controller = app_classes_methods.Controller()
-        controller.epi_plot_controller.view = "some view"
-        # Create a panel object as would be done in the app
-        view_panel = pn.panel(controller.epi_plot_view)
-        assert view_panel._pane.object == "some view"
-        # Updating epi_plot_controller.view should only update the view panel (as used
-        # in the app) when the view_refresher event is triggered
-        controller.epi_plot_controller.view = "new view"
-        assert view_panel._pane.object == "some view"
-        controller.epi_plot_controller.param.trigger("view_refresher")
-        assert view_panel._pane.object == "new view"
 
     @patch(
         "climepi.app._app_classes_methods.climdata.get_example_dataset",
@@ -1389,7 +1365,8 @@ class TestController:
             controller._ds_epi, controller.epi_plot_controller._ds_base
         )
 
-        # Check error handling
+        # A failed rerun leaves the previous projection available.
+        previous_path = controller._ds_epi_path
         controller.epi_output_choice = "Suitability values"
         controller.epi_example_name = "model3"
         with pytest.raises(AttributeError, match="'str' object has no attribute 'run'"):
@@ -1399,6 +1376,7 @@ class TestController:
             controller.epi_model_status
             == "Model run failed: 'str' object has no attribute 'run'"
         )
+        assert previous_path.is_file()
 
         controller.epi_example_name = "model1"  # check a valid model can be run again
         controller.epi_output_choice = "Suitable portion of each year"
@@ -1423,6 +1401,26 @@ class TestController:
 
         # Run cleanup on temp file
         controller.cleanup_temp_file()
+
+    @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+    def test_use_yearly_download(self, mock_get_example_model):
+        """An adopted yearly subset can run a model with its supported output."""
+        mock_get_example_model.return_value = epimod.SuitabilityModel(
+            temperature_range=(-5, 55)
+        )
+        dataset = generate_dataset(data_var="temperature", frequency="yearly")
+        controller = app_classes_methods.Controller(enable_climate_download=True)
+        try:
+            controller._use_downloaded_climate(dataset, "LENS2 subset")
+            assert controller.clim_data_option == "Downloaded dataset"
+            assert controller.clim_data_status == "Data loaded: LENS2 subset"
+            assert controller.clim_plot_controller._ds_base is dataset
+            assert controller.epi_output_choice == "Suitability values"
+            controller.param.trigger("epi_model_run_initiator")
+            assert controller.epi_model_status == "Model run complete"
+            assert "suitability" in controller.epi_plot_controller._ds_base
+        finally:
+            controller.cleanup_temp_file()
 
     @patch.dict(
         "climepi.app._app_classes_methods.climdata.EXAMPLES",
@@ -1698,7 +1696,7 @@ class TestController:
         # Generate plots using dataset from temp file to ensure this doesn't interfere
         # with cleanup
         controller.epi_plot_controller.param.trigger("plot_initiator")
-        assert isinstance(controller.epi_plot_view()[0][1].object, hv.Overlay)
+        assert isinstance(controller.epi_plot_controller.view[0][1].object, hv.Overlay)
 
         assert controller._ds_epi is not None
         assert controller._ds_epi_path.exists()

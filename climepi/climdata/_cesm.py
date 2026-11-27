@@ -163,7 +163,7 @@ class CESMDataGetter(ClimateDataGetter):
 
 class LENS2DataGetter(CESMDataGetter):
     """
-    Class for accessing and downloading CESM2 LENS data.
+    CESM2 Large Ensemble projections combine historical simulations with SSP3-7.0.
 
     Data are taken from the AWS server (https://registry.opendata.aws/ncar-cesm2-lens/).
     Terms of use can be found at https://www.ucar.edu/terms-of-use/data.
@@ -235,7 +235,7 @@ class LENS2DataGetter(CESMDataGetter):
 
 class ARISEDataGetter(CESMDataGetter):
     """
-    Class for accessing and downloading CESM2 ARISE data.
+    CESM2 ARISE-SAI compares stratospheric aerosol injection with an SSP2-4.5 reference.
 
     Data are taken from the AWS server
     (https://registry.opendata.aws/ncar-cesm2-arise/). Terms of use can be found at
@@ -253,11 +253,21 @@ class ARISEDataGetter(CESMDataGetter):
     """
 
     data_source = "arise"
+    source_label = "ARISE-SAI"
     available_models = ["cesm2"]
     available_years = list(range(2035, 2070))
     available_scenarios = ["ssp245", "sai15"]
     available_realizations = list(range(10))
     remote_open_possible = True
+
+    @classmethod
+    def year_limits(
+        cls, scenarios: list[str], realizations: list[int]
+    ) -> tuple[int, int]:
+        """Return the common years for the selected ARISE runs."""
+        if not scenarios or "sai15" in scenarios:
+            return super().year_limits(scenarios, realizations)
+        return 2015, 2069 if any(member >= 5 for member in realizations) else 2100
 
     def _find_remote_data(self) -> None:
         # Running to_datset_dict() on the catalog subset doesn't seem to work for
@@ -347,7 +357,12 @@ class ARISEDataGetter(CESMDataGetter):
 
 
 class GLENSDataGetter(CESMDataGetter):
-    """Class for downloading CESM1 GLENS data from the UCAR server."""
+    """
+    CESM1 GLENS compares stratospheric aerosol injection with an RCP8.5 reference.
+
+    Data are available from the NCAR Research Data Archive
+    (https://rda.ucar.edu/datasets/d651064/).
+    """
 
     available_models = ["cesm1"]
     lon_res = 1.25
@@ -356,6 +371,16 @@ class GLENSDataGetter(CESMDataGetter):
     available_years = list(range(2010, 2100))
     available_scenarios = ["rcp85", "sai"]
     available_realizations = list(range(20))
+
+    @classmethod
+    def year_limits(
+        cls, scenarios: list[str], realizations: list[int]
+    ) -> tuple[int, int]:
+        """Return the common years for the selected GLENS runs."""
+        first = 2020 if "sai" in scenarios else min(cls.available_years)
+        if "rcp85" in scenarios:
+            return first, 2030 if any(member >= 3 for member in realizations) else 2097
+        return first, max(cls.available_years)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -378,7 +403,7 @@ class GLENSDataGetter(CESMDataGetter):
             data_getter_curr._subset["scenarios"] = [scenario]
             data_getter_curr._file_names = None
             data_getter_curr._file_name_da = None
-            data_getter_curr.get_data(*args, **kwargs)
+            data_getter_curr.get_data(*args, **kwargs).close()
         return super().get_data(
             *args, **{**kwargs, "force_remake": False, "download": False}
         )
@@ -440,11 +465,13 @@ class GLENSDataGetter(CESMDataGetter):
                 raise ValueError(
                     f"Scenario {scenario} and/or frequency {frequency} not supported."
                 )
-            while True:
+            for attempt in range(3):
                 try:
                     catalog = siphon.catalog.TDSCatalog(catalog_url)
                     break
                 except HTTPError as e:
+                    if attempt == 2:
+                        raise
                     print(f"HTTP error opening catalog {catalog_url}: {e}")
                     print("Retrying in 10 seconds...")
                     time.sleep(10)

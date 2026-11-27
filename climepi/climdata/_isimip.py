@@ -24,7 +24,7 @@ from climepi.climdata._data_getter_class import ClimateDataGetter
 
 class ISIMIPDataGetter(ClimateDataGetter):
     """
-    Class for accessing and downloading ISIMIP data.
+    ISIMIP3b provides bias-adjusted projections across climate models and scenarios.
 
     Data are taken from the ISIMIP repository (https://data.isimip.org/). Terms of use
     can be found at
@@ -46,6 +46,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
     """
 
     data_source = "isimip"
+    source_label = "ISIMIP3b"
     available_years = list(range(2015, 2101))
     available_scenarios = ["ssp126", "ssp370", "ssp585"]
     available_models = [
@@ -61,6 +62,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
         "miroc6",
     ]
     available_realizations = [0]
+    models_by_scenario = {"ssp245": available_models[:5]}
     lon_res = 0.5
     lat_res = 0.5
 

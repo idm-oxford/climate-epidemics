@@ -736,7 +736,8 @@ class ClimEpiDatasetAccessor:
         """
         Generate a time series plot of a data variable.
 
-        Wraps :meth:`hvplot.hvPlot.line`.
+        Wraps :meth:`hvplot.hvPlot.line`, or :meth:`hvplot.hvPlot.scatter` when
+        there is a single timestamp.
 
         Parameters
         ----------
@@ -744,7 +745,7 @@ class ClimEpiDatasetAccessor:
             Name of the data variable to plot. If not provided, the function
             will attempt to automatically select a suitable variable.
         **kwargs : dict
-            Additional keyword arguments to pass to :meth:`hvplot.hvPlot.line`.
+            Additional keyword arguments to pass to the plotting method.
 
         Returns
         -------
@@ -754,10 +755,15 @@ class ClimEpiDatasetAccessor:
         import hvplot.xarray  # noqa  (registers DataArray.hvplot accessor)
 
         data_var = self._process_data_var_argument(data_var)
-        da_plot = self._obj[data_var].squeeze()
+        da_plot = self._obj[data_var]
+        singleton_dims = [
+            dim for dim, size in da_plot.sizes.items() if dim != "time" and size == 1
+        ]
+        da_plot = da_plot.squeeze(dim=singleton_dims)
         kwargs_hvplot = {"x": "time", **kwargs}
-        plot_obj = da_plot.hvplot.line(**kwargs_hvplot)
-        return plot_obj
+        if da_plot.sizes.get("time") == 1:
+            return da_plot.hvplot.scatter(**kwargs_hvplot)
+        return da_plot.hvplot.line(**kwargs_hvplot)
 
     def plot_map(
         self,

@@ -5,6 +5,7 @@ import os
 import signal
 import sys
 import traceback
+from threading import current_thread, main_thread
 from typing import Any, Callable, Literal, overload
 
 import bokeh
@@ -12,6 +13,7 @@ import panel as pn
 from dask.distributed import Client
 
 from climepi.app._app_classes_methods import Controller
+from climepi.app._app_ui import TAB_CSS, TEMPLATE_CSS, model_workspace, plot_workspace
 from climepi.app._dask_port_address import DASK_SCHEDULER_ADDRESS
 
 
@@ -23,6 +25,8 @@ def run_app(
     epi_model_example_names: list[str] | None = None,
     enable_custom_epi_model: bool = True,
     dask_distributed: bool = False,
+    *,
+    enable_climate_download: bool = False,
     **kwargs: Any,
 ) -> pn.io.server.Server | pn.io.threads.StoppableThread:
     """
@@ -56,6 +60,9 @@ def run_app(
         use the distributed scheduler, a Dask local cluster must be started from a
         separate terminal by running ``python -m climepi.app.cluster`` before starting
         the app.
+    enable_climate_download: bool
+        Enable custom climate subsets and NetCDF downloads. Intended for local use.
+        The command-line launcher enables this option automatically.
     **kwargs
         Additional keyword arguments to pass to :func:`panel.serve()`.
 
@@ -69,14 +76,6 @@ def run_app(
 
     _setup_dask(dask_distributed=dask_distributed)
 
-    def session_created(
-        session_context: bokeh.application.application.SessionContext,
-    ) -> None:
-        logger_session = get_logger(name="session")
-        logger_session.info("Session created")
-
-    pn.state.on_session_created(session_created)
-
     def session():
         return _session(
             clim_dataset_example_base_dir=clim_dataset_example_base_dir,
@@ -85,6 +84,7 @@ def run_app(
             custom_clim_data_dir=custom_clim_data_dir,
             epi_model_example_names=epi_model_example_names,
             enable_custom_epi_model=enable_custom_epi_model,
+            enable_climate_download=enable_climate_download,
         )
 
     start = kwargs.get("start", True)
@@ -161,9 +161,9 @@ def _session(
     custom_clim_data_dir: str | os.PathLike | None,
     epi_model_example_names: list[str] | None,
     enable_custom_epi_model: bool,
+    enable_climate_download: bool = False,
 ):
-    # Get the template and controller
-
+    get_logger(name="session").info("Session created")
     template, controller = _layout(
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
@@ -171,15 +171,13 @@ def _session(
         custom_clim_data_dir=custom_clim_data_dir,
         epi_model_example_names=epi_model_example_names,
         enable_custom_epi_model=enable_custom_epi_model,
+        enable_climate_download=enable_climate_download,
     )
 
     assert pn.state.curdoc is not None
     assert pn.state.curdoc.session_context is not None
     session_id = pn.state.curdoc.session_context.id
-    pn.state.cache["controllers"] = {
-        **pn.state.cache.get("controllers", {}),
-        session_id: controller,
-    }
+    pn.state.cache.setdefault("controllers", {})[session_id] = controller
 
     # Ensure temp files are cleaned up when a session is closed
 
@@ -196,10 +194,16 @@ def _layout(
     custom_clim_data_dir: str | os.PathLike | None,
     epi_model_example_names: list[str] | None,
     enable_custom_epi_model: bool,
+    enable_climate_download: bool = False,
 ):
-    # Define the layout of the app
-
-    template = pn.template.BootstrapTemplate(title="climepi app")
+    template = pn.template.BootstrapTemplate(
+        title="climepi app",
+        header_background="#123f78",
+        header_color="#fff",
+        sidebar_width=328,
+        main_max_width="1440px",
+    )
+    template.config.raw_css = [TEMPLATE_CSS]
 
     controller = Controller(
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
@@ -208,33 +212,52 @@ def _layout(
         custom_clim_data_dir=custom_clim_data_dir,
         epi_model_example_names=epi_model_example_names,
         enable_custom_epi_model=enable_custom_epi_model,
+        enable_climate_download=enable_climate_download,
     )
 
-    data_controls = controller.data_controls
     assert template.sidebar is not None
-    template.sidebar.append(data_controls)
-
-    clim_plot_controls = controller.clim_plot_controls
-    epi_plot_controls = controller.epi_plot_controls
-    clim_plot_view = controller.clim_plot_view
-    epi_model_plot_view = controller.epi_model_plot_view
-    epi_plot_view = controller.epi_plot_view
+    template.sidebar.append(controller.data_controls)
 
     assert template.main is not None
     template.main.append(
         pn.Tabs(
-            ("Climate data", pn.Row(clim_plot_controls, clim_plot_view)),
-            ("Epidemiological model", pn.Row(epi_model_plot_view)),
-            ("Epidemiological projections", pn.Row(epi_plot_controls, epi_plot_view)),
+            (
+                "Climate data",
+                plot_workspace(
+                    controller.clim_plot_controller.controls,
+                    controller.clim_plot_controller.view,
+                    "Load an example dataset or use a climate subset."
+                    if enable_climate_download
+                    else "Choose a climate dataset and select **Load data**.",
+                ),
+            ),
+            (
+                "Suitability model",
+                model_workspace(controller.epi_model_plot_view),
+            ),
+            (
+                "Projections",
+                plot_workspace(
+                    controller.epi_plot_controller.controls,
+                    controller.epi_plot_controller.view,
+                    "Load climate data and select **Run model**.",
+                ),
+            ),
+            margin=0,
+            sizing_mode="stretch_width",
+            stylesheets=[TAB_CSS],
         )
     )
+    if controller.climate_download is not None:
+        template.main.append(controller.climate_download.modal)
 
     return template, controller
 
 
 def _cleanup_session(session_id: str) -> None:
-    # Clean up the session
-    controller = pn.state.cache["controllers"].pop(session_id)
+    controller = pn.state.cache.get("controllers", {}).pop(session_id, None)
+    if controller is None:
+        return
     controller.cleanup_temp_file()
     logger = get_logger(name="session")
     logger.info("Session cleaned up successfully (deleted temporary file(s))")
@@ -277,6 +300,8 @@ def _set_shutdown(server, threaded):
 
     server.stop = _stop
 
+    if current_thread() is not main_thread():
+        return
     original_sigint = signal.getsignal(signal.SIGINT)
     original_sigterm = signal.getsignal(signal.SIGTERM)
 

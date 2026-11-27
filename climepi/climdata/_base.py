@@ -228,27 +228,28 @@ def get_climate_data_file_names(
     return file_names
 
 
+def _data_source_getters() -> dict[str, type[ClimateDataGetter]]:
+    return {
+        "lens2": LENS2DataGetter,
+        "arise": ARISEDataGetter,
+        "glens": GLENSDataGetter,
+        "isimip": ISIMIPDataGetter,
+    }
+
+
 def _get_data_getter(
-    data_source: Literal["lens2", "arise", "glens", "isimip"],
+    data_source: str,
     *args: Any,
     subset_check_interval: float = 10,
     max_subset_wait_time: float = 20,
     **kwargs: Any,
 ) -> ClimateDataGetter:
-    data_getter: ClimateDataGetter
-    if data_source == "lens2":
-        data_getter = LENS2DataGetter(*args, **kwargs)
-    elif data_source == "arise":
-        data_getter = ARISEDataGetter(*args, **kwargs)
-    elif data_source == "glens":
-        data_getter = GLENSDataGetter(*args, **kwargs)
-    elif data_source == "isimip":
-        data_getter = ISIMIPDataGetter(
-            *args,
+    getter = _data_source_getters().get(data_source)
+    if getter is None:
+        raise ValueError(f"Data source '{data_source}' not supported.")
+    if data_source == "isimip":
+        kwargs.update(
             subset_check_interval=subset_check_interval,
             max_subset_wait_time=max_subset_wait_time,
-            **kwargs,
         )
-    else:
-        raise ValueError(f"Data source '{data_source}' not supported.")
-    return data_getter
+    return getter(*args, **kwargs)

@@ -711,6 +711,35 @@ class TestGLENSDataGetter:
         assert data_getter._ds is None
         assert sorted(data_getter._urls) == sorted(urls_expected)
 
+    @patch.object(siphon.catalog, "TDSCatalog", side_effect=requests.exceptions.HTTPError)
+    @patch.object(time, "sleep", autospec=True)
+    def test_find_remote_data_stops_retrying(self, mock_sleep, mock_catalog):
+        """Return control to the caller when the GLENS catalog stays unavailable."""
+        data_getter = GLENSDataGetter(subset={"scenarios": ["rcp85"]})
+        with pytest.raises(requests.exceptions.HTTPError):
+            data_getter._find_remote_data()
+        assert mock_catalog.call_count == 3
+        assert mock_sleep.call_count == 2
+
+    def test_interrupted_download_removes_scenario_scratch(self, monkeypatch, tmp_path):
+        """The child getter cleans up partial data for a multi-scenario request."""
+        scratch_dirs = []
+
+        def interrupt(getter):
+            scratch_dirs.append(getter._temp_save_dir)
+            (getter._temp_save_dir / "partial.nc").touch()
+            raise OSError("interrupted")
+
+        monkeypatch.setattr(GLENSDataGetter, "_find_remote_data", lambda self: None)
+        monkeypatch.setattr(GLENSDataGetter, "_download_remote_data", interrupt)
+        getter = GLENSDataGetter(
+            subset={"years": [2020], "realizations": [0]}, save_dir=tmp_path
+        )
+        with pytest.raises(OSError, match="interrupted"):
+            getter.get_data()
+        assert len(scratch_dirs) == 1
+        assert not scratch_dirs[0].exists()
+
     def test_find_remote_data_errors(self):
         """Test cases where _find_remote_data should raise an error."""
         with pytest.raises(

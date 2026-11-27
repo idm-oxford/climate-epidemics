@@ -6,6 +6,7 @@ import sys
 import time
 import warnings
 from contextlib import contextmanager
+from threading import Event
 from unittest.mock import MagicMock, patch
 
 import dask
@@ -171,13 +172,44 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
     """
     ds = generate_dataset(
         data_var="temperature", frequency="monthly", extra_dims={"realization": 2}
-    ).climepi.sel_geo("SCG")
-    mock_get_example_dataset.return_value = ds
+    ).isel(lat=[0], lon=[0])
+    page_errors = []
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
+    controls = {name: Event() for name in ("load", "model", "plot")}
+
+    def wait_for_browser(operation):
+        if not controls[operation].wait(15):
+            raise TimeoutError(f"Browser did not display progress for {operation}")
+
+    def load_dataset(*args, **kwargs):
+        wait_for_browser("load")
+        return ds
+
+    def slow_operation(operation, func):
+        def run(*args, **kwargs):
+            wait_for_browser(operation)
+            return func(*args, **kwargs)
+
+        return run
+
+    mock_get_example_dataset.side_effect = load_dataset
     mock_get_example_model.return_value = epimod.SuitabilityModel(
         temperature_range=[-5, 55]
     )
 
-    with _run_threaded_app(page, port=port) as server:
+    with (
+        patch.object(
+            app_classes_methods,
+            "_run_epi_model_func",
+            slow_operation("model", app_classes_methods._run_epi_model_func),
+        ),
+        patch.object(
+            app_classes_methods,
+            "_get_view_func",
+            slow_operation("plot", app_classes_methods._get_view_func),
+        ),
+        _run_threaded_app(page, port=port) as server,
+    ):
         _wait_for_server_startup(port)
 
         captured = capsys.readouterr()
@@ -191,8 +223,30 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
         assert "Session created" in captured.out
         expect(page).to_have_title("climepi app")
 
-        page.get_by_role("button", name="Load data").click()
-        page.get_by_text("Data loaded").wait_for()
+        try:
+            page.get_by_role("button", name="Load data").click()
+            expect(page.get_by_text("Loading data...", exact=True)).to_be_visible()
+            expect(page.get_by_role("button", name="Run model")).to_be_disabled()
+            controls["load"].set()
+            expect(page.get_by_text("Data loaded", exact=True)).to_be_visible()
+
+            page.get_by_text("Suitability model", exact=True).last.click()
+            page.get_by_role("button", name="Run model").click()
+            expect(page.get_by_text("Running model...", exact=True)).to_be_visible()
+            expect(page.get_by_role("button", name="Load data")).to_be_disabled()
+            controls["model"].set()
+            expect(page.get_by_text("Model run complete", exact=True)).to_be_visible()
+
+            page.get_by_text("Projections", exact=True).click()
+            page.get_by_role("button", name="Generate plot").click()
+            expect(page.get_by_text("Generating plot...", exact=True)).to_be_visible()
+            controls["plot"].set()
+            expect(page.get_by_text("Plot generated", exact=True)).to_be_visible()
+            expect(page.locator("canvas:visible").first).to_be_visible()
+            assert not page_errors
+        finally:
+            for control in controls.values():
+                control.set()
         mock_get_example_dataset.assert_called_once_with("data", base_dir=None)
 
         assert len(pn.state.cache["controllers"]) == 1
@@ -328,6 +382,27 @@ def test_layout(_):
     assert isinstance(template, pn.template.BootstrapTemplate)
     assert isinstance(controller, app_classes_methods.Controller)
     assert template.sidebar[0] == controller.data_controls
+
+
+def test_mobile_layout(port, page):
+    """Keep data controls and the active workspace visible on a narrow screen."""
+    page.set_viewport_size({"width": 390, "height": 844})
+    with _run_threaded_app(page, port=port):
+        _wait_for_server_startup(port)
+        page.goto(f"http://localhost:{port}/climepi_app")
+
+        expect(page.get_by_role("heading", name="Climate data")).to_be_visible()
+        expect(page.get_by_role("button", name="Load data")).to_be_visible()
+        expect(page.get_by_role("heading", name="No plot yet")).to_be_visible()
+        expect(
+            page.get_by_role("status").filter(has_text="Data not loaded")
+        ).to_be_visible()
+        sidebar = page.locator("#sidebar").bounding_box()
+        main = page.locator("#main").bounding_box()
+        assert sidebar is not None and main is not None
+        assert sidebar["width"] == 390
+        assert main["y"] >= sidebar["y"] + sidebar["height"]
+        assert page.evaluate("document.documentElement.scrollWidth") == 390
 
 
 def test_cleanup_session(capsys):
