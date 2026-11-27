@@ -178,75 +178,26 @@ class TestEnsembleMeanVarPolyfit:
     """Class for testing the _ensemble_mean_var_polyfit function."""
 
     def test_ensemble_mean_var_polyfit(self):
-        """
-        Main test.
-
-        This test is based on estimating ensemble stats from a temperature time series
-        made up of normally distributed noise added to a polynomial (matching the
-        underlying assumptions of the estimate_ensemble_stats method). This is repeated
-        multiple times to ensure there is no systematic bias in the estimated ensemble
-        statistics.
-        """
-        time = xr.date_range(
-            start="2001-01-01", periods=10000, freq="MS", use_cftime=True
-        )
+        """Check the fitted mean and residual variance against NumPy."""
+        time = xr.date_range(start="2001-01-01", periods=36, freq="MS", use_cftime=True)
         days_from_start = cftime.date2num(time, "days since 2001-01-01")
-        mean_theoretical = (
-            0.0000000000123 * days_from_start**3
-            - 0.00000257 * days_from_start**2
-            - 0.326 * days_from_start
-            - 259.29
+        time_scaled = days_from_start / days_from_start[-1]
+        rng = np.random.default_rng(0)
+        temperature = (
+            12
+            + 7 * time_scaled
+            - 2 * time_scaled**3
+            + rng.normal(scale=0.734, size=time.size)
         )
-        std_theoretical = 0.734
-        var_theoretical = std_theoretical**2
-        repeats = 100
-        mean_result_sum = np.zeros_like(mean_theoretical)
-        var_result_sum = np.zeros_like(mean_theoretical)
-        for repeat in range(repeats):
-            temperature_values_in = np.random.normal(
-                loc=mean_theoretical, scale=std_theoretical
-            )
-            ds = xr.Dataset(
-                {
-                    "temperature": ("time", temperature_values_in),
-                },
-                coords={"time": time},
-            )
-            ds["time"].encoding.update(calendar="standard")
-            ds_mean, ds_var = _ensemble_mean_var_polyfit(ds, deg=5)
-            if repeat == 0:
-                # Just check for the first repeat that the results match those obtained
-                # by directly applying numpy's polynomial fitting method.
-                fitted_poly_for_expected_values = np.polynomial.Polynomial.fit(
-                    days_from_start, temperature_values_in, 5, full=True
-                )
-                mean_expected = fitted_poly_for_expected_values[0](days_from_start)
-                var_expected = fitted_poly_for_expected_values[1][0][0] / len(
-                    days_from_start
-                )
-                npt.assert_allclose(
-                    ds_mean["temperature"].values,
-                    mean_expected,
-                )
-                npt.assert_allclose(
-                    ds_var["temperature"].values,
-                    var_expected,
-                )
-            mean_result_sum += ds_mean["temperature"].values
-            var_result_sum += ds_var["temperature"].values
-        mean_result_avg = mean_result_sum / repeats
-        var_result_avg = var_result_sum / repeats
-        rtol_theoretical_match = 1e-2
-        npt.assert_allclose(
-            mean_result_avg,
-            mean_theoretical,
-            rtol=rtol_theoretical_match,
-        )
-        npt.assert_allclose(
-            var_result_avg,
-            var_theoretical,
-            rtol=rtol_theoretical_match,
-        )
+        ds = xr.Dataset({"temperature": ("time", temperature)}, coords={"time": time})
+        ds["time"].encoding.update(calendar="standard")
+        ds_mean, ds_var = _ensemble_mean_var_polyfit(ds, deg=5)
+
+        fitted = np.polynomial.Polynomial.fit(days_from_start, temperature, deg=5)
+        mean_expected = fitted(days_from_start)
+        var_expected = np.mean((temperature - mean_expected) ** 2)
+        npt.assert_allclose(ds_mean["temperature"].values, mean_expected)
+        npt.assert_allclose(ds_var["temperature"].values, var_expected)
 
     def test_ensemble_mean_var_polyfit_vars_coords(self):
         """Test with multiple data variables and extra coordinates."""

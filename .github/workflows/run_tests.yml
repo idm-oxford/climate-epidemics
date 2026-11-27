@@ -14,7 +14,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            environment: default
+            environment: ci
           - os: ubuntu-latest
             environment: py312
           - os: ubuntu-latest
@@ -22,9 +22,9 @@ jobs:
           - os: ubuntu-latest
             environment: py314
           - os: windows-latest
-            environment: default
+            environment: test
           - os: macos-latest
-            environment: default
+            environment: test
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout repository
@@ -40,27 +40,27 @@ jobs:
         cache: true
         environments: ${{ matrix.environment }}
     - name: Lint
-      if: ${{ matrix.environment == 'default' && matrix.os == 'ubuntu-latest' }}
+      if: ${{ matrix.environment == 'ci' }}
       run: pixi run -e "${{ matrix.environment }}" lint-gh-actions
     - name: Type check
-      if: ${{ matrix.environment == 'default' && matrix.os == 'ubuntu-latest' }}
+      if: ${{ matrix.environment == 'ci' }}
       run: pixi run -e "${{ matrix.environment }}" type-check
     - name: Install Chromium headless shell for Playwright tests
       if: runner.os != 'Windows'
       run: pixi run -e "${{ matrix.environment }}" playwright install chromium --with-deps --only-shell
     - name: Test with pytest
       # The Windows runner includes Chrome for the Playwright smoke test.
-      run: pixi run -e "${{ matrix.environment }}" test ${{ runner.os == 'Windows' && '--browser-channel chrome' || '' }}
+      run: pixi run -e "${{ matrix.environment }}" test --durations=10 ${{ runner.os == 'Windows' && '--browser-channel chrome' || '' }}
     - name: Upload coverage to Codecov
       if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{ matrix.os }}-${{ matrix.environment }}
+        flags: ${{ matrix.os }}-${{ startsWith(matrix.environment, 'py') && matrix.environment || 'default' }}
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{ matrix.os }}-${{ matrix.environment }}
+        flags: ${{ matrix.os }}-${{ startsWith(matrix.environment, 'py') && matrix.environment || 'default' }}
         report_type: test_results

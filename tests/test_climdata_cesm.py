@@ -10,10 +10,12 @@ import time
 import types
 from unittest.mock import MagicMock, patch
 
+import intake
 import intake_esm
 import netCDF4  # noqa (avoids warning https://github.com/pydata/xarray/issues/7259)
 import numpy as np
 import numpy.testing as npt
+import pandas as pd
 import pooch
 import pytest
 import requests
@@ -337,16 +339,34 @@ class TestCESMDataGetter:
 class TestLENS2DataGetter:
     """Class for testing the LENS2DataGetter class."""
 
+    @patch.object(intake, "open_esm_datastore", autospec=True)
     @pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
-    def test_find_remote_data(self, frequency):
-        """
-        Test the _find_remote_data method of the CESMDataGetter class.
-
-        The conversion of
-        the intake_esm catalog to a dataset dictionary is mocked to avoid opening the
-        actual remote dataset.
-        """
+    def test_find_remote_data(self, mock_open_esm_datastore, frequency):
+        """Test LENS2 catalog filtering and dataset assembly with local data."""
         remote_frequency = "monthly" if frequency == "yearly" else frequency
+        mock_open_esm_datastore.return_value = intake_esm.esm_datastore(
+            {
+                "esmcat": {
+                    "esmcat_version": "0.0.1",
+                    "attributes": [],
+                    "assets": {"column_name": "path", "format": "zarr"},
+                },
+                "df": pd.DataFrame(
+                    [
+                        {
+                            "path": f"s3://ncar-cesm2-lens/atm/{freq}/"
+                            f"cesm2LE-{forcing}-{assumption}-{var}.zarr",
+                            "frequency": freq,
+                            "variable": var,
+                        }
+                        for freq in ["daily", "monthly"]
+                        for forcing in ["historical", "ssp370"]
+                        for assumption in ["cmip6", "smbb"]
+                        for var in ["TREFHT", "PRECC", "PRECL", "PS"]
+                    ]
+                ),
+            }
+        )
 
         ds = xr.Dataset(
             data_vars={
@@ -378,6 +398,10 @@ class TestLENS2DataGetter:
         ) as mock_to_dataset_dict:
             data_getter._find_remote_data()
 
+        mock_open_esm_datastore.assert_called_once_with(
+            "https://raw.githubusercontent.com/NCAR/cesm2-le-aws"
+            "/main/intake-catalogs/aws-cesm2-le.json"
+        )
         mock_to_dataset_dict.assert_called_once()
         call_catalog_subset = mock_to_dataset_dict.call_args.args[0]
         call_kwargs = mock_to_dataset_dict.call_args.kwargs
@@ -458,13 +482,38 @@ class TestLENS2DataGetter:
         )
 
 
+@pytest.fixture(scope="module")
+def arise_catalogs() -> dict[str, intake_esm.esm_datastore]:
+    """Load the checked-in ARISE catalogs once for the URL selection tests."""
+    catalogs_dir = pathlib.Path(__file__).resolve().parents[1] / "data" / "catalogs"
+    return {
+        name: intake_esm.esm_datastore(catalogs_dir / name)
+        for name in ["cesm2-waccm-ssp245.json", "cesm2-arise-sai-1.5.json"]
+    }
+
+
 class TestARISEDataGetter:
     """Class for testing the ARISEDataGetter class."""
 
+    @patch("climepi.climdata._cesm._get_data_version", return_value="main")
     @patch.object(xr, "open_mfdataset", autospec=True)
+    @patch.object(intake, "open_esm_datastore", autospec=True)
     @pytest.mark.parametrize("frequency", ["daily", "monthly", "yearly"])
-    def test_find_remote_data(self, mock_open_mfdataset, frequency):
+    def test_find_remote_data(
+        self,
+        mock_open_esm_datastore,
+        mock_open_mfdataset,
+        mock_get_data_version,
+        frequency,
+        arise_catalogs,
+    ):
         """Test the _find_remote_data method of the ARISEDataGetter class."""
+        catalogs_by_url = {
+            f"https://raw.githubusercontent.com/idm-oxford/climate-epidemics/"
+            f"main/data/catalogs/{name}": catalog
+            for name, catalog in arise_catalogs.items()
+        }
+        mock_open_esm_datastore.side_effect = catalogs_by_url.__getitem__
         data_getter = ARISEDataGetter(
             frequency=frequency,
             subset={"years": [2044, 2045, 2046], "realizations": [1, 5]},

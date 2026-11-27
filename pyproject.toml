@@ -54,23 +54,30 @@ siphon = "*"
 tqdm = "*"
 typing-extensions = "*"
 urllib3 = "*"
+version-pioneer = "*"
 xarray = "!=2025.7" # https://github.com/pydata/xarray/issues/10536
 xcdat = "*"
 
 [tool.pixi.pypi-dependencies]
 climepi = { path = ".", editable = true }
 
-[tool.pixi.feature.dev.dependencies]
-version-pioneer = "*"
-arviz-plots="*" # used in example notebooks
-arviz-stats = "*" # used in example notebooks
+[tool.pixi.feature.test.dependencies]
+pytest = "*"
+pytest-cov = "*"
+
+[tool.pixi.feature.test.pypi-dependencies]
+pytest-playwright = "*" # conda version giving errors in Windows
+
+[tool.pixi.feature.checks.dependencies]
 ruff = "*"
 mypy = "*"
 scipy-stubs = "*"
 pandas-stubs = "*"
 types-requests = "*"
-pytest = "*"
-pytest-cov = "*"
+
+[tool.pixi.feature.docs.dependencies]
+arviz-plots = "*" # used in example notebooks
+arviz-stats = "*" # used in example notebooks
 sphinx = "<9.0.0"  # https://github.com/xarray-contrib/sphinx-autosummary-accessors/issues/165
 jupyter-sphinx = "*"
 nbsphinx = "*"
@@ -80,9 +87,6 @@ sphinx-copybutton = "*"
 ipykernel = "*"
 jupyter_bokeh = "*"
 pip = "*"                          # needed for notebooks
-
-[tool.pixi.feature.dev.pypi-dependencies]
-pytest-playwright = "*" # conda version giving errors in Windows
 
 [tool.pixi.feature.py312.dependencies]
 python = "3.12.*"
@@ -94,10 +98,12 @@ python = "3.13.*"
 python = "3.14.*"
 
 [tool.pixi.environments]
-default = { features = ["dev"], solve-group = "default" }
-py312 = { features = ["py312", "dev"], solve-group = "py312" }
-py313 = { features = ["py313", "dev"], solve-group = "py313" }
-py314 = { features = ["py314", "dev"], solve-group = "py314" }
+default = { features = ["test", "checks", "docs"], solve-group = "default" }
+ci = { features = ["test", "checks"], solve-group = "default" }
+test = { features = ["test"], solve-group = "default" }
+py312 = { features = ["py312", "test"], solve-group = "py312" }
+py313 = { features = ["py313", "test"], solve-group = "py313" }
+py314 = { features = ["py314", "test"], solve-group = "py314" }
 
 [tool.pixi.tasks]
 app = "python -m climepi.app"
