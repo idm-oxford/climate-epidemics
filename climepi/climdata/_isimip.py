@@ -3,6 +3,7 @@
 # Lazy imports activated on Python 3.15+ (PEP 810); inert on earlier versions.
 __lazy_modules__ = ["requests", "requests.adapters", "urllib3.util"]
 
+import pathlib
 import time
 import zipfile
 from itertools import product
@@ -272,7 +273,7 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # and 'model' dimensions.
 
         def _preprocess(ds: xr.Dataset) -> xr.Dataset:
-            file_name = ds.encoding["source"].split("/")[-1]
+            file_name = pathlib.Path(ds.encoding["source"]).name
             # Preprocess the data to enable concatenation along the 'scenario' and
             # 'model' dimensions.
             parts = file_name.split("_")
