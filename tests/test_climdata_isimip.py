@@ -60,6 +60,8 @@ def test_init():
         ("_client_results", None),
     ):
         assert getattr(data_getter, attr) == value, f"Attribute {attr} is not {value}."
+    with pytest.raises(ValueError, match="subset_method must be 'remote' or 'local'"):
+        ISIMIPDataGetter(subset_method="both")
 
 
 @patch("requests.Session", autospec=True)
@@ -111,6 +113,49 @@ def test_find_remote_data(mock_session):
     assert first.args == ("https://data.isimip.org/api/v1/files/",)
     assert first.kwargs["params"]["time_step"] == "daily"
     assert second.args == ("next_page",)
+
+
+@patch("requests.Session", autospec=True)
+@pytest.mark.parametrize(
+    ("subset", "match"),
+    [
+        ({"years": []}, "Select at least one ISIMIP year"),
+        ({"models": []}, "Select at least one ISIMIP year"),
+        (
+            {"years": [2015, 2022, 2021]},
+            "No ISIMIP3b tas data for scenario 'ssp126', model 'mri-esm2-0', and "
+            "year 2021",
+        ),
+    ],
+)
+def test_find_remote_data_unavailable(mock_session, subset, match):
+    """
+    Test the _find_remote_data method of the ISIMIPDataGetter class.
+
+    Checks that an error is raised if no data are requested or if the files found do
+    not cover every requested year.
+    """
+    session = mock_session.return_value.__enter__.return_value
+    session.get.return_value.json.return_value = {
+        "results": [
+            {
+                "specifiers": {
+                    "climate_scenario": "ssp126",
+                    "climate_forcing": "mri-esm2-0",
+                    "climate_variable": variable,
+                    "start_year": 2015,
+                    "end_year": 2020,
+                }
+            }
+            for variable in ("tas", "pr")
+        ],
+        "next": None,
+    }
+    getter = ISIMIPDataGetter(
+        subset={"scenarios": ["ssp126"], "models": ["mri-esm2-0"], **subset}
+    )
+    with pytest.raises(ValueError, match=match):
+        getter._find_remote_data()
 
 
 @patch("requests.Session", autospec=True)
@@ -251,7 +296,12 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_create, data_subse
         ]
     else:
         data_getter._client_results = [
-            {"name": x, "file_url": base_url + x}
+            {
+                "name": x,
+                "file_url": base_url + x,
+                "checksum": "abc",
+                "checksum_type": "sha512",
+            }
             for x in ["/file_1.nc", "/file_2.nc", "/file_3.nc"]
         ]
     data_getter._download_remote_data()
@@ -284,7 +334,7 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_create, data_subse
             mock_create.assert_any_call(
                 base_url=base_url,
                 path=temp_save_dir,
-                registry={f"file_{file_no}.nc": None},
+                registry={f"file_{file_no}.nc": "sha512:abc"},
                 retry_if_failed=5,
             )
             mock_fetch.assert_any_call(

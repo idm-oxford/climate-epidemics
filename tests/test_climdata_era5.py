@@ -12,6 +12,7 @@ import pytest
 import xarray as xr
 
 from climepi import climdata
+from climepi.climdata._era5 import ERA5DataGetter, _open_icechunk_archive
 
 
 @pytest.fixture
@@ -127,3 +128,56 @@ def test_era5_cache(era5_archive, tmp_path, frequency, count):
     with climdata.get_climate_data("era5", frequency, subset, tmp_path) as cached:
         assert cached.sizes["time"] == count
     era5_archive.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"frequency": "hourly"}, "frequency 'hourly' is not supported"),
+        ({"subset": {"years": []}}, "Select ERA5 years"),
+        ({"subset": {"years": [1940]}}, "Select ERA5 years"),
+        ({"subset": {"scenarios": ["ssp126"]}}, "scenario 'historical'"),
+    ],
+)
+def test_init_unavailable(kwargs, match):
+    """Test the __init__ method of the ERA5DataGetter class with unavailable options."""
+    with pytest.raises(ValueError, match=match):
+        ERA5DataGetter(**kwargs)
+
+
+def test_era5_missing_hours(era5_archive, tmp_path):
+    """Test retrieving a year that the archive does not fully cover."""
+    with pytest.raises(ValueError, match="did not return every requested hour"):
+        climdata.get_climate_data(
+            "era5", "daily", {"years": [2023]}, tmp_path, download=False
+        )
+
+
+@patch.object(xr, "open_zarr", autospec=True)
+@patch("climepi.climdata._era5.import_module", autospec=True)
+def test_open_icechunk_archive(mock_import_module, mock_open_zarr):
+    """Test the _open_icechunk_archive function."""
+    icechunk = mock_import_module.return_value
+    repository = icechunk.Repository.open.return_value
+    assert _open_icechunk_archive() == mock_open_zarr.return_value
+    assert [call.args for call in mock_import_module.call_args_list] == [
+        ("icechunk",),
+        ("pcodec",),
+    ]
+    icechunk.s3_storage.assert_called_once_with(
+        bucket="earthmover-icechunk-era5",
+        prefix="icechunkV2",
+        region="us-east-1",
+        anonymous=True,
+    )
+    icechunk.Repository.open.assert_called_once_with(icechunk.s3_storage.return_value)
+    repository.readonly_session.assert_called_once_with("main")
+    mock_open_zarr.assert_called_once_with(
+        repository.readonly_session.return_value.store,
+        group="single/temporal",
+        consolidated=False,
+        chunks={},
+    )
+    mock_import_module.side_effect = ImportError
+    with pytest.raises(ImportError, match="requires icechunk and pcodec"):
+        _open_icechunk_archive()

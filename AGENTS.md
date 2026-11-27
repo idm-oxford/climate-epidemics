@@ -32,6 +32,8 @@ climate-sensitive epidemiological models.
 - In new tests, mock remote services with `unittest.mock`, build data with
   `climepi.testing.fixtures`, and compare with `xarray.testing`. Give every test a
   docstring, e.g. "Test the _process_data method of the ISIMIPDataGetter class."
+- Keep test coverage at 100%. Codecov fails a PR if any changed line, including error
+  branches, is not covered.
 - A new data source also needs the `get_climate_data` docstring and
   `docs/getting-started/overview.rst` updated.
 - Do not hand-edit `pixi.lock`. A scheduled workflow updates it.
