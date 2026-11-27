@@ -85,6 +85,12 @@ def test_init():
         (["gabba"], None, None, ("gabba",)),
         (["mcg"], None, None, ("mcg",)),
         (["gabba", "mcg", "waca"], None, [8, 15], ("gabba", "mcg", "waca")),
+        (
+            ["Port of Spain", "Biel/Bienne", 'a<b>c:d"e\\f|g?h*i'],
+            None,
+            None,
+            ("Port_of_Spain", "Biel_Bienne", "a_b_c_d_e_f_g_h_i"),
+        ),
         (None, [8, 15], None, ("lon_8_to_15",)),
         (None, None, [7, 44], ("lat_7_to_44",)),
         (None, [7.5, 72], [-6, 17.33], ("lon_7_5_to_72_lat_m6_to_17_33",)),
