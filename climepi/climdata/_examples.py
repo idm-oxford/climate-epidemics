@@ -200,7 +200,7 @@ def _fetch_formatted_example_dataset(name: str, data_dir: os.PathLike) -> None:
     )
     version = _get_data_version()
     url = (
-        "https://github.com/idm-oxford/climate-epidemics/raw/"
+        "https://raw.githubusercontent.com/idm-oxford/climate-epidemics/"
         f"{version}/data/examples/{name}"
     )
     pup = pooch.create(
