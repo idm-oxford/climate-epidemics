@@ -33,8 +33,18 @@ class Subset(TypedDict):
     lat_range: tuple[float, float] | None
 
 
-class SubsetPartial(Subset, total=False):
+class SubsetPartial(TypedDict, total=False):
     """Partial dictionary defining subsetting options for climate data retrieval."""
+
+    years: list[int]
+    scenarios: list[str]
+    models: list[str]
+    realizations: list[int]
+    locations: list[str] | None
+    lons: list[float | None] | None
+    lats: list[float | None] | None
+    lon_range: tuple[float, float] | None
+    lat_range: tuple[float, float] | None
 
 
 class ClimateDataGetter:
