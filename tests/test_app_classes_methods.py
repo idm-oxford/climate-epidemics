@@ -59,22 +59,11 @@ def _plot_map(self, *args, **kwargs):
     return original_plot_map(self, *args, **{**kwargs, "rasterize": False})
 
 
-@patch.object(xr, "open_mfdataset", autospec=True)
 @patch("climepi.app._app_classes_methods.climdata.get_example_dataset", autospec=True)
-def test_load_clim_data_func(mock_get_example_dataset, mock_open_mfdataset):
+def test_load_clim_data_func(mock_get_example_dataset):
     """Unit test for the _load_clim_data_func function."""
     mock_get_example_dataset.return_value = "mocked_example_dataset"
-    mock_open_mfdataset.return_value = xr.Dataset(
-        {"time_bnds": (("time", "bnds"), np.array([[0, 1, 2], [1, 2, 3]]))},
-        coords={"model": ("model", ["gfdl-esm4"])},
-    ).chunk({"time": 3})
-    # Files opened together take the string width of the first file.
-    mock_open_mfdataset.return_value["model"].encoding["dtype"] = np.dtype("<U7")
-    result = app_classes_methods._load_clim_data_func(
-        "Example dataset",
-        clim_example_name="some_example_name",
-        clim_example_base_dir="some/dir",
-    )
+    result = app_classes_methods._load_clim_data_func("some_example_name", "some/dir")
     mock_get_example_dataset.assert_called_once_with(
         "some_example_name", base_dir="some/dir"
     )
@@ -82,29 +71,10 @@ def test_load_clim_data_func(mock_get_example_dataset, mock_open_mfdataset):
     # A new session needs an independent dataset handle to the cached files.
     mock_get_example_dataset.return_value = "new_dataset_handle"
     result_reopened = app_classes_methods._load_clim_data_func(
-        "Example dataset",
-        clim_example_name="some_example_name",
-        clim_example_base_dir="some/dir",
+        "some_example_name", "some/dir"
     )
     assert result_reopened == "new_dataset_handle"
     assert mock_get_example_dataset.call_count == 2
-    # Test with custom dataset option
-    result_custom = app_classes_methods._load_clim_data_func(
-        "Custom dataset", custom_clim_data_dir="path/to/custom/data"
-    )
-    assert result_custom == mock_open_mfdataset.return_value
-    assert not result_custom.chunks  # method loads time_bnds into memory
-    assert "dtype" not in result_custom["model"].encoding
-    mock_open_mfdataset.assert_called_once_with(
-        "path/to/custom/data/*.nc",
-        data_vars="minimal",
-        chunks={},
-        coords="minimal",
-        compat="override",
-    )
-    # Test with invalid dataset option
-    with pytest.raises(ValueError, match="Unrecognised climate data option"):
-        app_classes_methods._load_clim_data_func("Not an option")
 
 
 @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
@@ -973,10 +943,10 @@ class TestController:
         controller = app_classes_methods.Controller(
             clim_dataset_example_base_dir="some/dir",
             clim_dataset_example_names=["data1", "data2"],
-            enable_custom_clim_dataset=True,
             epi_model_example_names=["model1", "model2"],
             enable_custom_epi_model=True,
-            custom_clim_data_dir="another/dir",
+            enable_climate_download=True,
+            enable_climate_upload=True,
         )
         for attr, value in [
             ("clim_data_option", "Example dataset"),
@@ -995,7 +965,6 @@ class TestController:
             ("epi_model_ran", False),
             ("epi_model_status", "Model has not been run"),
             ("_clim_dataset_example_base_dir", "some/dir"),
-            ("_custom_clim_data_dir", "another/dir"),
             ("_ds_clim", None),
             ("_ds_epi", None),
         ]:
@@ -1003,7 +972,9 @@ class TestController:
                 f"Unexpected value for {attr}: expected {value}, "
                 f"got {getattr(controller, attr)}"
             )
-        assert controller.param.clim_data_option.precedence == 1
+        # The option selector appears once retrieved or uploaded data are kept.
+        assert controller.param.clim_data_option.objects == ["Example dataset"]
+        assert controller.param.clim_data_option.precedence == -1
         assert controller._ds_epi_path.parents[1] == pathlib.Path(tempfile.gettempdir())
         assert controller._ds_epi_path.name == "ds_epi.nc"
         assert controller._epi_model.temperature_range == (1, 2)
@@ -1019,6 +990,19 @@ class TestController:
         assert controller.epi_plot_controller._ds_base is None
         assert isinstance(controller.data_controls, pn.Column)
         assert len(controller.data_controls) == 2
+        climate_section = list(controller.data_controls[0])
+        assert controller.climate_download is not None
+        assert controller.climate_upload is not None
+        assert climate_section.index(controller.climate_download.button) + 1 == (
+            climate_section.index(controller.climate_upload.button)
+        )
+        # Uploads cannot start while another operation uses the data.
+        assert not controller.climate_upload._picker.disabled
+        controller._task.busy = True
+        assert controller.climate_upload._picker.disabled
+        controller._task.busy = False
+        controller.cleanup_temp_file()
+        assert not controller.climate_upload._folder.path.exists()
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     @patch.dict(
@@ -1114,8 +1098,6 @@ class TestController:
             clim_dataset_example_base_dir="some/dir",
             clim_dataset_example_names=["data1", "data2", "data3"],
             epi_model_example_names=["model"],
-            enable_custom_clim_dataset=True,
-            custom_clim_data_dir="another/dir",
         )
 
         # Test loading the first dataset
@@ -1168,27 +1150,12 @@ class TestController:
         assert not controller.clim_plot_controller.plot_generated
         assert not controller.epi_plot_controller.plot_generated
 
-        # Test loading a custom dataset
+        # Test loading uploaded data
 
-        controller.clim_data_option = "Custom dataset"
-        assert not controller.clim_data_loaded
-        assert controller.clim_data_status == "Data not loaded"
-
-        with patch(
-            "climepi.app._app_classes_methods._load_clim_data_func",
-            autospec=True,
-            return_value=ds1,
-        ) as mock_load_clim_data_func:
-            controller.param.trigger("clim_data_load_initiator")
-
-        mock_load_clim_data_func.assert_called_once_with(
-            "Custom dataset",
-            clim_example_name="data2",
-            clim_example_base_dir="some/dir",
-            custom_clim_data_dir="another/dir",
-        )
+        controller._load_uploaded_climate(lambda: ds1, "upload.nc")
+        assert controller.clim_data_option == "Uploaded data"
         assert controller.clim_data_loaded
-        assert controller.clim_data_status == "Data loaded"
+        assert controller.clim_data_status == "Data loaded: upload.nc"
         xrt.assert_identical(controller._ds_clim, ds1)
         xrt.assert_identical(controller.clim_plot_controller._ds_base, ds1)
 
@@ -1426,8 +1393,8 @@ class TestController:
         # Run cleanup on temp file
         controller.cleanup_temp_file()
 
-    def test_downloaded_dataset_ownership(self):
-        """Replaced subsets close, the kept subset survives example loads."""
+    def test_own_climate_ownership(self):
+        """Replaced own datasets close, while kept ones survive loading other data."""
         closed = []
 
         def tracked(label):
@@ -1436,42 +1403,55 @@ class TestController:
             return dataset
 
         controller = app_classes_methods.Controller(enable_climate_download=True)
+        selector = controller.param.clim_data_option
         try:
             with pytest.raises(ValueError, match="nonempty time"):
-                controller._use_downloaded_climate(
+                controller._use_retrieved_climate(
                     tracked("invalid").isel(time=[]), "empty"
                 )
-            assert controller._downloaded_climate is None
+            assert controller._own_climate == {}
             assert controller.clim_data_option == "Example dataset"
+            assert selector.precedence == -1
 
             first, second = tracked("first"), tracked("second")
-            controller._use_downloaded_climate(first, "first")
-            controller._use_downloaded_climate(second, "second")
+            controller._use_retrieved_climate(first, "first")
+            controller._use_retrieved_climate(second, "second")
             assert closed == ["first"]
             assert controller._ds_clim is second
+            assert selector.precedence == 1
 
             controller.clim_data_option = "Example dataset"
             controller._set_climate_dataset(tracked("example"))
-            assert closed == ["first"]  # the downloaded subset stays available
-            controller.clim_data_option = "Downloaded dataset"
+            assert closed == ["first"]  # the retrieved subset stays available
+            controller._load_uploaded_climate(lambda: tracked("upload"), "upload.nc")
+            assert closed == ["first", "example"]
+            assert selector.objects == [
+                "Example dataset",
+                "Retrieved subset",
+                "Uploaded data",
+            ]
+            assert controller.clim_data_status == "Data loaded: upload.nc"
+
+            controller.clim_data_option = "Retrieved subset"
             controller.param.trigger("clim_data_load_initiator")
             assert controller._ds_clim is second
-            assert closed == ["first", "example"]
+            assert controller.clim_data_status == "Data loaded: second"
+            assert closed == ["first", "example"]  # the upload stays available
         finally:
             controller.cleanup_temp_file()
-        assert closed == ["first", "example", "second"]
+        assert sorted(closed) == ["example", "first", "second", "upload"]
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     def test_use_yearly_download(self, mock_get_example_model):
-        """An adopted yearly subset can run a model with its supported output."""
+        """A retrieved yearly subset can run a model with its supported output."""
         mock_get_example_model.return_value = epimod.SuitabilityModel(
             temperature_range=(-5, 55)
         )
         dataset = generate_dataset(data_var="temperature", frequency="yearly")
         controller = app_classes_methods.Controller(enable_climate_download=True)
         try:
-            controller._use_downloaded_climate(dataset, "LENS2 subset")
-            assert controller.clim_data_option == "Downloaded dataset"
+            controller._use_retrieved_climate(dataset, "LENS2 subset")
+            assert controller.clim_data_option == "Retrieved subset"
             assert controller.clim_data_status == "Data loaded: LENS2 subset"
             assert controller.clim_plot_controller._ds_base is dataset
             assert controller.epi_output_choice == "Suitability values"
@@ -1561,8 +1541,7 @@ class TestController:
         The method is triggered by changing the 'clim_example_name' parameter.
         """
         controller = app_classes_methods.Controller(
-            clim_dataset_example_names=["data1", "data2"],
-            enable_custom_clim_dataset=True,
+            clim_dataset_example_names=["data1", "data2"]
         )
         assert controller.clim_example_doc == "doc1"
         assert controller.param.clim_example_name.precedence == 1
@@ -1577,8 +1556,11 @@ class TestController:
         assert controller.clim_example_doc == ""
         assert controller.param.clim_example_name.precedence == 1
         assert controller.param.clim_example_doc.precedence == 1
-        # Change to custom dataset
-        controller.clim_data_option = "Custom dataset"
+        # Change to retrieved data
+        controller._use_retrieved_climate(
+            generate_dataset(data_var="temperature", frequency="monthly"), "subset"
+        )
+        assert controller.clim_data_option == "Retrieved subset"
         assert controller.param.clim_example_name.precedence == -1
         assert controller.param.clim_example_doc.precedence == -1
         # Change back to example dataset
@@ -1587,14 +1569,7 @@ class TestController:
         assert controller.clim_example_doc == ""
         assert controller.param.clim_example_name.precedence == 1
         assert controller.param.clim_example_doc.precedence == 1
-        # Change to unsupported option (n.b. maybe this catch not needed as param
-        # already notices when we try to change clim_data_option to an unsupported
-        # value)
-        controller.param.clim_data_option.objects.append("Short of a length")
-        with pytest.raises(
-            ValueError, match="Unrecognised climate data option: Short of a length"
-        ):
-            controller.clim_data_option = "Short of a length"
+        controller.cleanup_temp_file()
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     @patch.dict(
@@ -1764,26 +1739,6 @@ class TestController:
         assert not controller._ds_epi_path.parent.exists()
 
 
-def test_load_clim_data_func_missing_inputs():
-    """Test that _load_clim_data_func explains missing inputs and closes on error."""
-    with pytest.raises(ValueError, match="Select an example"):
-        app_classes_methods._load_clim_data_func("Example dataset")
-    with pytest.raises(ValueError, match="Configure a directory"):
-        app_classes_methods._load_clim_data_func("Custom dataset")
-    ds = generate_dataset(data_var="temperature", frequency="monthly")
-    closed = []
-    ds.set_close(lambda: closed.append(True))
-    with (
-        patch.object(app_classes_methods.xr, "open_mfdataset", return_value=ds),
-        patch.object(xr.DataArray, "load", side_effect=OSError("unreadable")),
-        pytest.raises(OSError, match="unreadable"),
-    ):
-        app_classes_methods._load_clim_data_func(
-            "Custom dataset", custom_clim_data_dir="d"
-        )
-    assert closed == [True]
-
-
 def test_get_scope_dict_unusable_data():
     """Test that _get_scope_dict rejects data the app cannot plot."""
     ds = generate_dataset(data_var="temperature", frequency="monthly")
@@ -1903,7 +1858,9 @@ def test_controller_results_in_server(
         # A subset cannot replace the data while an operation is running.
         controller.param.trigger("epi_model_run_initiator")
         with pytest.raises(ValueError, match="Wait for the current operation"):
-            controller._use_downloaded_climate(controller._ds_clim, "subset")
+            controller._use_retrieved_climate(controller._ds_clim, "subset")
+        with pytest.raises(ValueError, match="Wait for the current operation"):
+            controller._load_uploaded_climate(lambda: controller._ds_clim, "upload")
         # A model result for previous settings is discarded.
         controller.epi_output_choice = "Suitability values"
         server_document.tick()

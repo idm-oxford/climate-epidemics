@@ -10,7 +10,7 @@ locally is contained in the ``app`` subpackage:
 
     from climepi import app
 
-    app.run_app(enable_climate_download=True)
+    app.run_app(enable_climate_download=True, enable_climate_upload=True)
 
 The example datasets include ``era5_london_2020_daily`` for daily ERA5 temperature
 and precipitation at one grid point in London in 2020.
@@ -30,7 +30,16 @@ realizations where applicable. Use **Download NetCDF** to save the subset, or **
 dataset in app** to plot it and run a model. When a place name is searched for, the
 app shows the address found so that you can check it is the intended place.
 Some requests can take several minutes and GLENS may need to download full source
-files before subsetting. The hosted app offers the example datasets.
+files before subsetting. If ISIMIP is still preparing a subset, the app links to the
+ISIMIP job so that you can check its progress and retrieve the same selection later.
+
+Select **Upload climate data** to use your own NetCDF files, or a folder of them, such
+as a subset saved earlier with **Download NetCDF**. Several files are combined into one
+dataset by their coordinates, for example one file per variable or period. The data
+need time, latitude and longitude coordinates. Uploaded files are copied to a temporary
+folder on the machine running the app and deleted when the session ends. Retrieved and
+uploaded data stay available under **Climate data option** for the rest of the session.
+The hosted app offers the example datasets.
 
 The application uses `Dask <https://docs.dask.org/en/latest/>`_ to lazily operate on
 climate data and parallelize computations. By default, the application will use the

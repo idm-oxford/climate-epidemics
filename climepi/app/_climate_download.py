@@ -16,7 +16,13 @@ import tornado.web
 import xarray as xr
 
 from climepi._geocoding import geocode
-from climepi.app._app_ui import CONTROL_HELP, StatusMessage
+from climepi.app._app_ui import (
+    CONTROL_HELP,
+    MODAL_CSS,
+    OUTLINE_ACTION_CSS,
+    StatusMessage,
+)
+from climepi.app._climate_upload import open_netcdf
 from climepi.climdata import _base
 from climepi.climdata._data_getter_class import ClimateDataGetter, SubsetPartial
 from climepi.climdata._isimip import SubsetPendingError
@@ -33,17 +39,6 @@ _GEOMETRIES = {
     "Point by place name": "place",
     "Bounding box": "box",
 }
-_MODAL_STYLE = """
-.dialog-overlay { background: rgb(10 36 75 / 62%); }
-.dialog-content {
-    width: min(42rem, calc(100vw - 1.5rem));
-    max-height: calc(100dvh - 1.5rem);
-    padding: 1rem clamp(0.5rem, 3vw, 1.5rem);
-    border-radius: 12px;
-    color: var(--climepi-ink, #102e55);
-    box-shadow: 0 12px 48px rgb(10 36 75 / 35%);
-}
-"""
 _MEMBER_CHOICES_CSS = """
 .bk-input-group.bk-inline {
     flex-wrap: wrap;
@@ -54,21 +49,6 @@ _MEMBER_CHOICES_CSS = """
     min-width: 2.4rem;
 }
 .bk-input-group.bk-inline > *:not(:first-child) { margin-left: 0; }
-"""
-_DOWNLOAD_LINK_CSS = """
-a {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.375rem 0.75rem;
-    border: 1px solid var(--design-primary-color, #1759a6);
-    border-radius: 0.375rem;
-    color: var(--design-primary-color, #1759a6);
-    font-size: 0.875rem;
-    text-decoration: none;
-}
-a:hover { background: var(--design-primary-color, #1759a6); color: #fff; }
-a:focus-visible { outline: 2px solid var(--design-primary-color, #1759a6); }
 """
 _DOWNLOAD_ICON = (
     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -280,24 +260,9 @@ class _Download:
         self._update(users=-1)
 
     def open_dataset(self) -> xr.Dataset:
-        source = xr.open_dataset(self.path, chunks={})
-        try:
-            if "time_bnds" in source:
-                source.time_bnds.load()
-            dataset = source.copy(deep=False)
-        except BaseException:
-            source.close()
-            raise
+        """Open the file lazily, keeping it until the dataset is closed."""
+        dataset = open_netcdf([self.path], on_close=self.release)
         self._update(users=1)
-
-        def close() -> None:
-            try:
-                source.close()
-            finally:
-                self.release()
-
-        # xarray runs this at most once per dataset.
-        dataset.set_close(close)
         return dataset
 
     def retire(self) -> None:
@@ -479,7 +444,7 @@ class ClimateDownload:
         # A link to DownloadHandler streams the file, where Panel's FileDownload
         # would send it through the session's websocket and keep it in memory.
         self._download = pn.pane.HTML(
-            "", margin=(5, 5), stylesheets=[_DOWNLOAD_LINK_CSS]
+            "", margin=(5, 5), stylesheets=[OUTLINE_ACTION_CSS]
         )
         self._use = pn.widgets.Button(
             label="Use dataset in app",
@@ -520,9 +485,7 @@ class ClimateDownload:
             ),
             sizing_mode="stretch_width",
         )
-        self.modal = pn.Modal(
-            content, background_close=False, stylesheets=[_MODAL_STYLE]
-        )
+        self.modal = pn.Modal(content, background_close=False, stylesheets=[MODAL_CSS])
         self.button = self.modal.create_button(
             "show",
             label="Choose climate subset",

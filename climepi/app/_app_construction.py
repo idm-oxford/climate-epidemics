@@ -15,19 +15,19 @@ from dask.distributed import Client
 from climepi.app._app_classes_methods import Controller
 from climepi.app._app_ui import TAB_CSS, TEMPLATE_CSS, model_workspace, plot_workspace
 from climepi.app._climate_download import DOWNLOAD_ROUTE, DownloadHandler
+from climepi.app._climate_upload import UPLOAD_ROUTE, UploadHandler
 from climepi.app._dask_port_address import DASK_SCHEDULER_ADDRESS
 
 
 def run_app(
     clim_dataset_example_base_dir: str | os.PathLike | None = None,
     clim_dataset_example_names: list[str] | None = None,
-    enable_custom_clim_dataset: bool = False,
-    custom_clim_data_dir: str | os.PathLike | None = None,
     epi_model_example_names: list[str] | None = None,
     enable_custom_epi_model: bool = True,
     dask_distributed: bool = False,
     *,
     enable_climate_download: bool = False,
+    enable_climate_upload: bool = False,
     **kwargs: Any,
 ) -> pn.io.server.Server | pn.io.threads.StoppableThread:
     """
@@ -41,14 +41,6 @@ def run_app(
     clim_dataset_example_names: list of str
         List of example names for climate datasets, optional. If None, the default list
         in ``climdata.EXAMPLE_NAMES`` is used.
-    enable_custom_clim_dataset: bool
-        Whether to enable the option to load a custom climate dataset. Default is
-        ``False``. If ``True``, :func:`xarray.open_mfdataset()` will be called on all
-        netCDF files in the directory specified by ``custom_clim_data_dir`` if the
-        loading of custom data is triggered.
-    custom_clim_data_dir: str or pathlib.Path
-        Directory containing the custom climate dataset. Must be specified if
-        ``enable_custom_clim_dataset`` is ``True``.
     epi_model_example_names: list of str
         List of example names for epidemiological models, optional. If None, the default
         list in ``epimod.EXAMPLE_NAMES`` is used.
@@ -64,6 +56,11 @@ def run_app(
     enable_climate_download: bool
         Enable custom climate subsets and NetCDF downloads. Intended for local use.
         The command-line launcher enables this option automatically.
+    enable_climate_upload: bool
+        Enable uploading NetCDF files, or a folder of them, to use as climate data.
+        Uploads are copied to a temporary folder on the machine running the app until
+        the session ends. Intended for local use. The command-line launcher enables
+        this option automatically.
     **kwargs
         Additional keyword arguments to pass to :func:`panel.serve()`.
 
@@ -81,22 +78,29 @@ def run_app(
         return _session(
             clim_dataset_example_base_dir=clim_dataset_example_base_dir,
             clim_dataset_example_names=clim_dataset_example_names,
-            enable_custom_clim_dataset=enable_custom_clim_dataset,
-            custom_clim_data_dir=custom_clim_data_dir,
             epi_model_example_names=epi_model_example_names,
             enable_custom_epi_model=enable_custom_epi_model,
             enable_climate_download=enable_climate_download,
+            enable_climate_upload=enable_climate_upload,
         )
 
     start = kwargs.get("start", True)
     threaded = kwargs.get("threaded", False)
 
     kwargs_serve = kwargs.copy()
-    if enable_climate_download:
-        # Serve retrieved subsets over HTTP, which streams large files.
+    # Transfer climate data files over HTTP, which streams large files.
+    routes = [
+        (rf"/{route}/([\w-]+)", handler)
+        for route, handler, enabled in (
+            (DOWNLOAD_ROUTE, DownloadHandler, enable_climate_download),
+            (UPLOAD_ROUTE, UploadHandler, enable_climate_upload),
+        )
+        if enabled
+    ]
+    if routes:
         kwargs_serve["extra_patterns"] = [
             *kwargs_serve.get("extra_patterns", []),
-            (rf"/{DOWNLOAD_ROUTE}/([\w-]+)", DownloadHandler),
+            *routes,
         ]
     if threaded:
         kwargs_serve.pop("start", None)  # remove start from kwargs
@@ -164,21 +168,19 @@ def _session(
     *,
     clim_dataset_example_base_dir: str | os.PathLike | None,
     clim_dataset_example_names: list[str] | None,
-    enable_custom_clim_dataset: bool,
-    custom_clim_data_dir: str | os.PathLike | None,
     epi_model_example_names: list[str] | None,
     enable_custom_epi_model: bool,
     enable_climate_download: bool = False,
+    enable_climate_upload: bool = False,
 ):
     get_logger(name="session").info("Session created")
     template, controller = _layout(
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
-        enable_custom_clim_dataset=enable_custom_clim_dataset,
-        custom_clim_data_dir=custom_clim_data_dir,
         epi_model_example_names=epi_model_example_names,
         enable_custom_epi_model=enable_custom_epi_model,
         enable_climate_download=enable_climate_download,
+        enable_climate_upload=enable_climate_upload,
     )
 
     assert pn.state.curdoc is not None
@@ -197,11 +199,10 @@ def _layout(
     *,
     clim_dataset_example_base_dir: str | os.PathLike | None,
     clim_dataset_example_names: list[str] | None,
-    enable_custom_clim_dataset: bool,
-    custom_clim_data_dir: str | os.PathLike | None,
     epi_model_example_names: list[str] | None,
     enable_custom_epi_model: bool,
     enable_climate_download: bool = False,
+    enable_climate_upload: bool = False,
 ):
     template = pn.template.BootstrapTemplate(
         title="climepi app",
@@ -215,11 +216,10 @@ def _layout(
     controller = Controller(
         clim_dataset_example_base_dir=clim_dataset_example_base_dir,
         clim_dataset_example_names=clim_dataset_example_names,
-        enable_custom_clim_dataset=enable_custom_clim_dataset,
-        custom_clim_data_dir=custom_clim_data_dir,
         epi_model_example_names=epi_model_example_names,
         enable_custom_epi_model=enable_custom_epi_model,
         enable_climate_download=enable_climate_download,
+        enable_climate_upload=enable_climate_upload,
     )
 
     assert template.sidebar is not None
@@ -232,9 +232,7 @@ def _layout(
                 "Climate data",
                 plot_workspace(
                     controller.clim_plot_controller,
-                    "Load an example dataset or use a climate subset."
-                    if enable_climate_download
-                    else "Choose a climate dataset and select **Load data**.",
+                    _climate_prompt(enable_climate_download, enable_climate_upload),
                 ),
             ),
             (
@@ -253,10 +251,23 @@ def _layout(
             stylesheets=[TAB_CSS],
         )
     )
-    if controller.climate_download is not None:
-        template.main.append(controller.climate_download.modal)
+    for dialog in (controller.climate_download, controller.climate_upload):
+        if dialog is not None:
+            template.main.append(dialog.modal)
 
     return template, controller
+
+
+def _climate_prompt(enable_climate_download: bool, enable_climate_upload: bool) -> str:
+    # Instructions shown until a climate dataset is loaded.
+    sources = ["Load an example dataset"]
+    if enable_climate_download:
+        sources.append("retrieve a climate subset")
+    if enable_climate_upload:
+        sources.append("upload your own data")
+    if len(sources) == 1:
+        return "Choose a climate dataset and select **Load data**."
+    return ", ".join(sources[:-1]) + f" or {sources[-1]}."
 
 
 def _cleanup_session(session_id: str) -> None:

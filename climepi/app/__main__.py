@@ -16,4 +16,8 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-run_app(dask_distributed=args.dask_distributed, enable_climate_download=True)
+run_app(
+    dask_distributed=args.dask_distributed,
+    enable_climate_download=True,
+    enable_climate_upload=True,
+)

@@ -83,6 +83,44 @@ LINK_CSS = """
     }
 """
 
+# Dialogs opened from the sidebar.
+MODAL_CSS = """
+.dialog-overlay { background: rgb(10 36 75 / 62%); }
+.dialog-content {
+    width: min(42rem, calc(100vw - 1.5rem));
+    max-height: calc(100dvh - 1.5rem);
+    padding: 1rem clamp(0.5rem, 3vw, 1.5rem);
+    border-radius: 12px;
+    color: var(--climepi-ink, #102e55);
+    box-shadow: 0 12px 48px rgb(10 36 75 / 35%);
+}
+"""
+# Links and buttons drawn in HTML, matching Panel's outline primary buttons.
+OUTLINE_ACTION_CSS = """
+a, button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--design-primary-color, #1759a6);
+    border-radius: 0.375rem;
+    background: transparent;
+    color: var(--design-primary-color, #1759a6);
+    font: inherit;
+    font-size: 0.875rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+a:hover, button:enabled:hover {
+    background: var(--design-primary-color, #1759a6);
+    color: #fff;
+}
+a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--design-primary-color, #1759a6);
+}
+button:disabled { cursor: default; opacity: 0.6; }
+"""
+
 _URL = re.compile(r"https?://[^\s<>]+")
 
 
