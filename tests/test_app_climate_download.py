@@ -1,4 +1,4 @@
-"""Regression tests for choosing, retrieving and using a climate subset."""
+"""Regression tests for choosing, retrieving and using online climate data."""
 
 import asyncio
 import threading
@@ -162,7 +162,7 @@ def test_retrieve_named_subset_and_keep_adopted_file(dialog, monkeypatch):
 
     _run_async(retrieve())
     # The address found is shown so the user can check it is the intended place.
-    assert dialog._status.value == f"Climate subset ready. Location found: {address}."
+    assert dialog._status.value == f"Climate data ready. Location found: {address}."
     assert not dialog._prepare.disabled
     assert captured["locations"] == ["Point"]
     assert captured["lats"] == [51.75]
@@ -211,7 +211,7 @@ def test_retry_after_provider_failure_and_retire_unused_subset(dialog, monkeypat
 
     monkeypatch.setattr(download._base.ISIMIPDataGetter, "get_data", successful_retry)
     _run_async(dialog._retrieve())
-    assert dialog._status.value == "Climate subset ready."
+    assert dialog._status.value == "Climate data ready."
     assert dialog._result is not None
     path = dialog._result.path
 
@@ -220,7 +220,7 @@ def test_retry_after_provider_failure_and_retire_unused_subset(dialog, monkeypat
 
     dialog._on_loaded = reject
     dialog._use_result()
-    assert "Could not load this subset" in dialog._status.value
+    assert "Could not load these data" in dialog._status.value
     dialog.close()
     assert not path.parent.exists()
 
@@ -290,7 +290,7 @@ def test_use_result_explains_rejected_subset(dialog, monkeypatch):
     dialog._on_loaded = busy
     dialog._use_result()
     assert dialog._status.value == (
-        "Could not use this subset in the app: "
+        "Could not use these data in the app: "
         "Wait for the current operation to finish and try again."
     )
     dialog.close()

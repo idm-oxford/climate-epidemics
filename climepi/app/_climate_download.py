@@ -1,4 +1,4 @@
-"""Climate subset selection and NetCDF export for local app sessions."""
+"""Climate data retrieval and NetCDF export for local app sessions."""
 
 import asyncio
 import logging
@@ -16,13 +16,8 @@ import tornado.web
 import xarray as xr
 
 from climepi._geocoding import geocode
-from climepi.app._app_ui import (
-    CONTROL_HELP,
-    MODAL_CSS,
-    OUTLINE_ACTION_CSS,
-    StatusMessage,
-)
-from climepi.app._climate_upload import open_netcdf
+from climepi.app._app_ui import CONTROL_HELP, MODAL_CSS, StatusMessage
+from climepi.app._local_files import open_netcdf
 from climepi.climdata import _base
 from climepi.climdata._data_getter_class import ClimateDataGetter, SubsetPartial
 from climepi.climdata._isimip import SubsetPendingError
@@ -49,6 +44,21 @@ _MEMBER_CHOICES_CSS = """
     min-width: 2.4rem;
 }
 .bk-input-group.bk-inline > *:not(:first-child) { margin-left: 0; }
+"""
+_DOWNLOAD_LINK_CSS = """
+a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--design-primary-color, #1759a6);
+    border-radius: 0.375rem;
+    color: var(--design-primary-color, #1759a6);
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+a:hover { background: var(--design-primary-color, #1759a6); color: #fff; }
+a:focus-visible { outline: 2px solid var(--design-primary-color, #1759a6); }
 """
 _DOWNLOAD_ICON = (
     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -436,7 +446,7 @@ class ClimateDownload:
         )
         self._filename = pn.pane.Markdown("", margin=(5, 5, 0, 5), styles=CONTROL_HELP)
         self._prepare = pn.widgets.Button(
-            label="Retrieve subset",
+            label="Retrieve data",
             color="primary",
             icon="cloud-download",
             on_click=self._retrieve,
@@ -444,7 +454,7 @@ class ClimateDownload:
         # A link to DownloadHandler streams the file, where Panel's FileDownload
         # would send it through the session's websocket and keep it in memory.
         self._download = pn.pane.HTML(
-            "", margin=(5, 5), stylesheets=[OUTLINE_ACTION_CSS]
+            "", margin=(5, 5), stylesheets=[_DOWNLOAD_LINK_CSS]
         )
         self._use = pn.widgets.Button(
             label="Use dataset in app",
@@ -459,7 +469,7 @@ class ClimateDownload:
             sizing_mode="stretch_width",
         )
         content = pn.Column(
-            pn.pane.Markdown("## Choose climate data"),
+            pn.pane.Markdown("## Retrieve online data"),
             pn.pane.Markdown("Select a period and an area to retrieve a NetCDF file."),
             _row(self._source, self._frequency),
             self._source_info,
@@ -488,10 +498,10 @@ class ClimateDownload:
         self.modal = pn.Modal(content, background_close=False, stylesheets=[MODAL_CSS])
         self.button = self.modal.create_button(
             "show",
-            label="Choose climate subset",
+            label="Retrieve online data",
             color="primary",
             variant="outline",
-            icon="adjustments",
+            icon="cloud-download",
             margin=(6, 0),
             sizing_mode="stretch_width",
         )
@@ -647,14 +657,14 @@ class ClimateDownload:
             self._filename.object = result.name
             self._actions.visible = True
             found = f" Location found: {result.address}." if result.address else ""
-            self._set_status(f"Climate subset ready.{found}", "success")
+            self._set_status(f"Climate data ready.{found}", "success")
         except _SubsetUnavailable as exc:
             if not self._closed:
                 self._set_status(str(exc), "warning")
         except SubsetPendingError as exc:
             if not self._closed:
                 self._set_status(
-                    "The source is still preparing this subset. Select Retrieve subset "
+                    "The source is still preparing these data. Select Retrieve data "
                     "again once it has finished. Check progress at:\n"
                     + "\n".join(exc.job_urls),
                     "warning",
@@ -682,12 +692,12 @@ class ClimateDownload:
             # A busy session, or data the app cannot plot; the message says which.
             if dataset is not None:
                 dataset.close()
-            self._set_status(f"Could not use this subset in the app: {exc}", "warning")
+            self._set_status(f"Could not use these data in the app: {exc}", "warning")
         except Exception:
             if dataset is not None:
                 dataset.close()
-            _LOG.exception("Could not load the climate subset into the app")
-            self._set_status("Could not load this subset into the app.", "danger")
+            _LOG.exception("Could not load retrieved climate data into the app")
+            self._set_status("Could not load these data into the app.", "danger")
         else:
             self.modal.hide()
 

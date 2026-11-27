@@ -946,7 +946,7 @@ class TestController:
             epi_model_example_names=["model1", "model2"],
             enable_custom_epi_model=True,
             enable_climate_download=True,
-            enable_climate_upload=True,
+            enable_local_files=True,
         )
         for attr, value in [
             ("clim_data_option", "Example dataset"),
@@ -972,7 +972,7 @@ class TestController:
                 f"Unexpected value for {attr}: expected {value}, "
                 f"got {getattr(controller, attr)}"
             )
-        # The option selector appears once retrieved or uploaded data are kept.
+        # The option selector appears once retrieved or local data are kept.
         assert controller.param.clim_data_option.objects == ["Example dataset"]
         assert controller.param.clim_data_option.precedence == -1
         assert controller._ds_epi_path.parents[1] == pathlib.Path(tempfile.gettempdir())
@@ -992,17 +992,16 @@ class TestController:
         assert len(controller.data_controls) == 2
         climate_section = list(controller.data_controls[0])
         assert controller.climate_download is not None
-        assert controller.climate_upload is not None
+        assert controller.local_files is not None
         assert climate_section.index(controller.climate_download.button) + 1 == (
-            climate_section.index(controller.climate_upload.button)
+            climate_section.index(controller.local_files.button)
         )
-        # Uploads cannot start while another operation uses the data.
-        assert not controller.climate_upload._picker.disabled
+        # Files cannot be chosen while another operation uses the data.
+        assert not controller.local_files._choose_files_button.disabled
         controller._task.busy = True
-        assert controller.climate_upload._picker.disabled
+        assert controller.local_files._choose_files_button.disabled
         controller._task.busy = False
         controller.cleanup_temp_file()
-        assert not controller.climate_upload._folder.path.exists()
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     @patch.dict(
@@ -1150,12 +1149,12 @@ class TestController:
         assert not controller.clim_plot_controller.plot_generated
         assert not controller.epi_plot_controller.plot_generated
 
-        # Test loading uploaded data
+        # Test loading local files
 
-        controller._load_uploaded_climate(lambda: ds1, "upload.nc")
-        assert controller.clim_data_option == "Uploaded data"
+        controller._load_local_climate(lambda: ds1, "local.nc")
+        assert controller.clim_data_option == "Local files"
         assert controller.clim_data_loaded
-        assert controller.clim_data_status == "Data loaded: upload.nc"
+        assert controller.clim_data_status == "Data loaded: local.nc"
         xrt.assert_identical(controller._ds_clim, ds1)
         xrt.assert_identical(controller.clim_plot_controller._ds_base, ds1)
 
@@ -1422,24 +1421,24 @@ class TestController:
 
             controller.clim_data_option = "Example dataset"
             controller._set_climate_dataset(tracked("example"))
-            assert closed == ["first"]  # the retrieved subset stays available
-            controller._load_uploaded_climate(lambda: tracked("upload"), "upload.nc")
+            assert closed == ["first"]  # the retrieved data stay available
+            controller._load_local_climate(lambda: tracked("local"), "local.nc")
             assert closed == ["first", "example"]
             assert selector.objects == [
                 "Example dataset",
-                "Retrieved subset",
-                "Uploaded data",
+                "Retrieved data",
+                "Local files",
             ]
-            assert controller.clim_data_status == "Data loaded: upload.nc"
+            assert controller.clim_data_status == "Data loaded: local.nc"
 
-            controller.clim_data_option = "Retrieved subset"
+            controller.clim_data_option = "Retrieved data"
             controller.param.trigger("clim_data_load_initiator")
             assert controller._ds_clim is second
             assert controller.clim_data_status == "Data loaded: second"
-            assert closed == ["first", "example"]  # the upload stays available
+            assert closed == ["first", "example"]  # the local data stay available
         finally:
             controller.cleanup_temp_file()
-        assert sorted(closed) == ["example", "first", "second", "upload"]
+        assert sorted(closed) == ["example", "first", "local", "second"]
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     def test_use_yearly_download(self, mock_get_example_model):
@@ -1451,7 +1450,7 @@ class TestController:
         controller = app_classes_methods.Controller(enable_climate_download=True)
         try:
             controller._use_retrieved_climate(dataset, "LENS2 subset")
-            assert controller.clim_data_option == "Retrieved subset"
+            assert controller.clim_data_option == "Retrieved data"
             assert controller.clim_data_status == "Data loaded: LENS2 subset"
             assert controller.clim_plot_controller._ds_base is dataset
             assert controller.epi_output_choice == "Suitability values"
@@ -1560,7 +1559,7 @@ class TestController:
         controller._use_retrieved_climate(
             generate_dataset(data_var="temperature", frequency="monthly"), "subset"
         )
-        assert controller.clim_data_option == "Retrieved subset"
+        assert controller.clim_data_option == "Retrieved data"
         assert controller.param.clim_example_name.precedence == -1
         assert controller.param.clim_example_doc.precedence == -1
         # Change back to example dataset
@@ -1860,7 +1859,7 @@ def test_controller_results_in_server(
         with pytest.raises(ValueError, match="Wait for the current operation"):
             controller._use_retrieved_climate(controller._ds_clim, "subset")
         with pytest.raises(ValueError, match="Wait for the current operation"):
-            controller._load_uploaded_climate(lambda: controller._ds_clim, "upload")
+            controller._load_local_climate(lambda: controller._ds_clim, "local")
         # A model result for previous settings is discarded.
         controller.epi_output_choice = "Suitability values"
         server_document.tick()

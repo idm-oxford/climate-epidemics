@@ -20,7 +20,7 @@ from climepi import climdata, epimod
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import _infer_freq
 from climepi.app._climate_download import ClimateDownload
-from climepi.app._climate_upload import ClimateUpload
+from climepi.app._local_files import LocalFiles
 from climepi.app._app_ui import (
     CONTROL_HELP,
     LINK_CSS,
@@ -35,9 +35,9 @@ from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
 _EXAMPLE_LOAD_LOCK = Lock()
 _EXAMPLE_DATA = "Example dataset"
-# Options added once the user retrieves or uploads climate data.
-_RETRIEVED_DATA = "Retrieved subset"
-_UPLOADED_DATA = "Uploaded data"
+# Options added once the user retrieves climate data or opens local files.
+_RETRIEVED_DATA = "Retrieved data"
+_LOCAL_DATA = "Local files"
 _YEARLY_PORTION = "Suitable portion of each year"
 _SUITABILITY = "Suitability values"
 # A cubic fit needs more than four observations to estimate residual variance.
@@ -691,7 +691,7 @@ class Controller(param.Parameterized):
         epi_model_example_names: list[str] | None = None,
         enable_custom_epi_model: bool = True,
         enable_climate_download: bool = False,
-        enable_climate_upload: bool = False,
+        enable_local_files: bool = False,
         **params: Any,
     ) -> None:
         self._task = SessionTask()
@@ -716,7 +716,7 @@ class Controller(param.Parameterized):
         self._update_epi_example_doc()
         self._clim_dataset_example_base_dir = clim_dataset_example_base_dir
         self._ds_clim: xr.Dataset | None = None
-        # Retrieved or uploaded datasets and their names, by climate data option.
+        # Retrieved or local datasets and their names, by climate data option.
         self._own_climate: dict[str, tuple[xr.Dataset, str]] = {}
         self._epi_model: epimod.SuitabilityModel | None = None
         self._ds_epi: xr.Dataset | None = None
@@ -725,10 +725,10 @@ class Controller(param.Parameterized):
         self.climate_download: ClimateDownload | None = None
         if enable_climate_download:
             self.climate_download = ClimateDownload(self._use_retrieved_climate)
-        self.climate_upload: ClimateUpload | None = None
-        if enable_climate_upload:
-            self.climate_upload = ClimateUpload(
-                self._load_uploaded_climate, busy=self._task.param.busy
+        self.local_files: LocalFiles | None = None
+        if enable_local_files:
+            self.local_files = LocalFiles(
+                self._load_local_climate, busy=self._task.param.busy
             )
         self._load_button = pn.widgets.Button(
             label="Load data",
@@ -770,7 +770,7 @@ class Controller(param.Parameterized):
         )
         dialogs = [
             dialog
-            for dialog in (self.climate_download, self.climate_upload)
+            for dialog in (self.climate_download, self.local_files)
             if dialog is not None
         ]
         if dialogs:
@@ -845,7 +845,7 @@ class Controller(param.Parameterized):
         keep_as: str | None = None,
     ) -> None:
         # Open climate data on a worker thread, then use it unless the selection
-        # changed meanwhile. Retrieved or uploaded data are kept under their option.
+        # changed meanwhile. Local data are kept under their option.
         revision = self._clim_revision
         self.clim_data_status = "Loading data..."
 
@@ -894,12 +894,12 @@ class Controller(param.Parameterized):
         self._set_climate_dataset(dataset, name=name)
         self._keep_own_climate(_RETRIEVED_DATA, dataset, name)
 
-    def _load_uploaded_climate(
+    def _load_local_climate(
         self, open_dataset: Callable[[], xr.Dataset], name: str
     ) -> None:
         if self._task.busy:
             raise ValueError("Wait for the current operation to finish and try again.")
-        self._load_in_background(open_dataset, name=name, keep_as=_UPLOADED_DATA)
+        self._load_in_background(open_dataset, name=name, keep_as=_LOCAL_DATA)
 
     def _keep_own_climate(self, option: str, dataset: xr.Dataset, name: str) -> None:
         # Offer the dataset in use as a climate data option, replacing an earlier one.
@@ -917,7 +917,7 @@ class Controller(param.Parameterized):
         self.clim_data_loaded = True
 
     def _close_if_unused(self, dataset: xr.Dataset | None) -> None:
-        # Retrieved and uploaded datasets stay open so they can be selected again.
+        # Retrieved and local datasets stay open so they can be selected again.
         kept = [self._ds_clim, *(own for own, _ in self._own_climate.values())]
         if dataset is not None and all(dataset is not other for other in kept):
             dataset.close()
@@ -1121,7 +1121,4 @@ class Controller(param.Parameterized):
                 if dataset is not None:
                     dataset.close()
         finally:
-            # Uploads are removed once the datasets reading them are closed.
-            if self.climate_upload is not None:
-                self.climate_upload.close()
             self._temp_dir.cleanup()

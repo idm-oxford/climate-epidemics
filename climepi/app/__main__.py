@@ -19,5 +19,5 @@ args = parser.parse_args()
 run_app(
     dask_distributed=args.dask_distributed,
     enable_climate_download=True,
-    enable_climate_upload=True,
+    enable_local_files=True,
 )

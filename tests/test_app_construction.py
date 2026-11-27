@@ -18,7 +18,6 @@ from playwright.sync_api import expect
 import climepi.app._app_classes_methods as app_classes_methods
 import climepi.app._app_construction as app_construction
 import climepi.app._climate_download as climate_download
-import climepi.app._climate_upload as climate_upload
 from climepi import epimod
 from climepi.testing.fixtures import generate_dataset
 
@@ -321,24 +320,14 @@ def test_run_app_opts(
 
 
 @patch("climepi.app._app_construction.pn.serve", autospec=True)
-def test_run_app_file_routes(mock_serve):
-    """Test that run_app adds the routes for the enabled file transfers."""
+def test_run_app_download_route(mock_serve):
+    """Test that run_app serves retrieved subsets when downloads are enabled."""
     server = app_construction.run_app(
-        start=False,
-        enable_climate_download=True,
-        enable_climate_upload=True,
-        extra_patterns=[("/other", None)],
+        start=False, enable_climate_download=True, extra_patterns=[("/other", None)]
     )
     assert mock_serve.call_args[1]["extra_patterns"] == [
         ("/other", None),
         (r"/climepi_download/([\w-]+)", climate_download.DownloadHandler),
-        (r"/climepi_upload/([\w-]+)", climate_upload.UploadHandler),
-    ]
-    server.stop()
-    mock_serve.reset_mock()
-    server = app_construction.run_app(start=False, enable_climate_upload=True)
-    assert mock_serve.call_args[1]["extra_patterns"] == [
-        (r"/climepi_upload/([\w-]+)", climate_upload.UploadHandler),
     ]
     server.stop()
 
@@ -405,7 +394,7 @@ def test_layout(_):
     assert isinstance(controller, app_classes_methods.Controller)
     assert template.sidebar[0] == controller.data_controls
     assert controller.climate_download is None
-    assert controller.climate_upload is None
+    assert controller.local_files is None
 
     template, controller = app_construction._layout(
         clim_dataset_example_base_dir=None,
@@ -413,38 +402,37 @@ def test_layout(_):
         epi_model_example_names=None,
         enable_custom_epi_model=True,
         enable_climate_download=True,
-        enable_climate_upload=True,
+        enable_local_files=True,
     )
     assert controller.climate_download is not None
-    assert controller.climate_upload is not None
+    assert controller.local_files is not None
     assert template.main[-2:] == [
         controller.climate_download.modal,
-        controller.climate_upload.modal,
+        controller.local_files.modal,
     ]
     controller.cleanup_temp_file()
 
 
 @pytest.mark.parametrize(
-    "download,upload,expected",
+    "download,local,expected",
     [
         (False, False, "Choose a climate dataset and select **Load data**."),
-        (True, False, "Load an example dataset or retrieve a climate subset."),
-        (False, True, "Load an example dataset or upload your own data."),
+        (True, False, "Load an example dataset or retrieve online data."),
+        (False, True, "Load an example dataset or open local files."),
         (
             True,
             True,
-            "Load an example dataset, retrieve a climate subset or upload your own "
-            "data.",
+            "Load an example dataset, retrieve online data or open local files.",
         ),
     ],
 )
-def test_climate_prompt(download, upload, expected):
+def test_climate_prompt(download, local, expected):
     """Test the instructions shown before climate data are loaded."""
-    assert app_construction._climate_prompt(download, upload) == expected
+    assert app_construction._climate_prompt(download, local) == expected
 
 
-def test_upload_climate_data(port, page, tmp_path):
-    """Test uploading a folder of NetCDF files and using it in the app."""
+def test_open_local_files(port, page, tmp_path):
+    """Test opening a folder of NetCDF files where it is saved and using it."""
     ds = generate_dataset(data_var=["temperature", "precipitation"])
     bounds = ["time_bnds", "lat_bnds", "lon_bnds"]
     folder = tmp_path / "london"
@@ -452,26 +440,30 @@ def test_upload_climate_data(port, page, tmp_path):
     ds[["temperature", *bounds]].to_netcdf(folder / "temperature.nc")
     ds[["precipitation", *bounds]].to_netcdf(folder / "precipitation.nc")
     (folder / "README.txt").write_text("Not climate data")
-    (tmp_path / "notes.txt").write_text("Not climate data")
-    with _run_threaded_app(page, port=port, enable_climate_upload=True):
+    with (
+        # The system's file dialog cannot be driven from the browser.
+        patch(
+            "climepi.app._local_files._choose_paths", return_value=[folder]
+        ) as mock_choose_paths,
+        _run_threaded_app(page, port=port, enable_local_files=True),
+    ):
         _wait_for_server_startup(port)
         page.goto(f"http://localhost:{port}/climepi_app")
-        page.get_by_role("button", name="Upload climate data").click()
-        page.locator("input[type=file]:not([webkitdirectory])").set_input_files(
-            tmp_path / "notes.txt"
-        )
-        expect(page.get_by_text("No NetCDF (.nc) files were chosen.")).to_be_visible()
-
-        page.locator("input[type=file][webkitdirectory]").set_input_files(folder)
+        page.get_by_role("button", name="Open local files").click()
+        page.get_by_role("button", name="Choose folder").click()
         expect(
             page.get_by_role("status").filter(has_text="Data loaded: london")
         ).to_be_visible()
-        expect(page.get_by_label("Climate data option")).to_have_value("Uploaded data")
+        mock_choose_paths.assert_called_once_with(True)
+        expect(page.get_by_label("Climate data option")).to_have_value("Local files")
+        expect(page.get_by_role("button", name="Choose folder")).to_be_hidden()
         controller = next(iter(pn.state.cache["controllers"].values()))
         assert set(controller._ds_clim.data_vars) >= {"temperature", "precipitation"}
-        upload_folder = controller.climate_upload._folder.path
-        assert len(list(upload_folder.iterdir())) == 2
-    assert not upload_folder.exists()
+    assert sorted(path.name for path in folder.iterdir()) == [
+        "README.txt",
+        "precipitation.nc",
+        "temperature.nc",
+    ]
 
 
 def test_mobile_layout(port, page):
