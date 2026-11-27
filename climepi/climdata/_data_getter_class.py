@@ -1,6 +1,7 @@
 import itertools
 import os
 import pathlib
+import re
 import shutil
 import tempfile
 import warnings
@@ -250,7 +251,9 @@ class ClimateDataGetter:
                 locations, scenarios, models, realizations
             ):
                 name_str_list = base_name_str_list + [
-                    location.replace(" ", "_"),
+                    # Replace spaces and characters not allowed in file names on some
+                    # platforms
+                    re.sub(r'[ <>:"/\\|?*]', "_", location),
                     scenario,
                     model,
                     f"{realization}.nc",
