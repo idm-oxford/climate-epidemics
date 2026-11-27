@@ -203,9 +203,12 @@ def get_climate_data(
             lon_range : tuple of two floats, optional
                 Longitude range for which to retrieve data. Should comprise two values
                 giving the western and eastern bounds. For example, (170, -170)
-                selects a range crossing the antimeridian. Ignored if 'locations'
-                is provided. If omitted along with 'locations', all longitudes are
-                retrieved.
+                selects a range crossing the antimeridian. Longitudes in a range
+                that crosses the edge of the data's longitude grid are returned
+                increasing from the western bound (e.g. -3 to 1 for (-3, 1), even
+                where the data use longitudes from 0 to 360). Ignored if
+                'locations' is provided. If omitted along with 'locations', all
+                longitudes are retrieved.
             lat_range : tuple of two floats, optional
                 Latitude range for which to retrieve data. Should comprise two values
                 giving the minimum and maximum latitudes. Ignored if 'locations' is
@@ -298,12 +301,18 @@ def get_climate_data_file_names(
     return file_names
 
 
-def _data_source_getters() -> dict[str, type[ClimateDataGetter]]:
+def _data_getter_classes() -> dict[str, type[ClimateDataGetter]]:
+    # Map each supported data source to its data getter class, in the order sources
+    # are presented in the app.
     return {
         "lens2": LENS2DataGetter,
         "arise": ARISEDataGetter,
         "glens": GLENSDataGetter,
         "isimip": ISIMIPDataGetter,
+        "isimip3a": ISIMIP3aDataGetter,
+        "isimip4a": ISIMIP4aDataGetter,
+        "isimip4b": ISIMIP4bDataGetter,
+        "era5": ERA5DataGetter,
     }
 
 
@@ -315,16 +324,7 @@ def _get_data_getter(
     subset_method: Literal["remote", "local"] = "remote",
     **kwargs: Any,
 ) -> ClimateDataGetter:
-    data_getter_classes: dict[str, type[ClimateDataGetter]] = {
-        "lens2": LENS2DataGetter,
-        "arise": ARISEDataGetter,
-        "glens": GLENSDataGetter,
-        "isimip": ISIMIPDataGetter,
-        "isimip3a": ISIMIP3aDataGetter,
-        "isimip4a": ISIMIP4aDataGetter,
-        "isimip4b": ISIMIP4bDataGetter,
-        "era5": ERA5DataGetter,
-    }
+    data_getter_classes = _data_getter_classes()
     if data_source not in data_getter_classes:
         raise ValueError(f"Data source '{data_source}' not supported.")
     if data_source.startswith("isimip"):

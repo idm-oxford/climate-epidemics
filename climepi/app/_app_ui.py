@@ -103,7 +103,7 @@ def linkify(text: str) -> str:
 
 
 def status_tone(message: str) -> str:
-    """Classify an operation status message for colouring."""
+    """Classify an operation status message for coloring."""
     text = message.strip().lower()
     if any(word in text for word in ("failed", "error", "need to")):
         return "danger"
@@ -230,6 +230,7 @@ class StatusMessage(pn.custom.JSComponent):
             self.param.watch(self._infer_tone, "value")
 
     def _infer_tone(self, *_events: Any) -> None:
+        # Color the message by the outcome its text describes.
         self.tone = status_tone(self.value)
 
 

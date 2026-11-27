@@ -14,6 +14,8 @@ import pydantic
 import xarray as xr
 from typing_extensions import TypedDict
 
+from climepi.climdata._utils import _drop_string_width_encodings
+
 # Cache directory for formatted data.
 CACHE_DIR = pooch.os_cache("climepi")
 
@@ -67,6 +69,8 @@ class ClimateDataGetter:
         Available years for which data can be retrieved.
     available_scenarios: list or array-like of str
         Available scenarios for which data can be retrieved.
+    optional_scenarios: list or array-like of str
+        Additional scenarios that can be requested but are not retrieved by default.
     available_models: list or array-like of str
         Available models for which data can be retrieved.
     available_realizations: list or array-like of int
@@ -132,12 +136,11 @@ class ClimateDataGetter:
     """
 
     data_source: str = ""
-    source_label: str = ""
     available_years: list[int] = []
     available_scenarios: list[str] = []
+    optional_scenarios: list[str] = []
     available_models: list[str] = []
     available_realizations: list[int] = []
-    models_by_scenario: dict[str, list[str]] = {}
     lon_res: float | None = None
     lat_res: float | None = None
     remote_open_possible = False
@@ -147,35 +150,25 @@ class ClimateDataGetter:
     _longitude_origin = 0
 
     @classmethod
-    def display_name(cls) -> str:
-        """Return the display name of the source."""
-        return cls.source_label or cls.data_source.upper()
-
-    @classmethod
-    def scenarios_for_subsetting(cls) -> list[str]:
-        """List default scenarios and optional scenarios with compatible models."""
-        extra = [
-            scenario
-            for scenario, models in cls.models_by_scenario.items()
-            if scenario not in cls.available_scenarios
-            and set(models).intersection(cls.available_models)
-        ]
-        return [*cls.available_scenarios, *extra]
-
-    @classmethod
-    def models_for_scenarios(cls, scenarios: list[str]) -> list[str]:
-        """List models available for every selected scenario."""
-        models = set(cls.available_models)
-        for scenario in scenarios:
-            if scenario in cls.models_by_scenario:
-                models.intersection_update(cls.models_by_scenario[scenario])
-        return [model for model in cls.available_models if model in models]
-
-    @classmethod
     def year_limits(
         cls, scenarios: list[str], realizations: list[int]
     ) -> tuple[int, int]:
-        """Return the inclusive years common to the specified selections."""
+        """
+        Get the first and last years available for every selected run.
+
+        Parameters
+        ----------
+        scenarios : list of str
+            Selected scenarios.
+        realizations : list of int
+            Selected realizations.
+
+        Returns
+        -------
+        tuple of int
+            First and last available years (inclusive). The first year is later than
+            the last if the selected runs share no years.
+        """
         return min(cls.available_years), max(cls.available_years)
 
     def __init__(
@@ -405,6 +398,7 @@ class ClimateDataGetter:
                 **kwargs,
             },
         )
+        _drop_string_width_encodings(ds)
         if "time_bnds" in ds:
             # Load time bounds to avoid errors saving to file (since no encoding set)
             ds.time_bnds.load()
@@ -475,6 +469,7 @@ class ClimateDataGetter:
                 **kwargs,
             },
         )
+        _drop_string_width_encodings(self._ds_temp)
         self._ds = self._ds_temp.copy()
         if "time_bnds" in self._ds:
             # Load time bounds to avoid errors saving to file (since no encoding set)
@@ -486,7 +481,7 @@ class ClimateDataGetter:
         # method can be extended (or overridden) by subclasses to include data source-
         # specific processing.
         assert self._ds is not None
-        ds_processed = self._ds.copy()
+        ds_processed = self._make_lon_contiguous(self._ds.copy())
         # Add latitude and longitude bounds (use provided resolution if available, with
         # latitude bounds clipped at the poles, else use the xcdat `add_missing_bounds`
         # method to infer bounds from the coordinate values (which is not possible for
@@ -564,6 +559,25 @@ class ClimateDataGetter:
             return origin, origin + 360
         west, east = lon_range
         return (west - origin) % 360 + origin, (east - origin) % 360 + origin
+
+    def _make_lon_contiguous(self, ds: xr.Dataset) -> xr.Dataset:
+        # A longitude range crossing the edge of the native longitudes is selected in
+        # two pieces (e.g. 0 to 1 and 357 to 360 for -3 to 1). Express its longitudes
+        # from the requested western bound so that they increase across the range.
+        lon_range = self._subset["lon_range"]
+        if self._subset["locations"] is not None or lon_range is None:
+            return ds
+        west, east = self._get_lon_range()
+        if west <= east or "lon" not in ds.dims:
+            return ds
+        lon = ds.lon.values
+        offset = (lon - lon_range[0]) % 360 + lon_range[0] - lon
+        ds = ds.assign_coords(lon=("lon", lon + offset, ds.lon.attrs))
+        if "lon_bnds" in ds:
+            ds["lon_bnds"] = (
+                ds.lon_bnds + xr.DataArray(offset, dims="lon")
+            ).assign_attrs(ds.lon_bnds.attrs)
+        return ds.sortby("lon")
 
     def _subset_grid(self, ds: xr.Dataset) -> xr.Dataset:
         # Select points or ranges while preserving the grid's coordinate order.

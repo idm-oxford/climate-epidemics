@@ -20,7 +20,12 @@ import xarray as xr
 import xarray.testing as xrt
 
 import climepi.climdata
-from climepi.climdata._isimip import ISIMIPDataGetter
+from climepi.climdata._isimip import (
+    ISIMIP3aDataGetter,
+    ISIMIP4aDataGetter,
+    ISIMIP4bDataGetter,
+    ISIMIPDataGetter,
+)
 from climepi.testing.fixtures import generate_dataset
 
 
@@ -578,13 +583,14 @@ def test_retrieval_subset_methods(
         with climepi.climdata.get_climate_data(
             source, "daily", subset, save_dir, subset_method="local"
         ) as ds:
-            assert ds.lon.values.tolist() == [-179.75, 179.75]
+            # Longitudes increase across the antimeridian from the western bound.
+            assert ds.lon.values.tolist() == [179.75, 180.25]
             assert ds.lat.values.tolist() == [0.75, 0.25]
             assert ds.scenario.values.tolist() == [scenario]
             assert ds.model.values.tolist() == [model]
             npt.assert_allclose(
                 ds.temperature.values.squeeze()[0],
-                [[4, 7], [8, 11]] - np.float64(273.15),
+                [[7, 4], [11, 8]] - np.float64(273.15),
             )
             expected = ds.load()
         with climepi.climdata.get_climate_data(
@@ -601,3 +607,15 @@ def test_retrieval_subset_methods(
         source, "daily", subset, tmp_path / "processed_remote"
     ) as remote:
         xrt.assert_identical(remote, expected)
+
+
+def test_optional_scenarios_and_year_limits():
+    """Test the optional scenarios and year limits of the ISIMIP data getters."""
+    assert ISIMIPDataGetter.optional_scenarios == ["ssp245"]
+    assert ISIMIP3aDataGetter.optional_scenarios == ["counterclim"]
+    assert ISIMIP4aDataGetter.optional_scenarios == []
+    assert ISIMIP4bDataGetter.optional_scenarios == ["esm-hist"]
+    assert ISIMIP4bDataGetter.year_limits(["esm-scen7-h"], [0]) == (2022, 2100)
+    assert ISIMIP4bDataGetter.year_limits(["esm-hist"], [0]) == (1850, 2021)
+    first, last = ISIMIP4bDataGetter.year_limits(["esm-hist", "esm-scen7-vl"], [0])
+    assert first > last

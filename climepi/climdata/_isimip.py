@@ -23,7 +23,7 @@ from climepi.climdata._utils import _standardize_names_and_units
 
 class ISIMIPDataGetter(ClimateDataGetter):
     """
-    ISIMIP3b provides bias-adjusted projections across climate models and scenarios.
+    Class for accessing and downloading ISIMIP data.
 
     Data are taken from the ISIMIP repository (https://data.isimip.org/). Terms of use
     can be found at
@@ -64,8 +64,8 @@ class ISIMIPDataGetter(ClimateDataGetter):
         "ec-earth3",
         "miroc6",
     ]
+    optional_scenarios = ["ssp245"]
     available_realizations = [0]
-    models_by_scenario = {"ssp245": available_models[:5]}
     lon_res = 0.5
     lat_res = 0.5
 
@@ -345,6 +345,7 @@ class ISIMIP3aDataGetter(ISIMIPDataGetter):
     data_source = "isimip3a"
     available_years = list(range(1901, 2020))
     available_scenarios = ["obsclim"]
+    optional_scenarios = ["counterclim"]
     available_models = ["gswp3-w5e5"]
     _simulation_round = "ISIMIP3a"
     _catalog_filters = {"product": "InputData"}
@@ -357,6 +358,7 @@ class ISIMIP4aDataGetter(ISIMIPDataGetter):
     data_source = "isimip4a"
     available_years = list(range(1901, 2026))
     available_scenarios = ["obsclim"]
+    optional_scenarios = []
     available_models = ["gswp3-era5"]
     _simulation_round = "ISIMIP4a"
     _catalog_filters = {"resolution": "30arcmin"}
@@ -369,9 +371,21 @@ class ISIMIP4bDataGetter(ISIMIPDataGetter):
     data_source = "isimip4b"
     available_years = list(range(2022, 2101))
     available_scenarios = ["esm-scen7-vl", "esm-scen7-h"]
+    optional_scenarios = ["esm-hist"]
     available_models = ["ec-earth3-esm-1-1", "ukesm1-3-ll"]
     _simulation_round = "ISIMIP4b"
     _catalog_filters = {"resolution": "30arcmin", "bias_adjustment": "era5"}
+
+    @classmethod
+    def year_limits(
+        cls, scenarios: list[str], realizations: list[int]
+    ) -> tuple[int, int]:
+        """Return the common years for the selected ISIMIP4b runs."""
+        if "esm-hist" not in scenarios:
+            return super().year_limits(scenarios, realizations)
+        # The historical scenario covers 1850 to 2021, before the future scenarios.
+        first = 1850 if set(scenarios) == {"esm-hist"} else min(cls.available_years)
+        return first, 2021
 
 
 def _request_session() -> requests.Session:

@@ -45,7 +45,7 @@ def test_linkify(text, expected):
     ],
 )
 def test_status_tone(message, tone):
-    """Operation messages are coloured by outcome."""
+    """Operation messages are colored by outcome."""
     assert app_ui.status_tone(message) == tone
 
 

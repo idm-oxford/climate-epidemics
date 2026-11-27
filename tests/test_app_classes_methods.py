@@ -66,7 +66,10 @@ def test_load_clim_data_func(mock_get_example_dataset, mock_open_mfdataset):
     mock_get_example_dataset.return_value = "mocked_example_dataset"
     mock_open_mfdataset.return_value = xr.Dataset(
         {"time_bnds": (("time", "bnds"), np.array([[0, 1, 2], [1, 2, 3]]))},
+        coords={"model": ("model", ["gfdl-esm4"])},
     ).chunk({"time": 3})
+    # Files opened together take the string width of the first file.
+    mock_open_mfdataset.return_value["model"].encoding["dtype"] = np.dtype("<U7")
     result = app_classes_methods._load_clim_data_func(
         "Example dataset",
         clim_example_name="some_example_name",
@@ -91,6 +94,7 @@ def test_load_clim_data_func(mock_get_example_dataset, mock_open_mfdataset):
     )
     assert result_custom == mock_open_mfdataset.return_value
     assert not result_custom.chunks  # method loads time_bnds into memory
+    assert "dtype" not in result_custom["model"].encoding
     mock_open_mfdataset.assert_called_once_with(
         "path/to/custom/data/*.nc",
         data_vars="minimal",
@@ -224,8 +228,11 @@ def test_get_view_func():
     plotter = app_classes_methods._Plotter(ds_in=ds, plot_settings=plot_settings)
     plotter.generate_plot()
     expected = plotter.view
-    assert isinstance(result[1].object, hv.Overlay)
-    hvt.assert_element_equal(result[1].object, expected[1].object)
+    result_plot = result.select(pn.pane.HoloViews)[0].object
+    assert isinstance(result_plot, hv.Overlay)
+    hvt.assert_element_equal(result_plot, expected.select(pn.pane.HoloViews)[0].object)
+    # The geocoded address is shown under the plot.
+    assert result[1].object == "Location found: SCG"
 
 
 def test_compute_to_file_reopen():
@@ -246,18 +253,6 @@ def test_compute_to_file_reopen():
             assert ds_out.chunks[var] == ds_in.chunks[var], f"Chunks for {var} differ."
 
         ds_out.close()
-
-
-def test_compute_to_file_reopen_keeps_long_names(tmp_path):
-    """Model names are not cut to a stale encoded width (e.g. 'gfdl-es')."""
-    ds_in = generate_dataset(data_var="temperature", frequency="monthly").expand_dims(
-        model=["gfdl-esm4", "canesm5"]
-    )
-    ds_in.model.encoding["dtype"] = np.dtype("<U7")
-    with app_classes_methods._compute_to_file_reopen(
-        ds_in, tmp_path / "test.nc"
-    ) as ds_out:
-        assert ds_out.model.values.tolist() == ["gfdl-esm4", "canesm5"]
 
 
 class TestPlotter:
@@ -321,11 +316,7 @@ class TestPlotter:
                     plotter.generate_plot()
                 return
         plotter.generate_plot()
-        if plot_type == "map":
-            view_panel = plotter.view[1][0]
-        else:
-            view_panel = plotter.view[1]
-        assert isinstance(view_panel, pn.pane.HoloViews)
+        view_panel = plotter.view.select(pn.pane.HoloViews)[0]
         assert not view_panel.linked_axes
         assert view_panel.widget_location == "bottom"
         assert view_panel.center
@@ -1771,3 +1762,171 @@ class TestController:
         controller.cleanup_temp_file()
         assert not controller._ds_epi_path.exists()
         assert not controller._ds_epi_path.parent.exists()
+
+
+def test_load_clim_data_func_missing_inputs():
+    """Test that _load_clim_data_func explains missing inputs and closes on error."""
+    with pytest.raises(ValueError, match="Select an example"):
+        app_classes_methods._load_clim_data_func("Example dataset")
+    with pytest.raises(ValueError, match="Configure a directory"):
+        app_classes_methods._load_clim_data_func("Custom dataset")
+    ds = generate_dataset(data_var="temperature", frequency="monthly")
+    closed = []
+    ds.set_close(lambda: closed.append(True))
+    with (
+        patch.object(app_classes_methods.xr, "open_mfdataset", return_value=ds),
+        patch.object(xr.DataArray, "load", side_effect=OSError("unreadable")),
+        pytest.raises(OSError, match="unreadable"),
+    ):
+        app_classes_methods._load_clim_data_func(
+            "Custom dataset", custom_clim_data_dir="d"
+        )
+    assert closed == [True]
+
+
+def test_get_scope_dict_unusable_data():
+    """Test that _get_scope_dict rejects data the app cannot plot."""
+    ds = generate_dataset(data_var="temperature", frequency="monthly")
+    with pytest.raises(ValueError, match="No climate or suitability variables"):
+        app_classes_methods._get_scope_dict(ds.drop_vars("temperature"))
+    single = ds.isel(time=[0]).drop_vars("time_bnds")
+    assert app_classes_methods._get_scope_dict(single)["temporal"] == "yearly"
+    hourly = ds.drop_vars("time_bnds").assign_coords(
+        time=xr.date_range("2000-01-01", periods=ds.sizes["time"], freq="h")
+    )
+    with pytest.raises(ValueError, match="daily, monthly or yearly"):
+        app_classes_methods._get_scope_dict(hourly)
+
+
+@pytest.mark.parametrize(
+    "settings,match",
+    [
+        ({"plot_type": "time series", "location_string": " "}, "Enter a location"),
+        ({"plot_type": "variance decomposition"}, "at least five timestamps"),
+        ({"plot_type": "map", "ensemble_stat": "std"}, "Choose Mean"),
+    ],
+)
+def test_plotter_explains_unplottable_selections(settings, match):
+    """Test that the _Plotter class explains selections it cannot plot."""
+    ds = generate_dataset(data_var="temperature", frequency="yearly")
+    plot_settings = {
+        "data_var": "temperature",
+        "temporal_scope": "yearly",
+        "year_range": [2000, 2001],
+        "location_string": "SCG",
+        "ensemble_stat": "mean",
+        **settings,
+    }
+    if settings["plot_type"] == "variance decomposition":
+        ds = ds.climepi.sel_geo("SCG")
+    with pytest.raises(ValueError, match=match):
+        app_classes_methods._get_view_func(ds, plot_settings)
+
+
+def test_plotter_rejects_missing_data():
+    """Test that the _Plotter class explains when a selection has no data."""
+    ds = generate_dataset(data_var="temperature", frequency="yearly")
+    ds["temperature"] = ds["temperature"] * np.nan
+    plot_settings = {
+        "plot_type": "map",
+        "data_var": "temperature",
+        "temporal_scope": "yearly",
+        "year_range": [2000, 2001],
+        "ensemble_stat": "mean",
+    }
+    with pytest.raises(ValueError, match="no data to plot"):
+        app_classes_methods._get_view_func(ds, plot_settings)
+
+
+def test_plot_result_ignored_after_settings_change(server_document):
+    """Test that a plot is not shown if the settings changed while it was made."""
+    ds = generate_dataset(data_var="temperature", frequency="monthly").climepi.sel_geo(
+        "SCG"
+    )
+    plot_controller = app_classes_methods._PlotController(ds)
+    plot_controller.param.trigger("plot_initiator")
+    assert plot_controller.plot_generating
+    plot_controller.year_range = (2000, 2000)
+    server_document.tick()
+    assert len(plot_controller.view) == 0
+    assert not plot_controller.plot_generated
+    assert not plot_controller.plot_generating
+    assert plot_controller.plot_status == "Plot not yet generated"
+
+
+@patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+@patch("climepi.app._app_classes_methods.climdata.get_example_dataset", autospec=True)
+@patch.dict(
+    "climepi.app._app_classes_methods.climdata.EXAMPLES", {"data1": {}, "data2": {}}
+)
+@patch.dict("climepi.app._app_classes_methods.epimod.EXAMPLES", {"model": {}})
+def test_controller_results_in_server(
+    mock_get_example_dataset, mock_get_example_model, server_document
+):
+    """Test the controller's handling of late or unusable results in a server."""
+    mock_get_example_model.return_value = epimod.SuitabilityModel(
+        temperature_range=(0, 0.5)
+    )
+    closed = []
+
+    def get_example_dataset(name, base_dir=None):
+        ds = generate_dataset(data_var="temperature", frequency="monthly")
+        ds = ds.climepi.sel_geo("SCG")
+        ds.set_close(lambda: closed.append(name))
+        return ds
+
+    mock_get_example_dataset.side_effect = get_example_dataset
+    controller = app_classes_methods.Controller(
+        clim_dataset_example_names=["data1", "data2"], epi_model_example_names=["model"]
+    )
+    try:
+        # A dataset loaded for a previous selection is closed and not used.
+        controller.param.trigger("clim_data_load_initiator")
+        controller.clim_example_name = "data2"
+        server_document.tick()
+        assert closed == ["data1"]
+        assert controller._ds_clim is None
+
+        # A dataset that cannot be adopted is closed and the failure reported.
+        with patch.object(
+            controller, "_set_climate_dataset", side_effect=ValueError("unusable")
+        ):
+            controller.param.trigger("clim_data_load_initiator")
+            server_document.tick()
+        assert closed == ["data1", "data2"]
+        assert controller.clim_data_status == "Data load failed: unusable"
+
+        controller.param.trigger("clim_data_load_initiator")
+        server_document.tick()
+        assert controller.clim_data_loaded
+
+        # A subset cannot replace the data while an operation is running.
+        controller.param.trigger("epi_model_run_initiator")
+        with pytest.raises(ValueError, match="Wait for the current operation"):
+            controller._use_downloaded_climate(controller._ds_clim, "subset")
+        # A model result for previous settings is discarded.
+        controller.epi_output_choice = "Suitability values"
+        server_document.tick()
+        assert controller._ds_epi is None
+        assert not list(pathlib.Path(controller._temp_dir.name).glob("*.nc"))
+
+        # A model result that cannot be shown is discarded and the failure reported.
+        with patch.object(
+            controller.epi_plot_controller,
+            "initialize",
+            side_effect=ValueError("unplottable"),
+        ):
+            controller.param.trigger("epi_model_run_initiator")
+            server_document.tick()
+        assert controller.epi_model_status == "Model run failed: unplottable"
+        assert not list(pathlib.Path(controller._temp_dir.name).glob("*.nc"))
+    finally:
+        controller.cleanup_temp_file()
+
+
+@patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
+def test_epi_model_plot_view_without_model(_):
+    """Test the suitability chart placeholder when no model is available."""
+    controller = app_classes_methods.Controller()
+    controller._epi_model = None
+    assert "Select a valid" in controller.epi_model_plot_view()[0].object

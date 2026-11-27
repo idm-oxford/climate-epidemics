@@ -1,5 +1,6 @@
 """Module defining the classes and methods underlying the climepi app."""
 
+import html
 import os
 import pathlib
 import tempfile
@@ -17,7 +18,7 @@ import xarray as xr
 from climepi import climdata, epimod
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import _infer_freq
-from climepi.app._climate_download import ClimateDownload, write_netcdf
+from climepi.app._climate_download import ClimateDownload
 from climepi.app._app_ui import (
     CONTROL_HELP,
     LINK_CSS,
@@ -28,6 +29,7 @@ from climepi.app._app_ui import (
     source_divider,
 )
 from climepi.app._background import SessionTask
+from climepi.climdata._utils import _drop_string_width_encodings
 from climepi.utils import get_data_var_and_bnds, list_non_bnd_data_vars
 
 _EXAMPLE_LOAD_LOCK = Lock()
@@ -63,6 +65,7 @@ def _load_clim_data_func(
             coords="minimal",  # will become xarray default
             compat="override",  # will become xarray default
         )
+        _drop_string_width_encodings(ds_clim)
         if "time_bnds" in ds_clim:
             # Load time_bnds if present (otherwise issues in _compute_to_file_reopen as
             # encoding is not set).
@@ -171,7 +174,7 @@ def _compute_to_file_reopen(
     ds_in: xr.Dataset, save_path: str | os.PathLike
 ) -> xr.Dataset:
     chunks = dict(ds_in.chunksizes)
-    write_netcdf(ds_in, save_path, compute=False).compute()
+    ds_in.to_netcdf(save_path, engine="h5netcdf", compute=False).compute()
     return xr.open_dataset(save_path, engine="h5netcdf", chunks=chunks)
 
 
@@ -207,6 +210,8 @@ class _Plotter:
         self._scope_dict_base = _get_scope_dict(ds_in)
         self._plot_settings = plot_settings
         self._ds_plot: xr.Dataset | None = None
+        # Full address found when a typed location is geocoded.
+        self._address = ""
 
     def generate_plot(self) -> None:
         """Generate the plot."""
@@ -284,7 +289,17 @@ class _Plotter:
             sizing_mode="stretch_width",
         )
         _style_plot_widgets(pane.widget_box)
-        self.view = cast(pn.viewable.Viewable, pane.layout)
+        view = cast(pn.viewable.Viewable, pane.layout)
+        if self._address:
+            # Show the match so a user can check it is the intended place.
+            caption = pn.pane.HTML(
+                f"Location found: {html.escape(self._address)}",
+                margin=(8, 0, 0, 0),
+                styles=CONTROL_HELP,
+                sizing_mode="stretch_width",
+            )
+            view = pn.Column(view, caption, margin=0, sizing_mode="stretch_width")
+        self.view = view
 
     def _get_ds_plot(self) -> None:
         self._ds_plot = self._ds_base
@@ -321,6 +336,7 @@ class _Plotter:
             if not location:
                 raise ValueError("Enter a location for this plot.")
             ds_plot = ds_plot.climepi.sel_geo(location)
+            self._address = ds_plot["location"].attrs.get("geocoded_address", "")
         else:
             raise ValueError("Unsupported spatial base scope and plot type combination")
         self._ds_plot = ds_plot

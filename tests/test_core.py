@@ -83,6 +83,7 @@ class TestSelGeo:
                 ds["lon"] = np.sort(ds["lon"].values % 360)
                 lon_expected = lon_expected % 360
             result = ds.climepi.sel_geo(location=location)
+            assert location in result["location"].attrs["geocoded_address"]
             npt.assert_equal(result["lon"].values, lon_expected)
             npt.assert_equal(result["lat"].values, lat_expected)
             npt.assert_equal(result["location"].values, location)
@@ -104,6 +105,7 @@ class TestSelGeo:
         lon = 125
         lat = 30
         result = ds.climepi.sel_geo(location, lat=lat, lon=lon)
+        assert "geocoded_address" not in result["location"].attrs
         npt.assert_equal(result["lon"].values, 120)
         npt.assert_equal(result["lat"].values, 30)
         npt.assert_equal(result["location"].values, "Mustafar")
@@ -120,6 +122,7 @@ class TestSelGeo:
         )
         result = ds.climepi.sel_geo(location=location_list)
         assert "location" in result.dims
+        assert "geocoded_address" not in result["location"].attrs
         npt.assert_equal(result["location"].values, location_list)
         assert "location" not in result["time_bnds"].dims
         xrt.assert_identical(result["time_bnds"], ds["time_bnds"])
@@ -245,6 +248,15 @@ class TestTemporalGroupAverage:
         result_float = ds_float.climepi.temporal_group_average(frequency=frequency)
         xrt.assert_identical(result_bool, result_int)
         xrt.assert_identical(result_bool, result_float)
+
+    def test_temporal_group_average_without_calendar_encoding(self, frequency):
+        """Test with times whose calendar is not encoded (e.g. lazily opened data)."""
+        ds = generate_dataset(data_var="temperature", frequency="daily")
+        expected = ds.climepi.temporal_group_average(frequency=frequency)
+        ds["time"].encoding.pop("calendar", None)
+        result = ds.climepi.temporal_group_average(frequency=frequency)
+        xrt.assert_allclose(result, expected)
+        assert "calendar" not in ds["time"].encoding
 
 
 def test_yearly_average():

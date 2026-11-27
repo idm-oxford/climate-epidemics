@@ -114,7 +114,7 @@ class CESMDataGetter(RemoteDatasetGetter):
 
 class LENS2DataGetter(CESMDataGetter):
     """
-    CESM2 Large Ensemble projections combine historical simulations with SSP3-7.0.
+    Class for accessing and downloading CESM2 LENS data.
 
     Data are taken from the AWS server (https://registry.opendata.aws/ncar-cesm2-lens/).
     Terms of use can be found at https://www.ucar.edu/terms-of-use/data.
@@ -186,7 +186,7 @@ class LENS2DataGetter(CESMDataGetter):
 
 class ARISEDataGetter(CESMDataGetter):
     """
-    CESM2 ARISE-SAI compares stratospheric aerosol injection with an SSP2-4.5 reference.
+    Class for accessing and downloading CESM2 ARISE data.
 
     Data are taken from the AWS server
     (https://registry.opendata.aws/ncar-cesm2-arise/). Terms of use can be found at
@@ -205,7 +205,6 @@ class ARISEDataGetter(CESMDataGetter):
     """
 
     data_source = "arise"
-    source_label = "ARISE-SAI"
     available_models = ["cesm2"]
     available_years = list(range(2035, 2070))
     available_scenarios = ["ssp245", "sai15"]
@@ -309,12 +308,7 @@ class ARISEDataGetter(CESMDataGetter):
 
 
 class GLENSDataGetter(CESMDataGetter):
-    """
-    CESM1 GLENS compares stratospheric aerosol injection with an RCP8.5 reference.
-
-    Data are available from the NCAR Research Data Archive
-    (https://rda.ucar.edu/datasets/d651064/).
-    """
+    """Class for downloading CESM1 GLENS data from the UCAR server."""
 
     available_models = ["cesm1"]
     lon_res = 1.25

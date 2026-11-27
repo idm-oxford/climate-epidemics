@@ -14,6 +14,7 @@ from dask.distributed import Client
 
 from climepi.app._app_classes_methods import Controller
 from climepi.app._app_ui import TAB_CSS, TEMPLATE_CSS, model_workspace, plot_workspace
+from climepi.app._climate_download import DOWNLOAD_ROUTE, DownloadHandler
 from climepi.app._dask_port_address import DASK_SCHEDULER_ADDRESS
 
 
@@ -91,6 +92,12 @@ def run_app(
     threaded = kwargs.get("threaded", False)
 
     kwargs_serve = kwargs.copy()
+    if enable_climate_download:
+        # Serve retrieved subsets over HTTP, which streams large files.
+        kwargs_serve["extra_patterns"] = [
+            *kwargs_serve.get("extra_patterns", []),
+            (rf"/{DOWNLOAD_ROUTE}/([\w-]+)", DownloadHandler),
+        ]
     if threaded:
         kwargs_serve.pop("start", None)  # remove start from kwargs
     else:

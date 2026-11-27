@@ -3,6 +3,7 @@
 import signal
 import socket
 import sys
+import threading
 import time
 import warnings
 from contextlib import contextmanager
@@ -16,6 +17,7 @@ from playwright.sync_api import expect
 
 import climepi.app._app_classes_methods as app_classes_methods
 import climepi.app._app_construction as app_construction
+import climepi.app._climate_download as climate_download
 from climepi import epimod
 from climepi.testing.fixtures import generate_dataset
 
@@ -317,6 +319,19 @@ def test_run_app_opts(
         assert "Closing Dask client" not in captured.out
 
 
+@patch("climepi.app._app_construction.pn.serve", autospec=True)
+def test_run_app_download_route(mock_serve):
+    """Test that run_app serves retrieved subsets when downloads are enabled."""
+    server = app_construction.run_app(
+        start=False, enable_climate_download=True, extra_patterns=[("/other", None)]
+    )
+    assert mock_serve.call_args[1]["extra_patterns"] == [
+        ("/other", None),
+        (r"/climepi_download/([\w-]+)", climate_download.DownloadHandler),
+    ]
+    server.stop()
+
+
 def test_get_logger(capsys):
     """Unit test for the get_logger method."""
     logger = app_construction.get_logger("test")
@@ -382,6 +397,20 @@ def test_layout(_):
     assert isinstance(template, pn.template.BootstrapTemplate)
     assert isinstance(controller, app_classes_methods.Controller)
     assert template.sidebar[0] == controller.data_controls
+    assert controller.climate_download is None
+
+    template, controller = app_construction._layout(
+        clim_dataset_example_base_dir=None,
+        clim_dataset_example_names=None,
+        enable_custom_clim_dataset=False,
+        custom_clim_data_dir=None,
+        epi_model_example_names=None,
+        enable_custom_epi_model=True,
+        enable_climate_download=True,
+    )
+    assert controller.climate_download is not None
+    assert template.main[-1] is controller.climate_download.modal
+    controller.cleanup_temp_file()
 
 
 def test_mobile_layout(port, page):
@@ -499,6 +528,17 @@ def test_set_shutdown(mock_shutdown, mock_signal):
     mock_signal.SIGTERM("another signum", "another frame")
     mock_original_sigterm.assert_called_once_with("another signum", "another frame")
     assert mock_shutdown.call_count == 3
+
+
+@patch("climepi.app._app_construction.signal", autospec=True)
+def test_set_shutdown_outside_main_thread(mock_signal):
+    """Test that signal handlers are only installed from the main thread."""
+    thread = threading.Thread(
+        target=app_construction._set_shutdown, args=(MagicMock(), True)
+    )
+    thread.start()
+    thread.join()
+    mock_signal.signal.assert_not_called()
 
 
 @patch("climepi.app._app_construction.os.kill", autospec=True)

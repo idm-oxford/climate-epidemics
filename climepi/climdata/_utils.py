@@ -1,5 +1,6 @@
 """Utility functions for the climdata subpackage."""
 
+import numpy as np
 import pooch
 import xarray as xr
 
@@ -34,3 +35,13 @@ def _standardize_names_and_units(
             long_name="Precipitation", units="mm/day"
         ),
     ).drop_vars([temperature_var, precipitation_var])
+
+
+def _drop_string_width_encodings(ds: xr.Dataset) -> None:
+    # Remove fixed string widths from the encoding of an opened dataset. Datasets
+    # opened from several files take the width from the first file, so saving them
+    # would truncate longer strings from other files (e.g. "gfdl-esm4" to "gfdl-es").
+    for variable in ds.variables.values():
+        encoded = variable.encoding.get("dtype")
+        if encoded is not None and np.dtype(encoded).kind == "U":
+            del variable.encoding["dtype"]

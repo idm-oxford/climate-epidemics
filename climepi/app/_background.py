@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class SessionTask(param.Parameterized):
-    """Serialise the operations sharing a session's datasets and plot controls."""
+    """Serialize the operations sharing a session's datasets and plot controls."""
 
     busy = param.Boolean(default=False)
 
