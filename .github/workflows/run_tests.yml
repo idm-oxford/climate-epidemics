@@ -9,12 +9,15 @@ on:
 
 jobs:
   build:
+    # These names are required checks in GitHub branch protection.
+    name: build (${{ matrix.os }}, ${{ matrix.label || matrix.environment }})
     strategy:
       max-parallel: 7
       matrix:
         include:
           - os: ubuntu-latest
             environment: ci
+            label: default
           - os: ubuntu-latest
             environment: py312
           - os: ubuntu-latest
@@ -23,8 +26,10 @@ jobs:
             environment: py314
           - os: windows-latest
             environment: test
+            label: default
           - os: macos-latest
             environment: test
+            label: default
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout repository
@@ -56,11 +61,11 @@ jobs:
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{ matrix.os }}-${{ startsWith(matrix.environment, 'py') && matrix.environment || 'default' }}
+        flags: ${{ matrix.os }}-${{ matrix.label || matrix.environment }}
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{ matrix.os }}-${{ startsWith(matrix.environment, 'py') && matrix.environment || 'default' }}
+        flags: ${{ matrix.os }}-${{ matrix.label || matrix.environment }}
         report_type: test_results
