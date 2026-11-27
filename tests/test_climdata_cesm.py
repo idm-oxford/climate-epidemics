@@ -623,12 +623,10 @@ class TestGLENSDataGetter:
     @patch.object(GLENSDataGetter, "_open_temp_data", autospec=True)
     @patch.object(GLENSDataGetter, "_process_data", autospec=True)
     @patch.object(GLENSDataGetter, "_save_processed_data", autospec=True)
-    @patch.object(GLENSDataGetter, "_delete_temporary", autospec=True)
     @pytest.mark.parametrize("single_scenario", [True, False])
     @pytest.mark.parametrize("already_downloaded", [True, False])
     def test_get_data(
         self,
-        mock_delete_temporary,
         mock_save_processed_data,
         mock_process_data,
         mock_open_temp_data,
@@ -655,11 +653,24 @@ class TestGLENSDataGetter:
 
         mock_open_local_data.side_effect = _mock_open_local_data
 
+        # Record the temporary directories created, to check they are removed.
+        temp_dirs = []
+        mkdtemp = tempfile.mkdtemp
+
+        def _mock_mkdtemp(*args, **kwargs):
+            temp_dirs.append(pathlib.Path(mkdtemp(*args, **kwargs)))
+            return str(temp_dirs[-1])
+
         data_getter = GLENSDataGetter(
             frequency="monthly",
             subset={"scenarios": ["rcp85"]} if single_scenario else None,
         )
-        data_getter.get_data()
+        with patch.object(tempfile, "mkdtemp", side_effect=_mock_mkdtemp):
+            data_getter.get_data()
+        assert len(temp_dirs) == (
+            0 if already_downloaded else mock_process_data.call_count
+        )
+        assert not any(temp_dir.exists() for temp_dir in temp_dirs)
 
         if already_downloaded:
             mock_open_local_data.assert_called_once()
