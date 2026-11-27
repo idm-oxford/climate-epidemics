@@ -21,6 +21,23 @@ from climepi.climdata._data_getter_class import ClimateDataGetter
 from climepi.climdata._utils import _standardize_names_and_units
 
 
+class SubsetPendingError(TimeoutError):
+    """
+    ISIMIP server-side subsetting did not finish within the maximum wait time.
+
+    Parameters
+    ----------
+    message : str
+        Description of the error.
+    job_urls : list of str
+        Status URLs of the unfinished subsetting jobs.
+    """
+
+    def __init__(self, message: str, job_urls: list[str]) -> None:
+        super().__init__(message)
+        self.job_urls = job_urls
+
+
 class ISIMIPDataGetter(ClimateDataGetter):
     """
     Class for accessing and downloading ISIMIP data.
@@ -230,11 +247,12 @@ class ISIMIPDataGetter(ClimateDataGetter):
                     break
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise TimeoutError(
+                    raise SubsetPendingError(
                         "ISIMIP subsetting is still in progress. Run the same request "
                         "again later, increase 'max_subset_wait_time', or use "
                         "subset_method='local' to download the original files. "
-                        "Pending jobs:\n" + "\n".join(pending)
+                        "Pending jobs:\n" + "\n".join(pending),
+                        pending,
                     )
                 time.sleep(min(self._subset_check_interval, remaining))
                 for url in pending:

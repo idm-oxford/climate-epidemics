@@ -19,6 +19,7 @@ import xarray as xr
 
 from climepi.app import _climate_download as download
 from climepi.climdata._data_getter_class import ClimateDataGetter
+from climepi.climdata._isimip import SubsetPendingError
 
 
 def _run_async(coroutine):
@@ -191,14 +192,18 @@ def test_retry_after_provider_failure_and_retire_unused_subset(dialog, monkeypat
 
     def time_out(self, *, download):
         assert download
-        raise TimeoutError("source still processing")
+        raise SubsetPendingError(
+            "source still processing", ["https://files.isimip.org/api/v2/1"]
+        )
 
     monkeypatch.setattr(download._base.ISIMIPDataGetter, "get_data", time_out)
     dialog._source.value = "isimip"
     dialog._longitude.value = 1
     dialog._latitude.value = 52
     _run_async(dialog._retrieve())
-    assert "Try the same request again" in dialog._status.value
+    assert dialog._status.value.endswith(
+        "Check progress at:\nhttps://files.isimip.org/api/v2/1"
+    )
     assert not dialog._prepare.disabled
 
     def successful_retry(self, *, download):

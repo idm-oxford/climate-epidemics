@@ -19,6 +19,7 @@ from climepi._geocoding import geocode
 from climepi.app._app_ui import CONTROL_HELP, StatusMessage
 from climepi.climdata import _base
 from climepi.climdata._data_getter_class import ClimateDataGetter, SubsetPartial
+from climepi.climdata._isimip import SubsetPendingError
 
 _LOG = logging.getLogger(__name__)
 # Refuse subsets larger than this before writing them, so an over-broad request
@@ -687,10 +688,12 @@ class ClimateDownload:
         except _SubsetUnavailable as exc:
             if not self._closed:
                 self._set_status(str(exc), "warning")
-        except TimeoutError:
+        except SubsetPendingError as exc:
             if not self._closed:
                 self._set_status(
-                    "The source is still preparing this subset. Try the same request again.",
+                    "The source is still preparing this subset. Select Retrieve subset "
+                    "again once it has finished. Check progress at:\n"
+                    + "\n".join(exc.job_urls),
                     "warning",
                 )
         except Exception:

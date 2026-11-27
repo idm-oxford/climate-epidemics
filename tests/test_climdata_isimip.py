@@ -230,6 +230,7 @@ def test_subset_remote_data(mock_geocode, mock_session, subset, operations, stat
         with pytest.raises(TimeoutError, match=job_urls[-1]) as exc:
             getter._subset_remote_data()
         assert "subset_method='local'" in str(exc.value)
+        assert exc.value.job_urls == job_urls
         session.get.assert_not_called()
     elif operations and status == "failed":
         with pytest.raises(RuntimeError, match=job_urls[0]):

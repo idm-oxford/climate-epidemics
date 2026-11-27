@@ -153,6 +153,9 @@ class StatusMessage(pn.custom.JSComponent):
     )
 
     _esm = """
+    // Bare URLs become links, without trailing sentence punctuation.
+    const URL_PATTERN = /https?:\\/\\/[^\\s<>]*[^\\s<>.,;:!?)]/g;
+
     export function render({model}) {
         const status = document.createElement('div');
         status.className = 'operation-status';
@@ -160,7 +163,21 @@ class StatusMessage(pn.custom.JSComponent):
         status.setAttribute('aria-live', 'polite');
         status.setAttribute('aria-atomic', 'true');
         const update = () => {
-            status.textContent = model.value;
+            const text = model.value;
+            const parts = [];
+            let end = 0;
+            for (const match of text.matchAll(URL_PATTERN)) {
+                const link = document.createElement('a');
+                link.href = match[0];
+                link.target = '_blank';
+                link.rel = 'noopener';
+                link.textContent = match[0].replace(/^https?:\\/\\//, '');
+                parts.push(text.slice(end, match.index), link);
+                end = match.index + match[0].length;
+            }
+            parts.push(text.slice(end));
+            // Empty text would keep the :empty rule from hiding the region.
+            status.replaceChildren(...parts.filter((part) => part !== ''));
             status.dataset.tone = model.tone;
         };
         update();
@@ -178,6 +195,7 @@ class StatusMessage(pn.custom.JSComponent):
             white-space: pre-wrap;
         }
         .operation-status:empty { display: none; }
+        .operation-status a { color: inherit; font-weight: 600; }
         .operation-status:not([data-tone="neutral"]) {
             border-left: 3px solid;
             border-radius: 6px;
