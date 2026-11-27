@@ -7,7 +7,9 @@ import pytest
 from climepi import climdata
 
 
-@pytest.mark.parametrize("data_source", ["test", "lens2", "arise", "glens", "isimip"])
+@pytest.mark.parametrize(
+    "data_source", ["test", "lens2", "arise", "glens", "isimip", "era5"]
+)
 def test_get_climate_data(data_source):
     """Unit test for the get_climate_data function."""
     frequency = "hourly"
@@ -43,7 +45,7 @@ def test_get_climate_data(data_source):
     to_patch = f"climepi.climdata._base.{data_source.upper()}DataGetter"
     with patch(to_patch, autospec=True) as mock_data_getter:
         result = climdata.get_climate_data(**kwargs_in)
-        if data_source in ["lens2", "arise"]:
+        if data_source in ["lens2", "arise", "era5"]:
             mock_data_getter.assert_called_once_with(
                 frequency=frequency,
                 subset=subset,
@@ -62,6 +64,7 @@ def test_get_climate_data(data_source):
                 save_dir=save_dir,
                 subset_check_interval=10,
                 max_subset_wait_time=max_subset_wait_time,
+                subset_method="remote",
             )
         else:
             raise ValueError("Should not be here.")
@@ -149,3 +152,12 @@ def test_get_data_getter(data_source):
     assert result._frequency == frequency
     assert result._subset == subset
     assert str(result._save_dir) == save_dir
+
+
+def test_get_data_getter_subset_method():
+    """Test that only ISIMIP data sources accept a non-default subset_method."""
+    result = climdata._base._get_data_getter("isimip4a", subset_method="local")
+    assert isinstance(result, climdata._isimip.ISIMIP4aDataGetter)
+    assert not result._subset_before_download
+    with pytest.raises(ValueError, match="only available for ISIMIP"):
+        climdata._base._get_data_getter("era5", subset_method="local")

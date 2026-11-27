@@ -8,22 +8,20 @@ import time
 from copy import deepcopy
 from typing import Any, Literal, cast
 
-import dask.diagnostics
 import intake
 import numpy as np
 import pandas as pd
-import pooch
 import siphon.catalog
 import xarray as xr
 from requests import HTTPError
 
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import BoundsAccessor, center_times  # noqa
-from climepi.climdata._data_getter_class import ClimateDataGetter
-from climepi.climdata._utils import _get_data_version
+from climepi.climdata._data_getter_class import RemoteDatasetGetter
+from climepi.climdata._utils import _get_data_version, _standardize_names_and_units
 
 
-class CESMDataGetter(ClimateDataGetter):
+class CESMDataGetter(RemoteDatasetGetter):
     """
     Generic class for accessing and downloading CESM data from AWS servers.
 
@@ -44,52 +42,9 @@ class CESMDataGetter(ClimateDataGetter):
     def _subset_remote_data(self) -> None:
         # Subset the remotely opened dataset to the requested years and location(s), and
         # store the subsetted dataset in the _ds attribute.
-        years = self._subset["years"]
-        locations = self._subset["locations"]
-        lons = self._subset["lons"]
-        lats = self._subset["lats"]
-        lon_range = self._subset["lon_range"]
-        lat_range = self._subset["lat_range"]
         assert self._ds is not None
-        ds_subset = self._ds.copy()
-        ds_subset = ds_subset.isel(time=np.isin(ds_subset.time.dt.year, years))
-        if locations is not None:
-            # Use the climepi package to find the nearest grid points to the provided
-            # locations, and subset the data accordingly (since locations is a list,
-            # "location" is made a dimension coordinate).
-            ds_subset = ds_subset.climepi.sel_geo(locations, lon=lons, lat=lats)
-        else:
-            if lon_range is not None:
-                # Note the remote data are stored with longitudes in the range 0 to 360.
-                if lon_range[0] < 0 <= lon_range[1]:
-                    ds_subset = xr.concat(
-                        [
-                            ds_subset.sel(lon=slice(0, lon_range[1] % 360)),
-                            ds_subset.sel(lon=slice(lon_range[0] % 360, 360)),
-                        ],
-                        dim="lon",
-                        data_vars="minimal",
-                    )
-                else:
-                    ds_subset = ds_subset.sel(
-                        lon=slice(lon_range[0] % 360, lon_range[1] % 360)
-                    )
-            if lat_range is not None:
-                ds_subset = ds_subset.sel(lat=slice(*lat_range))
-        self._ds = ds_subset
-
-    def _download_remote_data(self) -> None:
-        # Download the remote dataset to a temporary file (printing a progress bar), and
-        # store the file name in the _temp_file_names attribute.
-        temp_save_dir = self._temp_save_dir
-        assert temp_save_dir is not None
-        assert self._ds is not None
-        temp_file_name = "temp_data.nc"
-        temp_save_path = temp_save_dir / temp_file_name
-        delayed_obj = self._ds.to_netcdf(temp_save_path, compute=False)
-        with dask.diagnostics.ProgressBar():
-            delayed_obj.compute()
-        self._temp_file_names = [temp_file_name]
+        ds = self._ds.isel(time=self._ds.time.dt.year.isin(self._subset["years"]))
+        self._ds = self._subset_grid(ds)
 
     def _open_temp_data(self, **kwargs: Any) -> None:
         # Open the temporary dataset, and store the opened dataset in the _ds attribute.
@@ -137,15 +92,11 @@ class CESMDataGetter(ClimateDataGetter):
             ds_processed = ds_processed.rename_dims({"nbnd": "bnds"})
         # Center time coordinates (if necessary)
         ds_processed = center_times(ds_processed)
-        # Convert temperature from Kelvin to Celsius.
-        ds_processed["temperature"] = ds_processed["TREFHT"] - 273.15
-        ds_processed["temperature"].attrs.update(long_name="Temperature")
-        ds_processed["temperature"].attrs.update(units="°C")
-        # Convert total precipitation from m/s to mm/day.
-        ds_processed["precipitation"] = (ds_processed["PRECT"]) * (1000 * 60 * 60 * 24)
-        ds_processed["precipitation"].attrs.update(long_name="Precipitation")
-        ds_processed["precipitation"].attrs.update(units="mm/day")
-        ds_processed = ds_processed.drop_vars(["TREFHT", "PRECT"])
+        # Convert temperature from Kelvin to Celsius, and total precipitation from m/s
+        # to mm/day.
+        ds_processed = _standardize_names_and_units(
+            ds_processed, "TREFHT", "PRECT", 1000 * 60 * 60 * 24
+        )
         # Use capital letters for variable long names (for consistent plotting).
         ds_processed["time"].attrs.update(long_name="Time")
         ds_processed["lon"].attrs.update(long_name="Longitude")
@@ -479,27 +430,8 @@ class GLENSDataGetter(CESMDataGetter):
     def _download_remote_data(self) -> None:
         # Download the remote data files to a temporary directory.
         urls = self._urls
-        temp_save_dir = self._temp_save_dir
         assert urls is not None
-        assert temp_save_dir is not None
-        temp_file_names = []
-
-        for url in urls:
-            url_parts = url.split("/")
-            download_file_name = url_parts[-1]
-            base_url = "/".join(url_parts[:-1])
-            pup = pooch.create(
-                base_url=base_url,
-                path=temp_save_dir,
-                registry={download_file_name: None},
-                retry_if_failed=5,
-            )
-            pup.fetch(
-                download_file_name,
-                progressbar=True,
-            )
-            temp_file_names.append(download_file_name)
-        self._temp_file_names = temp_file_names
+        self._temp_file_names = [self._download_file(url).name for url in urls]
 
     def _open_temp_data(self, **kwargs: Any) -> None:
         # Need to preprocess the downloaded data files.

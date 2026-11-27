@@ -26,11 +26,12 @@ climate-sensitive epidemiological models.
 - Ruff with line length 88 and NumPy-style docstrings. Public functions and classes get
   docstrings. Private methods open with a `#` comment instead.
 - Type-hint new code and keep mypy clean.
-- Match the naming, structure and idioms of neighbouring modules. Put logic shared by
+- Use American spelling ("center", "behavior").
+- Match the naming, structure and idioms of neighboring modules. Put logic shared by
   data sources in the base class or `climdata/_utils.py` instead of repeating it.
-- Tests never touch the network. Mock remote services with `unittest.mock`, build data
-  with `climepi.testing.fixtures`, and compare with `xarray.testing`. Give every test a
-  one-line docstring.
+- In new tests, mock remote services with `unittest.mock`, build data with
+  `climepi.testing.fixtures`, and compare with `xarray.testing`. Give every test a
+  docstring, e.g. "Test the _process_data method of the ISIMIPDataGetter class."
 - A new data source also needs the `get_climate_data` docstring and
   `docs/getting-started/overview.rst` updated.
 - Do not hand-edit `pixi.lock`. A scheduled workflow updates it.
