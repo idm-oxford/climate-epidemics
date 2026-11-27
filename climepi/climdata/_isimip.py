@@ -6,20 +6,19 @@ __lazy_modules__ = ["requests", "requests.adapters", "urllib3.util"]
 import pathlib
 import time
 import zipfile
-from copy import deepcopy
-from typing import Any
+from itertools import product
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
-import pooch
 import requests
 import xarray as xr
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-from climepi._geocoding import geocode
 from climepi._xcdat import BoundsAccessor  # noqa
 from climepi.climdata._data_getter_class import ClimateDataGetter
+from climepi.climdata._utils import _standardize_names_and_units
 
 
 class ISIMIPDataGetter(ClimateDataGetter):
@@ -34,10 +33,9 @@ class ISIMIPDataGetter(ClimateDataGetter):
     constructor range from 2015 to 2100, and a single realization (here labeled as 0)
     is available for a variety of emissions scenarios ("ssp126", "ssp370", and "ssp585")
     and models ("gfdl-esm4", "ipsl-cm6a-lr", "mpi-esm1-2-hr", "mri-esm2-0",
-    "ukesm1-0-ll", "canesm5", "cnrm-cm6-1", "cnrm-esm2-1", "ec-earth3", and "miroc6");
-    note that data for an additional scenario ("ssp245") can also be requested, but are
-    not retrieved by default because these data are only available for the first five of
-    the ten listed models. The data must be downloaded before opening and processing
+    "ukesm1-0-ll", "canesm5", "cnrm-cm6-1", "cnrm-esm2-1", "ec-earth3", and "miroc6").
+    Data for an additional scenario ("ssp245") can also be requested for all ten models.
+    The data must be downloaded before opening and processing
     (i.e., the `download` option in the `get_data` method must be set to `True` (the
     default value), or an error will be raised).
 
@@ -46,6 +44,12 @@ class ISIMIPDataGetter(ClimateDataGetter):
     """
 
     data_source = "isimip"
+    # Files API search options, and position of the scenario in the underscore-separated
+    # file names (which start with the model).
+    _simulation_round = "ISIMIP3b"
+    _catalog_filters = {"bias_adjustment": "w5e5"}
+    _scenario_file_index = 3
+    _longitude_origin = -180
     available_years = list(range(2015, 2101))
     available_scenarios = ["ssp126", "ssp370", "ssp585"]
     available_models = [
@@ -69,225 +73,198 @@ class ISIMIPDataGetter(ClimateDataGetter):
         *args: Any,
         subset_check_interval: float = 10,
         max_subset_wait_time: float = 20,
+        subset_method: Literal["remote", "local"] = "remote",
         **kwargs: Any,
     ) -> None:
-        # Extends the base class constructor to include the _client_results attribute,
-        # which stores the results of the client requests to the ISIMIP repository, as
-        # well as the _subset_check_interval and _max_subset_wait_time attributes, which
-        # control the interval between checks for the completion of server-side
-        # subsetting and the maximum time to wait for subsetting to complete,
-        # respectively.
+        # Extends the base class constructor to include options for server-side
+        # subsetting, and the _client_results attribute, which stores details of the
+        # remote data files.
         super().__init__(*args, **kwargs)
+        if subset_method not in ("remote", "local"):
+            raise ValueError("subset_method must be 'remote' or 'local'.")
+        self._subset_before_download = subset_method == "remote"
         self._subset_check_interval = subset_check_interval
         self._max_subset_wait_time = max_subset_wait_time
         self._client_results: list[dict[str, Any]] | None = None
 
     def _find_remote_data(self) -> None:
-        # Use the ISIMIPClient to find the available data for the requested models,
-        # scenarios and years, and store a list of results (each entry of which
-        # comprises a dictionary containing details of a single data file) in the
-        # _client_results attribute.
-        years = self._subset["years"]
+        # Find the daily data files covering the requested years, scenarios and models,
+        # and store their details in the _client_results attribute.
+        years = set(self._subset["years"])
         scenarios = self._subset["scenarios"]
         models = self._subset["models"]
-        data_url = "https://data.isimip.org/api/v1/files/"
-        requests_session = requests.Session()
-        requests_session.mount(
-            data_url,
-            HTTPAdapter(max_retries=Retry(total=5, allowed_methods={"GET", "POST"})),
+        variables = ["tas", "pr"]
+        if not years or not scenarios or not models:
+            raise ValueError("Select at least one ISIMIP year, scenario, and model.")
+
+        url = "https://data.isimip.org/api/v1/files/"
+        params: dict[str, Any] = {
+            "simulation_round": self._simulation_round,
+            "category": "climate",
+            "subcategory": "atmosphere",
+            "region": "global",
+            "time_step": "daily",
+            "climate_variable": variables,
+            "climate_scenario": scenarios,
+            "climate_forcing": models,
+            **self._catalog_filters,
+        }
+        results: list[dict[str, Any]] = []
+        coverage: dict[tuple[str, str, str], set[int]] = {}
+        with _request_session() as session:
+            while url is not None:
+                response = session.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                page = response.json()
+                for result in page["results"]:
+                    specifiers = result["specifiers"]
+                    file_years = years.intersection(
+                        range(specifiers["start_year"], specifiers["end_year"] + 1)
+                    )
+                    if file_years:
+                        results.append(result)
+                        key = (
+                            specifiers["climate_scenario"],
+                            specifiers["climate_forcing"],
+                            specifiers["climate_variable"],
+                        )
+                        coverage.setdefault(key, set()).update(file_years)
+                url, params = page["next"], {}
+
+        for scenario, model, variable in product(scenarios, models, variables):
+            missing = years - coverage.get((scenario, model, variable), set())
+            if missing:
+                raise ValueError(
+                    f"No {self._simulation_round} {variable} data for scenario "
+                    f"'{scenario}', model '{model}', and year {min(missing)}. "
+                    "Check the available scenarios, models, and years."
+                )
+        self._client_results = results
+
+    def _remote_operations(self) -> list[dict[str, Any]]:
+        # Get the Files API operations that cut out the requested location(s) or ranges
+        # (none if global data are requested).
+        locations = self._subset["locations"]
+        lat_range = self._subset["lat_range"]
+        if (
+            locations is None
+            and self._subset["lon_range"] is None
+            and lat_range is None
+        ):
+            return []
+
+        # The public ISIMIP grids have 0.5 degree spacing and cell-centered coordinates.
+        grid = xr.Dataset(
+            coords={
+                "lon": np.arange(-180 + self.lon_res / 2, 180, self.lon_res),
+                "lat": np.arange(-90 + self.lat_res / 2, 90, self.lat_res),
+            }
         )
-        response = requests_session.get(
-            data_url,
-            params={
-                "simulation_round": "ISIMIP3b",
-                "climate_variable": ["tas", "pr"],
-                "climate_scenario": scenarios,
-                "climate_forcing": models,
-            },
-        ).json()
-        client_results: list[dict[str, Any]] = response["results"]
-        while response["next"] is not None:
-            response = requests_session.get(response["next"]).json()
-            client_results.extend(response["results"])
-        requests_session.close()
-        # Filter the results to only include files that are within the requested years
-        client_results = [
-            result
-            for result in client_results
-            if any(
-                (
-                    result["specifiers"]["start_year"]
-                    <= year
-                    <= result["specifiers"]["end_year"]
-                    for year in years
+        selected = self._subset_grid(grid)
+        if locations is None:
+            west, east = self._get_lon_range()
+            # Send grid centers so the server's coordinate rounding cannot change
+            # which cells are selected. Preserve wrapping if both sides have cells.
+            lons = selected.indexes["lon"]
+            split = int(lons.searchsorted(west)) if west > east else 0
+            if 0 < split < lons.size:
+                west, east = float(lons[split]), float(lons[split - 1])
+            else:
+                west, east = float(lons[0]), float(lons[-1])
+            south, north = selected.lat.values[[0, -1]].tolist()
+            # v2 expects longitude bounds first. West > east denotes a wrapped range.
+            return [{"operation": "cutout_bbox", "bbox": [west, east, south, north]}]
+
+        # Use the same nearest-cell selection as local subsetting, including ties.
+        # The Files API's point operation takes latitude before longitude.
+        return [
+            {"operation": "cutout_point", "point": [lat, lon]}
+            for lat, lon in dict.fromkeys(
+                zip(
+                    selected.lat.values.tolist(),
+                    selected.lon.values.tolist(),
+                    strict=True,
                 )
             )
         ]
-        self._client_results = client_results
 
     def _subset_remote_data(self) -> None:
-        # Request server-side subsetting of the data to the requested location(s) and
-        # update the _client_results attribute with the results of the subsetting.
-        locations = self._subset["locations"]
-        lons = self._subset["lons"]
-        lats = self._subset["lats"]
-        lon_range = self._subset["lon_range"]
-        lat_range = self._subset["lat_range"]
-        client_results = self._client_results
-        assert client_results is not None
-        subset_check_interval = self._subset_check_interval
-        max_subset_wait_time = self._max_subset_wait_time
-        if locations is not None:
-            if len(locations) > 1:
-                self._subset_remote_data_multiple_locations()
-                return
-            if lons in [None, [None]] and lats in [None, [None]]:
-                location_geopy = geocode(locations[0])
-                lon = location_geopy.longitude
-                lat = location_geopy.latitude
-            else:
-                if lons is None or lats is None or lons[0] is None or lats[0] is None:
-                    raise ValueError(
-                        "Either both, or neither, of 'lons' and 'lats' must be "
-                        "provided."
+        # Request server-side subsetting of the data files, wait for the jobs to finish,
+        # and replace the _client_results attribute with the finished jobs.
+        operations = self._remote_operations()
+        if not operations:
+            return
+        assert self._client_results is not None
+        paths = sorted(result["path"] for result in self._client_results)
+        files_api_url = "https://files.isimip.org/api/v2"
+        jobs: dict[str, dict[str, Any]] = {}
+        with _request_session() as session:
+            for operation in operations:
+                # The v2 server limits the number of files in a job.
+                for start in range(0, len(paths), 32):
+                    response = session.post(
+                        files_api_url,
+                        json={
+                            "paths": paths[start : start + 32],
+                            "operations": [operation],
+                        },
+                        timeout=30,
                     )
-                lon = lons[0]
-                lat = lats[0]
-            operation = {"task": "cutout_bbox", "bbox": [lat, lat, lon, lon]}
-        else:
-            if lon_range is None and lat_range is None:
-                return
-            if lon_range is None:
-                lon_range = (-180, 180)
-            else:
-                # Ensure longitudes are in range -180 to 180 (note this works fine for
-                # ranges that cross the 180 meridian).
-                lon_range = tuple(((np.array(lon_range) + 180) % 360) - 180)
-            if lat_range is None:
-                lat_range = (-90, 90)
-            bbox = [str(x) for x in lat_range + lon_range]
-            operation = {"task": "cutout_bbox", "bbox": bbox}
-        # Request server to subset the data
-        client_file_paths = [file["path"] for file in client_results]
-        paths_by_cutout_request = [
-            client_file_paths[i : i + 300]
-            for i in range(0, len(client_file_paths), 300)
-        ]
-        subsetting_completed = False
-        subset_start_time = time.time()
-        files_api_url = "https://files.isimip.org/api/v1"
-        requests_session = requests.Session()
-        requests_session.mount(
-            files_api_url,
-            HTTPAdapter(max_retries=Retry(total=5, allowed_methods={"GET", "POST"})),
-        )
-        while not subsetting_completed:
-            client_results_new = [
-                requests_session.post(
-                    files_api_url,
-                    json={"paths": paths, **operation},
-                ).json()
-                for paths in paths_by_cutout_request
-            ]
-            job_statuses = [results["status"] for results in client_results_new]
-            if all(job_status == "finished" for job_status in job_statuses):
-                subsetting_completed = True
-            else:
-                if time.time() - subset_start_time > max_subset_wait_time:
-                    job_urls = [results["job_url"] for results in client_results_new]
-                    requests_session.close()
-                    raise TimeoutError(
-                        "Subsetting of the requested data has taken longer than the "
-                        f"maximum wait time of {max_subset_wait_time} seconds. The "
-                        "server-side subsetting is still in progress, and re-running "
-                        "the data retrieval once the subsetting has completed will "
-                        "retrieve the subsetted data. The progress of the subsetting "
-                        "jobs can be monitored at the following URLs:\n"
-                        + "\n".join(job_urls)
-                        + "\n"
-                        "Alternatively, increase the 'max_subset_wait_time' argument "
-                        "to wait longer for the subsetting to complete before timing "
-                        "out."
-                    )
-                time.sleep(subset_check_interval)
-        requests_session.close()
-        self._client_results = client_results_new
+                    response.raise_for_status()
+                    job = response.json()
+                    jobs[job["job_url"]] = job
 
-    def _subset_remote_data_multiple_locations(self) -> None:
-        # Request server-side subsetting of the data to a list of locations
-        locations = self._subset["locations"]
-        assert locations is not None
-        lons = self._subset["lons"]
-        lats = self._subset["lats"]
-        if lons is None and lats is None:
-            lons = [None] * len(locations)
-            lats = [None] * len(locations)
-        if lons is None or lats is None:
-            raise ValueError(
-                "Either both, or neither, of 'lons' and 'lats' must be provided."
-            )
-        client_results: list[dict[str, Any]] = []
-        any_timeout_error = False
-        for location_curr, lon_curr, lat_curr in zip(
-            locations, lons, lats, strict=True
-        ):
-            print(f"Initiating subsetting request for location: {location_curr}")
-            data_getter_curr = deepcopy(self)
-            data_getter_curr._subset["locations"] = [location_curr]
-            data_getter_curr._subset["lons"] = [lon_curr]
-            data_getter_curr._subset["lats"] = [lat_curr]
-            try:
-                data_getter_curr._subset_remote_data()
-                assert data_getter_curr._client_results is not None
-                client_results += data_getter_curr._client_results
-            except TimeoutError as exc:
-                any_timeout_error = True
-                print(
-                    f"{exc}\nContinuing to initiate subsetting for remaining locations."
-                )
-        if any_timeout_error:
-            raise TimeoutError("Subsetting for at least one location timed out.")
-        self._client_results = client_results
+            deadline = time.monotonic() + self._max_subset_wait_time
+            while True:
+                pending = []
+                for url, job in jobs.items():
+                    status = job["status"]
+                    if status in ("queued", "started", "scheduled", "deferred"):
+                        pending.append(url)
+                    elif status != "finished" or not job.get("file_url"):
+                        raise RuntimeError(
+                            f"ISIMIP subsetting job {status}. See {url}."
+                        )
+                if not pending:
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        "ISIMIP subsetting is still in progress. Run the same request "
+                        "again later, increase 'max_subset_wait_time', or use "
+                        "subset_method='local' to download the original files. "
+                        "Pending jobs:\n" + "\n".join(pending)
+                    )
+                time.sleep(min(self._subset_check_interval, remaining))
+                for url in pending:
+                    response = session.get(url, timeout=30)
+                    response.raise_for_status()
+                    jobs[url] = response.json()
+
+        self._client_results = list(jobs.values())
 
     def _download_remote_data(self) -> None:
-        # Download the remote data to temporary files using (printing a progress bar),
-        # and store the file names in the _temp_file_names attribute. Note that this
-        # method currently supports downloading both .nc files (as obtained when
-        # initially querying the ISIMIP repository) and .zip files (as obtained when
-        # requesting server-side subsetting of the data) - in principle, this would
-        # allow data to be downloaded without server-side subsetting (and subsequently
-        # subsetted locally), but this functionality may not be needed (and is not
-        # currently implemented).
-        client_results = self._client_results
-        temp_save_dir = self._temp_save_dir
-        assert client_results is not None
-        assert temp_save_dir is not None
+        # Download the original or subsetted data files (extracting any zip archives)
+        # to the temporary directory, and store the file names in the _temp_file_names
+        # attribute.
+        assert self._client_results is not None
+        assert self._temp_save_dir is not None
         temp_file_names = []
-        for results in client_results:
-            file_url = results["file_url"]
-            url_parts = file_url.split("/")
-            download_file_name = url_parts[-1]
-            base_url = "/".join(url_parts[:-1])
-            pup = pooch.create(
-                base_url=base_url,
-                path=temp_save_dir,
-                registry={download_file_name: None},
-                retry_if_failed=5,
-            )
-            download_path_curr = pup.fetch(
-                download_file_name,
-                progressbar=True,
-            )
-            if pathlib.Path(download_path_curr).suffix == ".zip":
-                with zipfile.ZipFile(download_path_curr, "r") as zip_ref:
-                    temp_file_names_curr = [
-                        name for name in zip_ref.namelist() if name[-3:] == ".nc"
+        for result in self._client_results:
+            known_hash = None
+            if result.get("checksum") and result.get("checksum_type"):
+                known_hash = f"{result['checksum_type']}:{result['checksum']}"
+            download_path = self._download_file(result["file_url"], known_hash)
+            if download_path.suffix == ".zip":
+                with zipfile.ZipFile(download_path) as archive:
+                    files = [
+                        name for name in archive.namelist() if name.endswith(".nc")
                     ]
-                    zip_ref.extractall(path=temp_save_dir, members=temp_file_names_curr)
-                pathlib.Path(download_path_curr).unlink()
-                temp_file_names.extend(temp_file_names_curr)
+                    archive.extractall(path=self._temp_save_dir, members=files)
+                download_path.unlink()
+                temp_file_names.extend(files)
             else:
-                temp_file_names.append(download_file_name)
+                temp_file_names.append(download_path.name)
         self._temp_file_names = temp_file_names
 
     def _open_temp_data(self, **kwargs: Any) -> None:
@@ -296,11 +273,12 @@ class ISIMIPDataGetter(ClimateDataGetter):
         # and 'model' dimensions.
 
         def _preprocess(ds: xr.Dataset) -> xr.Dataset:
-            file_name = ds.encoding["source"].split("/")[-1]
+            file_name = pathlib.Path(ds.encoding["source"]).name
             # Preprocess the data to enable concatenation along the 'scenario' and
             # 'model' dimensions.
-            scenario = file_name.split("_")[3]
-            model = file_name.split("_")[0]
+            parts = file_name.split("_")
+            scenario = parts[self._scenario_file_index]
+            model = parts[0]
             assert (
                 scenario in self._subset["scenarios"]
                 and model in self._subset["models"]
@@ -308,6 +286,10 @@ class ISIMIPDataGetter(ClimateDataGetter):
                 f"Scenario ({scenario}) or model ({model}) either not identified "
                 + "correctly or not in requested data subset."
             )
+            # NCO writes wrapped cutouts west first. Restore the native longitude order
+            # before combining files, which requires monotonically ordered coordinates.
+            if "lon" in ds.indexes and not ds.indexes["lon"].is_monotonic_increasing:
+                ds = ds.sortby("lon")
             ds = ds.expand_dims(
                 {
                     "scenario": np.array([scenario], dtype="object"),
@@ -334,28 +316,19 @@ class ISIMIPDataGetter(ClimateDataGetter):
         ds_processed = self._ds.copy()
         frequency = self._frequency
         years = self._subset["years"]
-        locations = self._subset["locations"]
-        lons = self._subset["lons"]
-        lats = self._subset["lats"]
-        # Ensure the data are indexed by location string if locations are provided
-        if locations is not None:
-            ds_processed = ds_processed.climepi.sel_geo(locations, lon=lons, lat=lats)
+        if not self._subset_before_download or self._subset["locations"] is not None:
+            ds_processed = self._subset_grid(ds_processed)
         # Subset the data to the requested years
         ds_processed = ds_processed.isel(time=ds_processed.time.dt.year.isin(years))
         # Add time bounds using xcdat
         ds_processed = ds_processed.bounds.add_time_bounds(method="freq", freq="day")
         # Use capital letter for long name of time variable (for consistent plotting).
         ds_processed["time"].attrs.update(long_name="Time")
-        # Convert temperature from Kelvin to Celsius
-        ds_processed["temperature"] = ds_processed["tas"] - 273.15
-        ds_processed["temperature"].attrs.update(long_name="Temperature", units="°C")
-        # Convert precipitation from kg m-2 s-1 (equivalent to mm/s) to mm/day.
-        ds_processed["precipitation"] = ds_processed["pr"] * (60 * 60 * 24)
-        ds_processed["precipitation"].attrs.update(
-            long_name="Precipitation", units="mm/day"
+        # Convert temperature from Kelvin to Celsius, and precipitation from kg m-2 s-1
+        # (equivalent to mm/s) to mm/day.
+        ds_processed = _standardize_names_and_units(
+            ds_processed, "tas", "pr", 60 * 60 * 24
         )
-        # Drop original temperature and precipitation variables
-        ds_processed = ds_processed.drop_vars(["tas", "pr"])
         # Convert to monthly or yearly frequency if requested.
         if frequency == "monthly":
             ds_processed = ds_processed.climepi.monthly_average()
@@ -363,3 +336,47 @@ class ISIMIPDataGetter(ClimateDataGetter):
             ds_processed = ds_processed.climepi.yearly_average()
         self._ds = ds_processed
         super()._process_data()
+
+
+class ISIMIP3aDataGetter(ISIMIPDataGetter):
+    """Class for accessing and downloading ISIMIP3a GSWP3-W5E5 historical data."""
+
+    data_source = "isimip3a"
+    available_years = list(range(1901, 2020))
+    available_scenarios = ["obsclim"]
+    available_models = ["gswp3-w5e5"]
+    _simulation_round = "ISIMIP3a"
+    _catalog_filters = {"product": "InputData"}
+    _scenario_file_index = 1
+
+
+class ISIMIP4aDataGetter(ISIMIPDataGetter):
+    """Class for accessing and downloading ISIMIP4a GSWP3-ERA5 historical data."""
+
+    data_source = "isimip4a"
+    available_years = list(range(1901, 2026))
+    available_scenarios = ["obsclim"]
+    available_models = ["gswp3-era5"]
+    _simulation_round = "ISIMIP4a"
+    _catalog_filters = {"resolution": "30arcmin"}
+    _scenario_file_index = 1
+
+
+class ISIMIP4bDataGetter(ISIMIPDataGetter):
+    """Class for accessing and downloading ISIMIP4b CMIP7 projection data."""
+
+    data_source = "isimip4b"
+    available_years = list(range(2022, 2101))
+    available_scenarios = ["esm-scen7-vl", "esm-scen7-h"]
+    available_models = ["ec-earth3-esm-1-1", "ukesm1-3-ll"]
+    _simulation_round = "ISIMIP4b"
+    _catalog_filters = {"resolution": "30arcmin", "bias_adjustment": "era5"}
+
+
+def _request_session() -> requests.Session:
+    session = requests.Session()
+    session.mount(
+        "https://",
+        HTTPAdapter(max_retries=Retry(total=5, allowed_methods={"GET", "POST"})),
+    )
+    return session

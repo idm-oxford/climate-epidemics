@@ -6,7 +6,8 @@ The ISIMIPDataGetter class is tested.
 
 import itertools
 import pathlib
-import time
+import shutil
+import zipfile
 from unittest.mock import patch
 
 import geopy
@@ -59,266 +60,196 @@ def test_init():
         ("_client_results", None),
     ):
         assert getattr(data_getter, attr) == value, f"Attribute {attr} is not {value}."
+    with pytest.raises(ValueError, match="subset_method must be 'remote' or 'local'"):
+        ISIMIPDataGetter(subset_method="both")
 
 
 @patch("requests.Session", autospec=True)
 def test_find_remote_data(mock_session):
-    """Test the _find_remote_data method of the ISIMIPDataGetter class."""
-    # Set up mock methods
+    """
+    Test the _find_remote_data method of the ISIMIPDataGetter class.
 
-    def mock_json():
-        if (
-            mock_session.return_value.get.call_args[0][0]
-            == "https://data.isimip.org/api/v1/files/"
-        ):
-            model = "mri-esm2-0"
-            next_ = "fake_url"
-        elif mock_session.return_value.get.call_args[0][0] == "fake_url":
-            model = "ukesm1-0-ll"
-            next_ = None
-        else:
-            raise ValueError(
-                f"Unexpected URL {mock_session.return_value.get.call_args[0][0]}."
-            )
-        response = {
+    Checks that daily files are collected across result pages and filtered to the
+    requested years.
+    """
+    session = mock_session.return_value.__enter__.return_value
+    pages = [
+        {
             "results": [
                 {
                     "specifiers": {
-                        "model": model,
-                        "start_year": start_year,
-                        "end_year": end_year,
+                        "climate_scenario": "ssp126",
+                        "climate_forcing": model,
+                        "climate_variable": variable,
+                        "start_year": start,
+                        "end_year": end,
                     }
                 }
-                for start_year, end_year in zip(
-                    [2015, 2021, 2031, 2041, 2051],
-                    [2020, 2030, 2040, 2050, 2060],
-                    strict=True,
+                for variable, (start, end) in itertools.product(
+                    ("tas", "pr"), ((2015, 2020), (2021, 2030), (2031, 2040))
                 )
             ],
-            "next": next_,
+            "next": next_url,
         }
-        return response
-
-    mock_session.return_value.get.return_value.json = mock_json
-
-    # Set up DataGetter and run _find_remote_data
-
-    data_getter = ISIMIPDataGetter(
-        frequency="daily",
+        for model, next_url in [("mri-esm2-0", "next_page"), ("ukesm1-0-ll", None)]
+    ]
+    session.get.return_value.json.side_effect = pages
+    getter = ISIMIPDataGetter(
         subset={
-            "years": [2015, 2021, 2046],
+            "years": [2015, 2021],
             "models": ["mri-esm2-0", "ukesm1-0-ll"],
+            "scenarios": ["ssp126"],
         },
     )
-    data_getter._find_remote_data()
+    getter._find_remote_data()
 
-    # Check results
-    assert data_getter._client_results == [
-        {
-            "specifiers": {
-                "model": model,
-                "start_year": start_year,
-                "end_year": end_year,
-            }
-        }
-        for model in ["mri-esm2-0", "ukesm1-0-ll"]
-        for start_year, end_year in zip(
-            [2015, 2021, 2041], [2020, 2030, 2050], strict=True
-        )
+    assert getter._client_results == [
+        result
+        for page in pages
+        for result in page["results"]
+        if result["specifiers"]["end_year"] != 2040
     ]
+    first, second = session.get.call_args_list
+    assert first.args == ("https://data.isimip.org/api/v1/files/",)
+    assert first.kwargs["params"]["time_step"] == "daily"
+    assert second.args == ("next_page",)
 
 
 @patch("requests.Session", autospec=True)
-@patch.object(climepi.climdata._isimip, "geocode", autospec=True)
 @pytest.mark.parametrize(
-    "location_mode",
+    ("subset", "match"),
     [
-        "single_named",
-        "multiple_named",
-        "grid_lon_0_360",
-        "grid_lon_180_180",
-        "grid_all_lon",
-        "global",
-        "invalid_single",
-        "invalid_multiple",
+        ({"years": []}, "Select at least one ISIMIP year"),
+        ({"models": []}, "Select at least one ISIMIP year"),
+        (
+            {"years": [2015, 2022, 2021]},
+            "No ISIMIP3b tas data for scenario 'ssp126', model 'mri-esm2-0', and "
+            "year 2021",
+        ),
     ],
 )
-@pytest.mark.parametrize("times_out", [False, True])
-def test_subset_remote_data(mock_geocode, mock_session, location_mode, times_out):
+def test_find_remote_data_unavailable(mock_session, subset, match):
+    """
+    Test the _find_remote_data method of the ISIMIPDataGetter class.
+
+    Checks that an error is raised if no data are requested or if the files found do
+    not cover every requested year.
+    """
+    session = mock_session.return_value.__enter__.return_value
+    session.get.return_value.json.return_value = {
+        "results": [
+            {
+                "specifiers": {
+                    "climate_scenario": "ssp126",
+                    "climate_forcing": "mri-esm2-0",
+                    "climate_variable": variable,
+                    "start_year": 2015,
+                    "end_year": 2020,
+                }
+            }
+            for variable in ("tas", "pr")
+        ],
+        "next": None,
+    }
+    getter = ISIMIPDataGetter(
+        subset={"scenarios": ["ssp126"], "models": ["mri-esm2-0"], **subset}
+    )
+    with pytest.raises(ValueError, match=match):
+        getter._find_remote_data()
+
+
+@patch("requests.Session", autospec=True)
+@patch("climepi._core.geocode", autospec=True)
+@pytest.mark.parametrize(
+    ("subset", "operations"),
+    [
+        (
+            {"locations": ["Gabba"], "lons": [153], "lats": [-27]},
+            [{"operation": "cutout_point", "point": [-26.75, 153.25]}],
+        ),
+        (
+            {"locations": ["Los Angeles", "Melbourne"]},
+            [
+                {"operation": "cutout_point", "point": [34.25, -117.75]},
+                {"operation": "cutout_point", "point": [-36.75, 144.25]},
+            ],
+        ),
+        (
+            {"lon_range": (15, 240), "lat_range": (10, 60)},
+            [{"operation": "cutout_bbox", "bbox": [15.25, -120.25, 10.25, 59.75]}],
+        ),
+        (
+            {"lat_range": (-30, 60), "lon_range": (0, 360)},
+            [{"operation": "cutout_bbox", "bbox": [-179.75, 179.75, -29.75, 59.75]}],
+        ),
+        (
+            {"lon_range": (0.25000001, 0.24999999), "lat_range": (49, 51)},
+            [{"operation": "cutout_bbox", "bbox": [0.75, -0.25, 49.25, 50.75]}],
+        ),
+        ({}, []),
+    ],
+)
+@pytest.mark.parametrize("status", ["finished", "timeout", "failed"])
+def test_subset_remote_data(mock_geocode, mock_session, subset, operations, status):
     """
     Test the _subset_remote_data method of the ISIMIPDataGetter class.
 
-    Checks that the method correctly monitors the status of remote subsetting jobs.
+    Checks that each subsetting job is submitted once and then polled at its status URL.
     """
-    # Set up mock methods (including simulating a delay in the subsetting process)
-
-    subset_check_interval = 0.01
-    max_subset_wait_time = 1
-    if times_out:
-        time_to_finish = 2
-    else:
-        time_to_finish = 0.5
-    st = None  # start time to set below
-
-    def mock_json():
-        json = mock_session.return_value.post.call_args[1]["json"]
-        paths = json["paths"]
-        bbox = json["bbox"]
-        id_ = f"{paths[0]}_to_{paths[-1]}_bbox_{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}"
-
-        if time.time() - st > time_to_finish:
-            status = "finished"
-        else:
-            status = "waiting"
-        response = {
-            "id": id_,
-            "status": status,
-            "job_url": f"https://files.isimip.org/api/v2/{id_}",
-        }
-        return response
-
-    mock_session.return_value.post.return_value.json = mock_json
-
-    def _mock_geocode(location):
-        if location == "Los Angeles":
-            lon = -118
-            lat = 34
-        elif location == "Melbourne":
-            lon = 144
-            lat = -37
-        else:
-            raise ValueError(f"Unexpected location {location}.")
-        return geopy.Location(location, geopy.Point(latitude=lat, longitude=lon), {})
-
-    mock_geocode.side_effect = _mock_geocode
-
-    # Get inputs and expected bbox values used in subsetting requests
-
-    if location_mode == "single_named":
-        # Use a single named location with provided lons and lats
-        locations = ["Gabba"]
-        lons = [153]
-        lats = [-27]
-        lat_range = None
-        lon_range = None
-        id_suffixes_expected = ["bbox_-27_-27_153_153"]
-    elif location_mode == "multiple_named":
-        # Use multiple named locations with geocoding to get lons and lats
-        locations = ["Los Angeles", "Melbourne"]
-        lons = None
-        lats = None
-        lat_range = None
-        lon_range = None
-        id_suffixes_expected = ["bbox_34_34_-118_-118", "bbox_-37_-37_144_144"]
-    elif location_mode == "grid_lon_0_360":
-        # Use a grid of lon/lat values with lon in 0-360 range
-        locations = None
-        lons = None
-        lats = None
-        lat_range = (10, 60)
-        lon_range = (15, 240)
-        id_suffixes_expected = ["bbox_10_60_15_-120"]
-    elif location_mode == "grid_lon_180_180":
-        # Use a grid of lon/lat values with lon in -180-180 range
-        locations = None
-        lons = None
-        lats = None
-        lat_range = None
-        lon_range = (-30, 60)
-        id_suffixes_expected = ["bbox_-90_90_-30_60"]
-    elif location_mode == "grid_all_lon":
-        # Use a grid of lon/lat values with all longitudes
-        locations = None
-        lons = None
-        lats = None
-        lat_range = (-30, 60)
-        lon_range = None
-        id_suffixes_expected = ["bbox_-30_60_-180_180"]
-    elif location_mode == "global":
-        # Use all global data
-        locations = None
-        lons = None
-        lats = None
-        lat_range = None
-        lon_range = None
-        id_suffixes_expected = ["should_not_subset"]
-    elif location_mode == "invalid_single":
-        # Invalid location mode (lons provided but not lats)
-        locations = ["Gabba"]
-        lons = [153]
-        lats = None
-        lat_range = None
-        lon_range = None
-        id_suffixes_expected = "should_not_matter"
-    elif location_mode == "invalid_multiple":
-        # Invalid location mode with a list of locations (lats provided but not lons)
-        locations = ["Los Angeles", "Melbourne"]
-        lons = None
-        lats = [-27, -37]
-        lat_range = None
-        lon_range = None
-        id_suffixes_expected = "should_not_matter"
-    else:
-        raise ValueError(f"Unexpected location_mode {location_mode}.")
-
-    job_ids_expected = [
-        f"{x}_to_{y}_{id_suffix}"
-        for id_suffix in id_suffixes_expected
-        for x, y in zip([0, 300, 600, 900], [299, 599, 899, 999], strict=True)
+    mock_geocode.side_effect = [
+        geopy.Location("Los Angeles", geopy.Point(34, -118), {}),
+        geopy.Location("Melbourne", geopy.Point(-37, 144), {}),
     ]
-
-    # Set up DataGetter
-
-    data_getter = ISIMIPDataGetter(
-        frequency="daily",
-        subset={
-            "years": [2015, 2021, 2046],
-            "models": ["mri-esm2-0", "ukesm1-0-ll"],
-            "locations": locations,
-            "lons": lons,
-            "lats": lats,
-            "lat_range": lat_range,
-            "lon_range": lon_range,
-        },
-        subset_check_interval=subset_check_interval,
-        max_subset_wait_time=max_subset_wait_time,
+    session = mock_session.return_value.__enter__.return_value
+    payloads = [
+        {"paths": paths, "operations": [operation]}
+        for operation in operations
+        for paths in [["%02d" % i for i in range(32)], ["32"]]
+    ]
+    endpoint = "https://files.isimip.org/api/v2"
+    job_urls = [f"{endpoint}/{i}" for i in range(len(payloads))]
+    pending_jobs = [{"status": "queued", "job_url": url} for url in job_urls]
+    final_jobs = [
+        {"status": status, "job_url": url, "file_url": f"{url}.zip"} for url in job_urls
+    ]
+    session.post.return_value.json.side_effect = pending_jobs
+    session.get.return_value.json.side_effect = final_jobs
+    getter = ISIMIPDataGetter(
+        subset=subset,
+        subset_check_interval=0,
+        max_subset_wait_time=0 if status == "timeout" else 20,
     )
-    client_results_in = [{"path": x} for x in range(1000)]
-    data_getter._client_results = client_results_in
-
-    # Run _subset_remote_data and check results
-    st = time.time()
-    if location_mode in ["invalid_single", "invalid_multiple"]:
-        with pytest.raises(
-            ValueError,
-            match="Either both, or neither, of 'lons' and 'lats' must be provided.",
-        ):
-            data_getter._subset_remote_data()
-    elif times_out and location_mode != "global":
-        if location_mode == "multiple_named":
-            match = "Subsetting for at least one location timed out."
-        else:
-            match = "\n".join(
-                [f"https://files.isimip.org/api/v2/{x}" for x in job_ids_expected]
-            )
-        with pytest.raises(TimeoutError, match=match):
-            data_getter._subset_remote_data()
+    catalog_results = [{"path": f"{i:02d}"} for i in range(33)]
+    getter._client_results = catalog_results
+    if operations and status == "timeout":
+        with pytest.raises(TimeoutError, match=job_urls[-1]) as exc:
+            getter._subset_remote_data()
+        assert "subset_method='local'" in str(exc.value)
+        session.get.assert_not_called()
+    elif operations and status == "failed":
+        with pytest.raises(RuntimeError, match=job_urls[0]):
+            getter._subset_remote_data()
     else:
-        data_getter._subset_remote_data()
-        assert (
-            data_getter._client_results == client_results_in
-            if location_mode == "global"
-            else [{"id": x, "status": "finished"} for x in job_ids_expected]
-        )
+        getter._subset_remote_data()
+        assert getter._client_results == (final_jobs if operations else catalog_results)
+    assert [call.kwargs["json"] for call in session.post.call_args_list] == payloads
+    assert all(call.args == (endpoint,) for call in session.post.call_args_list)
+    if operations and status != "timeout":
+        assert [call.args[0] for call in session.get.call_args_list] == job_urls
 
-    # Check that requests sessions are closed
 
-    if location_mode in ["global", "invalid_single", "invalid_multiple"]:
-        mock_session.assert_not_called()
-    elif location_mode == "multiple_named":
-        assert mock_session.return_value.close.call_count == 2
-    else:
-        mock_session.return_value.close.assert_called_once()
+@pytest.mark.parametrize(
+    "subset",
+    [
+        {"locations": ["A"], "lons": [1]},
+        {"locations": ["A", "B"], "lons": [1, 2], "lats": [3, None]},
+    ],
+)
+def test_subset_remote_data_incomplete_coords(subset):
+    """Test _subset_remote_data with incomplete location coordinates."""
+    getter = ISIMIPDataGetter(subset=subset)
+    with pytest.raises(ValueError, match="must also be lists|both .* must be provided"):
+        getter._subset_remote_data()
 
 
 @patch.object(pooch, "create", autospec=True)
@@ -365,7 +296,12 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_create, data_subse
         ]
     else:
         data_getter._client_results = [
-            {"name": x, "file_url": base_url + x}
+            {
+                "name": x,
+                "file_url": base_url + x,
+                "checksum": "abc",
+                "checksum_type": "sha512",
+            }
             for x in ["/file_1.nc", "/file_2.nc", "/file_3.nc"]
         ]
     data_getter._download_remote_data()
@@ -398,7 +334,7 @@ def test_download_remote_data(mock_zipfile, mock_unlink, mock_create, data_subse
             mock_create.assert_any_call(
                 base_url=base_url,
                 path=temp_save_dir,
-                registry={f"file_{file_no}.nc": None},
+                registry={f"file_{file_no}.nc": "sha512:abc"},
                 retry_if_failed=5,
             )
             mock_fetch.assert_any_call(
@@ -522,7 +458,7 @@ def test_process_data(frequency):
     lat = [-27]
     data_getter = ISIMIPDataGetter(
         frequency=frequency,
-        subset={"locations": locations, "lon": lon, "lat": lat},
+        subset={"locations": locations, "lons": lon, "lats": lat},
     )
     data_getter._ds = ds_unprocessed
     data_getter._process_data()
@@ -569,3 +505,99 @@ def test_process_data(frequency):
         assert ds_processed.time.size == 2
     else:
         raise ValueError(f"Unexpected frequency {frequency}.")
+
+
+@pytest.mark.parametrize(
+    ("source", "model", "scenario", "year", "filename_pattern"),
+    [
+        ("isimip3a", "gswp3-w5e5", "counterclim", 2019, "gswp3-w5e5_counterclim_{var}"),
+        ("isimip4a", "gswp3-era5", "obsclim", 2022, "gswp3-era5_obsclim_{var}"),
+        (
+            "isimip4b",
+            "ec-earth3-esm-1-1",
+            "esm-scen7-h",
+            2022,
+            "ec-earth3-esm-1-1_r1i1p1f1_era5_esm-scen7-h_{var}",
+        ),
+    ],
+)
+def test_retrieval_subset_methods(
+    source, model, scenario, year, filename_pattern, tmp_path, monkeypatch
+):
+    """
+    Test retrieval with local and remote subsetting through get_climate_data.
+
+    Checks that both methods give the same result for a range crossing the
+    antimeridian (which NCO cutouts return with the western segment first).
+    """
+    paths = []
+    cutout_archive = tmp_path / "cutout.zip"
+    cutout_dir = tmp_path / "cutout"
+    cutout_dir.mkdir()
+    time_coord = xr.date_range(f"{year}-01-01T12:00:00", periods=3, use_cftime=True)
+    for var in ("tas", "pr"):
+        path = tmp_path / (filename_pattern.format(var=var) + "_global_daily.nc")
+        values = np.arange(36, dtype=float).reshape(3, 3, 4)
+        grid = xr.Dataset(
+            {var: (("time", "lat", "lon"), values)},
+            coords={
+                "lon": ("lon", [-179.75, -0.25, 0.25, 179.75], {"axis": "X"}),
+                "lat": ("lat", [1.25, 0.75, 0.25], {"axis": "Y"}),
+                "time": ("time", time_coord, {"axis": "T"}),
+            },
+        )
+        grid.time.encoding["units"] = f"hours since {year}-01-01"
+        grid.to_netcdf(path)
+        paths.append(path)
+
+        # NCO writes the western segment first for ranges crossing the dateline.
+        for index, time_slice in enumerate((slice(0, 1), slice(1, None))):
+            cutout_path = cutout_dir / f"{path.stem}_{index}.nc"
+            grid.isel(lon=[3, 0], lat=[1, 2], time=time_slice).to_netcdf(cutout_path)
+            with zipfile.ZipFile(cutout_archive, "a") as archive:
+                archive.write(cutout_path, arcname=cutout_path.name)
+
+    def find_data(getter):
+        getter._client_results = [{"file_url": str(path)} for path in paths]
+
+    def download_file(getter, url, known_hash):
+        return pathlib.Path(shutil.copy(url, getter._temp_save_dir))
+
+    monkeypatch.setattr(ISIMIPDataGetter, "_find_remote_data", find_data)
+    monkeypatch.setattr(ISIMIPDataGetter, "_download_file", download_file)
+    subset = {
+        "years": [year],
+        "lon_range": (179, -179),
+        "lat_range": (0, 1),
+        "scenarios": [scenario],
+        "models": [model],
+    }
+    save_dir = tmp_path / "processed"
+
+    with patch.object(ISIMIPDataGetter, "_subset_remote_data", autospec=True) as remote:
+        with climepi.climdata.get_climate_data(
+            source, "daily", subset, save_dir, subset_method="local"
+        ) as ds:
+            assert ds.lon.values.tolist() == [-179.75, 179.75]
+            assert ds.lat.values.tolist() == [0.75, 0.25]
+            assert ds.scenario.values.tolist() == [scenario]
+            assert ds.model.values.tolist() == [model]
+            npt.assert_allclose(
+                ds.temperature.values.squeeze()[0],
+                [[4, 7], [8, 11]] - np.float64(273.15),
+            )
+            expected = ds.load()
+        with climepi.climdata.get_climate_data(
+            source, "daily", subset, save_dir
+        ) as cached:
+            xrt.assert_identical(cached, expected)
+        remote.assert_not_called()
+
+    def subset_remote_data(getter):
+        getter._client_results = [{"file_url": str(cutout_archive)}]
+
+    monkeypatch.setattr(ISIMIPDataGetter, "_subset_remote_data", subset_remote_data)
+    with climepi.climdata.get_climate_data(
+        source, "daily", subset, tmp_path / "processed_remote"
+    ) as remote:
+        xrt.assert_identical(remote, expected)

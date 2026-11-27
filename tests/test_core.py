@@ -4,6 +4,7 @@ Unit tests for the _core module of the climepi package.
 The ClimEpiDatasetAccessor class is tested in this module.
 """
 
+import itertools
 from unittest.mock import patch
 
 import geoviews
@@ -194,70 +195,32 @@ class TestTemporalGroupAverage:
         ds.time.attrs.update(bounds="time_bnds")
         ds["time"].encoding.update(calendar="standard")
         result = ds.climepi.temporal_group_average(frequency=frequency)
-        time_index_result = result.get_index("time")
-        temperature_values_result = result.temperature.values
-        if frequency == "yearly":
-            # Note no centering is performed when the time-averaged data has a single
-            # time value
-            temperature_values_expected = np.array([np.mean(temperature_values_in)])
-            time_index_expected = xr.date_range(
-                start="2001-01-01", periods=1, use_cftime=True
+        if frequency == "daily":
+            temperature_values_expected = temperature_values_in
+            time_bnds_expected = ds["time_bnds"]
+        else:
+            # Average over each calendar period, centering times within the period
+            # (including for the single yearly time point)
+            period_starts = xr.date_range(
+                start="2001-01-01",
+                end="2002-01-01",
+                freq="YS" if frequency == "yearly" else "MS",
+                use_cftime=True,
             )
-        elif frequency == "monthly":
             temperature_values_expected = np.array(
                 [
-                    np.mean(
-                        temperature_values_in[month_start : month_start + month_length]
-                    )
-                    for month_start, month_length in zip(
-                        np.cumsum([0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30]),
-                        np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]),
-                        strict=True,
-                    )
+                    temperature_values_in[(time_lb >= start) & (time_lb < end)].mean()
+                    for start, end in itertools.pairwise(period_starts)
                 ]
             )
-            ds_time_bnds_expected = xr.Dataset(
-                {
-                    "time_bnds": (
-                        ("time", "bnds"),
-                        np.array(
-                            [
-                                xr.date_range(
-                                    start="2001-01-01",
-                                    periods=12,
-                                    freq="MS",
-                                    use_cftime=True,
-                                ),
-                                xr.date_range(
-                                    start="2001-02-01",
-                                    periods=12,
-                                    freq="MS",
-                                    use_cftime=True,
-                                ),
-                            ]
-                        ).T,
-                    ),
-                },
+            time_bnds_expected = xr.DataArray(
+                np.array([period_starts[:-1], period_starts[1:]]).T,
+                dims=("time", "bnds"),
             )
-            ds_time_bnds_expected["time"] = ds_time_bnds_expected["time_bnds"].mean(
-                dim="bnds"
-            )
-            time_index_expected = ds_time_bnds_expected.get_index("time")
-        elif frequency == "daily":
-            temperature_values_expected = temperature_values_in
-            ds_time_bnds_expected = ds[["time_bnds"]]
-            time_index_expected = ds.get_index("time")
-        else:
-            raise ValueError(f"Invalid frequency: {frequency}")
-        npt.assert_allclose(temperature_values_result, temperature_values_expected)
-        assert time_index_result.equals(time_index_expected)
-        if frequency in ["monthly", "daily"]:
-            xrt.assert_allclose(
-                result["time_bnds"],
-                ds_time_bnds_expected["time_bnds"],
-            )
-        else:
-            assert "time_bnds" not in result
+            time_bnds_expected["time"] = time_bnds_expected.mean(dim="bnds")
+        npt.assert_allclose(result.temperature.values, temperature_values_expected)
+        assert result.get_index("time").equals(time_bnds_expected.get_index("time"))
+        xrt.assert_allclose(result["time_bnds"], time_bnds_expected)
 
     def test_temporal_group_average_varlist(self, frequency):
         """Test with a list of data variables."""

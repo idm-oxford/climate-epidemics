@@ -45,8 +45,9 @@ Climate data subpackage
 
 .. currentmodule:: climepi
 
-Methods for downloading and accessing climate projection data are contained in the
-``climdata`` subpackage (accessible via ``from climepi import climdata``; see
+Methods for downloading and accessing climate projection and reanalysis data are
+contained in the ``climdata`` subpackage (accessible via
+``from climepi import climdata``; see
 :ref:`getting-started/overview:functionality/climdata`).
 
 Methods

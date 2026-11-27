@@ -1,6 +1,7 @@
 import itertools
 import os
 import pathlib
+import shutil
 import tempfile
 import warnings
 from typing import Any, Literal
@@ -12,10 +13,7 @@ import pydantic
 import xarray as xr
 from typing_extensions import TypedDict
 
-# Cache directory for storing any temporary files created when downloading data.
-# Note: the code could be improved to ensure that the temporary files are deleted if an
-# error occurs, and to use a different temporary file name each time to avoid
-# potential conflicts if multiple instances of the code are run simultaneously.
+# Cache directory for formatted data.
 CACHE_DIR = pooch.os_cache("climepi")
 
 
@@ -49,7 +47,7 @@ class SubsetPartial(TypedDict, total=False):
 
 class ClimateDataGetter:
     """
-    Class for accessing and downloading climate projection data.
+    Class for accessing and downloading climate data.
 
     The `get_data` method controls the process of finding,  downloading and formatting
     the data. Intended to be subclassed for specific data sources. Subclasses should
@@ -116,7 +114,8 @@ class ClimateDataGetter:
                 length.
             lon_range : tuple of two floats, optional
                 Longitude range for which to retrieve data. Should comprise two values
-                giving the minimum and maximum longitudes. Ignored if 'locations' is
+                giving the western and eastern bounds. For example, (170, -170)
+                selects a range crossing the antimeridian. Ignored if 'locations' is
                 provided. If not provided, and 'locations' is also not provided, all
                 longitudes are retrieved.
             lat_range : tuple of two floats, optional
@@ -139,6 +138,10 @@ class ClimateDataGetter:
     lon_res: float | None = None
     lat_res: float | None = None
     remote_open_possible = False
+    # Whether to call _subset_remote_data before downloading the data, and the western
+    # edge of the data's native longitude range (0 for 0 to 360, -180 for -180 to 180).
+    _subset_before_download = True
+    _longitude_origin = 0
 
     def __init__(
         self,
@@ -283,10 +286,9 @@ class ClimateDataGetter:
         Retrieve the data.
 
         First tries to open the data locally from the provided 'save_dir' directory.
-        If not found locally, the data are searched for and subsetted within the remote
-        server, downloaded to a temporary file (optionally, if it is possible to lazily
-        open the remote dataset), and then processed and (if downloaded) saved to the
-        'save_dir' directory.
+        If not found locally, the remote data are located, subsetted, and processed.
+        When downloading, the data are staged in temporary files and the processed data
+        are saved to the 'save_dir' directory.
 
         Parameters
         ----------
@@ -324,22 +326,26 @@ class ClimateDataGetter:
         print("Finding data files on server...")
         self._find_remote_data()
         print("Data found.")
-        print("Subsetting data...")
-        self._subset_remote_data()
-        print("Data subsetted.")
+        if self._subset_before_download:
+            print("Subsetting data...")
+            self._subset_remote_data()
+            print("Data subsetted.")
         if download:
             self._temp_save_dir = pathlib.Path(tempfile.mkdtemp(suffix="_climepi"))
-            print("Downloading data...")
-            self._download_remote_data()
-            print("Data downloaded.")
-            self._open_temp_data()
-        self._process_data()
-        if download:
-            print("Processing data...")
-            self._save_processed_data()
-            print(f"Formatted data saved to '{self._save_dir}'")
-            self._delete_temporary()
+            try:
+                print("Downloading data...")
+                self._download_remote_data()
+                print("Data downloaded.")
+                self._open_temp_data()
+                self._process_data()
+                print("Processing data...")
+                self._save_processed_data()
+                print(f"Formatted data saved to '{self._save_dir}'")
+            finally:
+                self._delete_temporary()
             self._open_local_data(**kwargs)
+        else:
+            self._process_data()
         assert self._ds is not None
         return self._ds
 
@@ -391,6 +397,18 @@ class ClimateDataGetter:
         # name(s) in the _temp_file_names attribute.
         raise NotImplementedError
 
+    def _download_file(self, url: str, known_hash: str | None = None) -> pathlib.Path:
+        # Download a file to this request's temporary directory.
+        assert self._temp_save_dir is not None
+        base_url, file_name = url.rsplit("/", maxsplit=1)
+        downloader = pooch.create(
+            base_url=base_url,
+            path=self._temp_save_dir,
+            registry={file_name: known_hash},
+            retry_if_failed=5,
+        )
+        return pathlib.Path(downloader.fetch(file_name, progressbar=True))
+
     def _open_temp_data(self, **kwargs: Any) -> None:
         # Open the downloaded data from the temporary file(s), and store the dataset in
         # both the _ds attribute and the _ds_temp attribute (the latter is used for
@@ -432,9 +450,10 @@ class ClimateDataGetter:
         # specific processing.
         assert self._ds is not None
         ds_processed = self._ds.copy()
-        # Add latitude and longitude bounds (use provided resolution if available, else
-        # use the xcdat `add_missing_bounds` method to infer bounds from the coordinate
-        # values (which is not possible for single-value coordinates).
+        # Add latitude and longitude bounds (use provided resolution if available, with
+        # latitude bounds clipped at the poles, else use the xcdat `add_missing_bounds`
+        # method to infer bounds from the coordinate values (which is not possible for
+        # single-value coordinates).
         lon_res = self.lon_res
         lat_res = self.lat_res
         if "lon_bnds" not in ds_processed and lon_res is not None:
@@ -449,7 +468,7 @@ class ClimateDataGetter:
                 [ds_processed.lat - lat_res / 2, ds_processed.lat + lat_res / 2],
                 dim="bnds",
                 combine_attrs="drop",
-            ).T
+            ).T.clip(-90, 90)
             ds_processed["lat"].attrs.update(bounds="lat_bnds")
         ds_processed = ds_processed.bounds.add_missing_bounds(axes=["X", "Y"])
         ds_processed["lon"].attrs.update(units="°E")
@@ -491,18 +510,57 @@ class ClimateDataGetter:
             delayed_obj.compute()
 
     def _delete_temporary(self) -> None:
-        # Delete the temporary file(s) created when downloading the data (once the data
-        # have been processed and saved to final files).
-        temp_save_dir = self._temp_save_dir
-        temp_file_names = self._temp_file_names
-        assert temp_save_dir is not None
-        assert temp_file_names is not None
-        assert self._ds_temp is not None
-        self._ds_temp.close()
-        for temp_file_name in temp_file_names:
-            temp_save_path = temp_save_dir / temp_file_name
-            temp_save_path.unlink()
-        temp_save_dir.rmdir()
+        # Close and remove temporary files even when retrieval fails partway through.
+        assert self._temp_save_dir is not None
+        if self._ds_temp is not None:
+            self._ds_temp.close()
+        shutil.rmtree(self._temp_save_dir)
         self._ds_temp = None
         self._temp_save_dir = None
         self._temp_file_names = None
+
+    def _get_lon_range(self) -> tuple[float, float]:
+        # Express a longitude range in the data's native longitude convention.
+        lon_range = self._subset["lon_range"]
+        origin = self._longitude_origin
+        if lon_range is None or abs(lon_range[1] - lon_range[0]) >= 360:
+            return origin, origin + 360
+        west, east = lon_range
+        return (west - origin) % 360 + origin, (east - origin) % 360 + origin
+
+    def _subset_grid(self, ds: xr.Dataset) -> xr.Dataset:
+        # Select points or ranges while preserving the grid's coordinate order.
+        locations = self._subset["locations"]
+        if locations is not None:
+            return ds.climepi.sel_geo(
+                locations, lon=self._subset["lons"], lat=self._subset["lats"]
+            )
+        if self._subset["lon_range"] is not None:
+            west, east = self._get_lon_range()
+            if west > east:
+                ds = ds.isel(lon=(ds.lon >= west) | (ds.lon <= east))
+            else:
+                ds = ds.isel(lon=(ds.lon >= west) & (ds.lon <= east))
+        lat_range = self._subset["lat_range"]
+        if lat_range is not None:
+            south, north = lat_range
+            ds = ds.isel(lat=(ds.lat >= south) & (ds.lat <= north))
+        if ds.lon.size == 0 or ds.lat.size == 0:
+            raise ValueError("The requested ranges contain no grid points.")
+        return ds
+
+
+class RemoteDatasetGetter(ClimateDataGetter):
+    """Shared download method for remotely opened datasets."""
+
+    def _download_remote_data(self) -> None:
+        # Materialize the remote subset in a temporary NetCDF file.
+        assert self._temp_save_dir is not None
+        assert self._ds is not None
+        temp_file_name = "temp_data.nc"
+        delayed_obj = self._ds.to_netcdf(
+            self._temp_save_dir / temp_file_name, compute=False
+        )
+        with dask.diagnostics.ProgressBar():
+            delayed_obj.compute()
+        self._temp_file_names = [temp_file_name]

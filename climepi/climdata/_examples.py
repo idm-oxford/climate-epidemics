@@ -1,5 +1,5 @@
 """
-Module for creating and accessing example climate projection datasets.
+Module for creating and accessing example climate datasets.
 
 Running this module as a script will create all example datasets by downloading and
 formatting the relevant data.
@@ -20,8 +20,7 @@ from climepi.climdata._utils import _get_data_version
 # Dictionary of example datasets. Each key gives the example dataset name, and the
 # corresponding value should be a dictionary with the following keys/values:
 #   data_dir: Directory where the dataset is to be downloaded/accessed.
-#   data_source: Data source to retrieve data from. Currently supported sources are
-#       'lens2' (for CESM2 LENS data) and 'isimip' (for ISIMIP data).
+#   data_source: Data source to retrieve data from (see get_climate_data).
 #   frequency: Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
 #       'yearly' (default is 'monthly').
 #   subset: Dictionary of options for subsetting the dataset to pass to
@@ -72,6 +71,20 @@ EXAMPLES = {
         "2100 from a single CESM2 LENS ensemble member "
         "(https://registry.opendata.aws/ncar-cesm2-lens/).",
     },
+    "era5_london_2020_daily": {
+        "data_source": "era5",
+        "frequency": "daily",
+        "subset": {
+            "years": [2020],
+            "locations": ["London"],
+            "lons": [-0.08],
+            "lats": [51.51],
+        },
+        "formatted_data_downloadable": True,
+        "doc": "Daily temperature and precipitation for London in 2020 from the "
+        "ERA5 reanalysis "
+        "(https://doi.org/10.24381/cds.adbb2d47).",
+    },
 }
 EXAMPLE_NAMES = list(EXAMPLES.keys())
 
@@ -91,7 +104,9 @@ def get_example_dataset(
 
     Please note the terms of use of the underlying ISIMIP
     (https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/)
-    and CESM2 LENS (https://www.ucar.edu/terms-of-use/data) data.
+    and CESM2 LENS (https://www.ucar.edu/terms-of-use/data) data. The ERA5 example
+    uses Copernicus Climate Change Service data from Earthmover's public Icechunk
+    archive (https://registry.opendata.aws/earthmover-era5/).
 
     Parameters
     ----------
@@ -99,9 +114,10 @@ def get_example_dataset(
         Name of the example dataset to load. Currently available examples are:
         'isimip_cities_daily' (ISIMIP daily projections for London, Paris, Los
         Angeles, Cape Town and Istanbul for 2030-2100), 'lens2_2020_2100_monthly'
-        (CESM LENS2 monthly projections for 2020 and 2100) and
+        (CESM LENS2 monthly projections for 2020 and 2100),
         'lens2_2020_2100_monthly_one_realization' (a single-realization subset of
-        the above).
+        the above), and 'era5_london_2020_daily' (daily ERA5 reanalysis for one
+        grid point in London in 2020).
     base_dir : str or pathlib.Path, optional
         Base directory in which example datasets are stored. The example dataset will be
         downloaded to and accessed from a subdirectory of this directory with the same
@@ -184,7 +200,7 @@ def _fetch_formatted_example_dataset(name: str, data_dir: os.PathLike) -> None:
     )
     version = _get_data_version()
     url = (
-        "https://github.com/idm-oxford/climate-epidemics/raw/"
+        "https://raw.githubusercontent.com/idm-oxford/climate-epidemics/"
         f"{version}/data/examples/{name}"
     )
     pup = pooch.create(

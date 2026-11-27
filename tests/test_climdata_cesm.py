@@ -755,6 +755,9 @@ class TestGLENSDataGetter:
         ]
         temp_save_dir = pathlib.Path("some_dir")
         data_getter._temp_save_dir = temp_save_dir
+        mock_pooch_create.return_value.fetch.side_effect = lambda name, **kwargs: (
+            temp_save_dir / name
+        )
         data_getter._download_remote_data()
         mock_parent_download.assert_not_called()
         assert mock_pooch_create.call_count == 3

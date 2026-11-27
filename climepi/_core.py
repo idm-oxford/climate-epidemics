@@ -232,17 +232,21 @@ class ClimEpiDatasetAccessor:
         ds_in["time_bnds"] = ds_in["time_bnds"].compute()
         # Compute the group average
         ds_m = ds_in.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
-        if ds_m.time.size > 1:
-            # Add time bounds and center times (only if there is more than one time
-            # point, as xcdat add_time_bounds does not work for a single time point)
-            ds_m = ds_m.bounds.add_time_bounds(method="freq", freq=xcdat_freq)
-            # Workaround for bug in xcdat.center_times when longitude and/or latitude
-            # are non-dimension singleton coordinates (otherwise, longitude and/or
-            # latitude are incorrectly treated as time coordinates, leading to an error
-            # being raised)
-            centered_times = center_times(ds_m[["time", "time_bnds"]])
-            ds_m["time"] = centered_times.time
-            ds_m["time_bnds"] = centered_times.time_bnds
+        # Add time bounds (xcdat add_time_bounds does not work for a single time point,
+        # so a single time point is temporarily repeated)
+        n_time = ds_m.time.size
+        ds_m = (
+            ds_m.isel(time=[0, 0] if n_time == 1 else slice(None))
+            .bounds.add_time_bounds(method="freq", freq=xcdat_freq)
+            .isel(time=slice(n_time))
+        )
+        # Center times. Workaround for bug in xcdat.center_times when longitude and/or
+        # latitude are non-dimension singleton coordinates (otherwise, longitude and/or
+        # latitude are incorrectly treated as time coordinates, leading to an error
+        # being raised)
+        centered_times = center_times(ds_m[["time", "time_bnds"]])
+        ds_m["time"] = centered_times.time
+        ds_m["time_bnds"] = centered_times.time_bnds
         return ds_m
 
     def yearly_average(
