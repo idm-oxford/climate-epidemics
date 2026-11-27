@@ -194,7 +194,7 @@ def test_get_view_func():
         "data_var": "temperature",
         "temporal_scope": "monthly",
         "year_range": [2000, 2001],
-        "location_string": "not used",
+        "location_string": "SCG",
         "realization": "not used",
         "ensemble_stat": "not used",
         "model": "not used",
