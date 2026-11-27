@@ -11,7 +11,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://www.mypy-lang.org/)
 
-Python package and web app for combining climate projection datasets and epidemiological models characterising climate suitability for vector-borne disease.
+Python package and web app for combining climate projection and reanalysis datasets with epidemiological models characterising climate suitability for vector-borne disease.
 
 Documentation: https://climate-epidemics.readthedocs.io/en/latest/
 
@@ -53,4 +53,9 @@ plot
 
 See the [Gallery](https://climate-epidemics.readthedocs.io/en/latest/gallery.html) for
 more in-depth examples.
+
+The climate data API also retrieves historical ERA5 temperature and precipitation
+with `climdata.get_climate_data("era5", ...)`. See the
+[climate data overview](https://climate-epidemics.readthedocs.io/en/latest/getting-started/overview.html#climate-data-subpackage)
+for an example.
 

@@ -12,6 +12,9 @@ locally is contained in the ``app`` subpackage:
 
     app.run_app(enable_climate_download=True)
 
+The example datasets include ``era5_london_2020_daily`` for daily ERA5 temperature
+and precipitation at one grid point in London in 2020.
+
 If climepi package is installed within the current `conda
 <https://docs.conda.io/projects/conda/en/stable/index.html>`_ environment, the
 application can also be run from the command line:

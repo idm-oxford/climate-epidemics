@@ -85,6 +85,12 @@ def test_init():
         (["gabba"], None, None, ("gabba",)),
         (["mcg"], None, None, ("mcg",)),
         (["gabba", "mcg", "waca"], None, [8, 15], ("gabba", "mcg", "waca")),
+        (
+            ["Port of Spain", "Biel/Bienne", 'a<b>c:d"e\\f|g?h*i'],
+            None,
+            None,
+            ("Port_of_Spain", "Biel_Bienne", "a_b_c_d_e_f_g_h_i"),
+        ),
         (None, [8, 15], None, ("lon_8_to_15",)),
         (None, None, [7, 44], ("lat_7_to_44",)),
         (None, [7.5, 72], [-6, 17.33], ("lon_7_5_to_72_lat_m6_to_17_33",)),
@@ -651,3 +657,34 @@ def test_delete_temporary():
     assert data_getter._temp_save_dir is None
     assert data_getter._temp_file_names is None
     assert data_getter._ds_temp is None
+
+
+@pytest.mark.parametrize(
+    ("longitude_origin", "lon_range", "lat_range", "lons_expected", "lats_expected"),
+    [
+        (0, None, None, [0, 90, 180, 270], [-45, 0, 45]),
+        (0, (80, 190), (-10, 50), [90, 180], [0, 45]),
+        (0, (-100, 100), None, [0, 90, 270], [-45, 0, 45]),
+        (0, (0, 360), None, [0, 90, 180, 270], [-45, 0, 45]),
+        (-180, (80, 280), None, [-180, -90, 90], [-45, 0, 45]),
+        (0, (100, 170), None, None, None),
+    ],
+)
+def test_subset_grid(
+    longitude_origin, lon_range, lat_range, lons_expected, lats_expected
+):
+    """Test the _subset_grid method of the ClimateDataGetter class."""
+    ds = xr.Dataset(
+        coords={"lon": longitude_origin + np.arange(0, 360, 90), "lat": [-45, 0, 45]}
+    )
+    data_getter = ClimateDataGetter(
+        subset={"lon_range": lon_range, "lat_range": lat_range}
+    )
+    data_getter._longitude_origin = longitude_origin
+    if lons_expected is None:
+        with pytest.raises(ValueError, match="no grid points"):
+            data_getter._subset_grid(ds)
+        return
+    result = data_getter._subset_grid(ds)
+    npt.assert_equal(result.lon.values, lons_expected)
+    npt.assert_equal(result.lat.values, lats_expected)

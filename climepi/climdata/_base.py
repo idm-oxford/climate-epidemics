@@ -10,11 +10,21 @@ from climepi.climdata._data_getter_class import (
     ClimateDataGetter,
     SubsetPartial,
 )
-from climepi.climdata._isimip import ISIMIPDataGetter
+from climepi.climdata._era5 import ERA5DataGetter
+from climepi.climdata._isimip import (
+    ISIMIP3aDataGetter,
+    ISIMIP4aDataGetter,
+    ISIMIP4bDataGetter,
+    ISIMIPDataGetter,
+)
+
+ClimateDataSource = Literal[
+    "lens2", "arise", "glens", "isimip", "isimip3a", "isimip4a", "isimip4b", "era5"
+]
 
 
 def get_climate_data(
-    data_source: Literal["lens2", "arise", "glens", "isimip"],
+    data_source: ClimateDataSource,
     frequency: Literal["daily", "monthly", "yearly"] = "monthly",
     subset: SubsetPartial | None = None,
     save_dir: str | os.PathLike | None = None,
@@ -22,12 +32,14 @@ def get_climate_data(
     force_remake: bool = False,
     subset_check_interval: float = 10,
     max_subset_wait_time: float = 20,
+    *,
+    subset_method: Literal["remote", "local"] = "remote",
     **kwargs: Any,
 ) -> xr.Dataset:
     """
-    Retrieve climate projection data.
+    Retrieve climate projection and reanalysis data.
 
-    Remotely stored climate projection data are formatted and downloaded (if
+    Remotely stored climate data are formatted and downloaded (if
     ``download=True``). If data have been downloaded previously (and
     ``force_remake=False``), rerunning this function will simply open the local data
     files.
@@ -79,8 +91,9 @@ def get_climate_data(
       subsetting options (all ranges inclusive):
 
       - years: 2015–2100.
-      - scenarios: 'ssp126' (SSP1-2.6), 'ssp370' (SSP3-7.0), 'ssp585' (SSP5-8.5) for all
-        models, and 'ssp245' (SSP2-4.5) for the first five models listed below.
+      - scenarios: 'ssp126' (SSP1-2.6), 'ssp370' (SSP3-7.0), and 'ssp585'
+        (SSP5-8.5) by default. 'ssp245' (SSP2-4.5) can also be requested for all
+        ten models.
       - models: 'gfdl-esm4', 'ipsl-cm6a-lr', 'mpi-esm1-2-hr', 'mri-esm2-0',
         'ukesm1-0-ll', 'canesm5', 'cnrm-cm6-1', 'cnrm-esm2-1', 'ec-earth3', 'miroc6'.
         Details of models and bias adjustment are provided at
@@ -90,20 +103,69 @@ def get_climate_data(
       Data are available from the ISIMIP repository (https://data.isimip.org/).
       Terms of data use are available at
       https://www.isimip.org/gettingstarted/terms-of-use/terms-use-publicly-available-isimip-data-after-embargo-period/.
+    - ISIMIP3a (``data_source='isimip3a'``): ISIMIP Phase 3a GSWP3-W5E5 historical
+      climate forcing data (https://protocol.isimip.org/). Possible values for
+      subsetting options (all ranges inclusive):
+
+      - years: 1901–2019.
+      - scenarios: 'obsclim' (observed climate) by default. 'counterclim' (detrended
+        counterfactual climate, used for impact attribution) can also be requested.
+      - models: 'gswp3-w5e5'.
+      - realizations: 0.
+
+      Data are available from the ISIMIP repository on the same terms as ISIMIP3b
+      data. Citation information is given in the protocol linked above.
+    - ISIMIP4a (``data_source='isimip4a'``): ISIMIP Phase 4a GSWP3-ERA5 historical
+      climate forcing data (https://protocol4.isimip.org/). Possible values for
+      subsetting options (all ranges inclusive):
+
+      - years: 1901–2025.
+      - scenarios: 'obsclim' (observed climate).
+      - models: 'gswp3-era5'.
+      - realizations: 0.
+
+      Data are available from the ISIMIP repository on the same terms as ISIMIP3b
+      data. Citation information is given in the protocol linked above.
+    - ISIMIP4b (``data_source='isimip4b'``): ISIMIP Phase 4b bias-adjusted CMIP7
+      projection data (https://protocol4.isimip.org/). Possible values for
+      subsetting options (all ranges inclusive):
+
+      - years: 2022–2100 (future scenarios), 1850–2021 ('esm-hist').
+      - scenarios: 'esm-scen7-vl' (Very Low) and 'esm-scen7-h' (High) by default.
+        'esm-hist' (historical) can also be requested.
+      - models: 'ec-earth3-esm-1-1', 'ukesm1-3-ll'.
+      - realizations: 0.
+
+      Data are available from the ISIMIP repository on the same terms as ISIMIP3b
+      data. Citation information is given in the protocol linked above.
+    - ERA5 (``data_source='era5'``): ECMWF ERA5 global reanalysis data
+      (https://doi.org/10.24381/cds.adbb2d47). Daily values are means of hourly 2 m
+      temperature and totals of hourly precipitation over UTC days, and monthly and
+      yearly values are averages of the daily values. Possible values for subsetting
+      options (all ranges inclusive):
+
+      - years: 1941 to the latest complete year (added about four months after the
+        year ends).
+      - scenarios: 'historical'.
+      - models: 'era5'.
+      - realizations: 0.
+
+      Data are available from Earthmover's public Icechunk archive on AWS
+      (https://registry.opendata.aws/earthmover-era5/), which also gives citation
+      information and terms of use.
 
     For each data source, global data are available. Server-side spatial subsetting can
-    be performed for LENS2, ARISE, and ISIMIP data (see subsetting options below). For
-    GLENS data, no server-side subsetting is performed, and downloaded full data files
-    are only cleared up after all data have been downloaded and processed; splitting the
-    data retrieval into multiple calls to this function may reduce the disk space
-    overhead.
+    be performed for LENS2, ARISE, ISIMIP, and ERA5 data (see subsetting options below).
+    GLENS downloads full data files and clears them after processing. Splitting a
+    GLENS retrieval into multiple calls may reduce the disk space overhead.
 
     Parameters
     ----------
     data_source : str
         Data source to retrieve data from. Currently supported sources are 'lens2' (for
-        LENS2 data), 'arise' (ARISE-SAI data), 'glens' (GLENS data), and 'isimip'
-        (ISIMIP data).
+        LENS2 data), 'arise' (ARISE-SAI data), 'glens' (GLENS data), 'isimip'
+        (ISIMIP3b data), 'isimip3a', 'isimip4a', 'isimip4b', and 'era5' (ERA5
+        reanalysis).
     frequency : str, optional
         Frequency of the data to retrieve. Should be one of 'daily', 'monthly' or
         'yearly' (default is 'monthly').
@@ -140,9 +202,10 @@ def get_climate_data(
                 length.
             lon_range : tuple of two floats, optional
                 Longitude range for which to retrieve data. Should comprise two values
-                giving the minimum and maximum longitudes. Ignored if 'locations' is
-                provided. If not provided, and 'locations' is also not provided, all
-                longitudes are retrieved.
+                giving the western and eastern bounds. For example, (170, -170)
+                selects a range crossing the antimeridian. Ignored if 'locations'
+                is provided. If omitted along with 'locations', all longitudes are
+                retrieved.
             lat_range : tuple of two floats, optional
                 Latitude range for which to retrieve data. Should comprise two values
                 giving the minimum and maximum latitudes. Ignored if 'locations' is
@@ -152,11 +215,11 @@ def get_climate_data(
         Directory to which downloaded data are saved to and accessed from. If not
         provided, a directory within the OS cache directory is used.
     download : bool, optional
-        For LENS2 and ARISE-SAI data only; whether to download the data to the
-        ``save_dir`` directory if not found locally (default is ``True``). If ``False``
-        and the data are not found locally, a lazily opened dataset linked to the remote
-        data is returned. For GLENS and ISIMIP data, the data must be downloaded if not
-        found locally.
+        For LENS2, ARISE-SAI, and ERA5 data, controls whether to download the data to
+        the ``save_dir`` directory if not found locally (default is ``True``). If
+        ``False`` and the data are not found locally, the remote dataset is opened
+        lazily.
+        For GLENS and ISIMIP data, the data must be downloaded if not found locally.
     force_remake : bool, optional
         Whether to force re-download and re-formatting of the data even if found
         locally (default is ``False``). Can only be used if ``download`` is ``True``.
@@ -168,6 +231,13 @@ def get_climate_data(
         complete, in seconds, before timing out (default is 20). Server-side subsetting
         will continue to run after this function times out, and this function can be
         re-run to check if the subsetting has completed and retrieve the subsetted data.
+    subset_method : {'remote', 'local'}, optional
+        For ISIMIP sources, spatially subset before downloading ('remote', the
+        default) or download the original global files and subset locally ('local').
+        Remote subsetting usually transfers much less data but must wait for the ISIMIP
+        queue. Local subsetting skips the queue and can use several GB of temporary
+        disk space per model, scenario and time block. Both methods use the same
+        processed cache files. Global requests use the original files.
     **kwargs
         Additional keyword arguments to pass to :func:`xarray.open_mfdataset` when
         opening downloaded data files.
@@ -175,7 +245,7 @@ def get_climate_data(
     Returns
     -------
     xarray.Dataset
-        Formatted climate projection dataset.
+        Formatted climate dataset.
     """
     data_getter = _get_data_getter(
         data_source=data_source,
@@ -184,6 +254,7 @@ def get_climate_data(
         save_dir=save_dir,
         subset_check_interval=subset_check_interval,
         max_subset_wait_time=max_subset_wait_time,
+        subset_method=subset_method,
     )
     ds_clim = data_getter.get_data(
         download=download, force_remake=force_remake, **kwargs
@@ -192,7 +263,7 @@ def get_climate_data(
 
 
 def get_climate_data_file_names(
-    data_source: Literal["lens2", "arise", "glens", "isimip"],
+    data_source: ClimateDataSource,
     frequency: Literal["daily", "monthly", "yearly"] = "monthly",
     subset: SubsetPartial | None = None,
 ) -> list[str]:
@@ -204,9 +275,8 @@ def get_climate_data_file_names(
     Parameters
     ----------
     data_source : str
-        Data source. Currently supported sources are 'lens2' (for CESM2 LENS data),
-        'arise' (CESM2 ARISE-SAI data), 'glens' (CESM1 GLENS data), and 'isimip' (ISIMIP
-        data).
+        Data source. See :meth:`~climepi.climdata.get_climate_data` for supported
+        sources.
     frequency : str, optional
         Frequency of the data. Should be one of 'daily', 'monthly' or 'yearly' (default
         is 'monthly').
@@ -238,18 +308,31 @@ def _data_source_getters() -> dict[str, type[ClimateDataGetter]]:
 
 
 def _get_data_getter(
-    data_source: str,
+    data_source: ClimateDataSource,
     *args: Any,
     subset_check_interval: float = 10,
     max_subset_wait_time: float = 20,
+    subset_method: Literal["remote", "local"] = "remote",
     **kwargs: Any,
 ) -> ClimateDataGetter:
-    getter = _data_source_getters().get(data_source)
-    if getter is None:
+    data_getter_classes: dict[str, type[ClimateDataGetter]] = {
+        "lens2": LENS2DataGetter,
+        "arise": ARISEDataGetter,
+        "glens": GLENSDataGetter,
+        "isimip": ISIMIPDataGetter,
+        "isimip3a": ISIMIP3aDataGetter,
+        "isimip4a": ISIMIP4aDataGetter,
+        "isimip4b": ISIMIP4bDataGetter,
+        "era5": ERA5DataGetter,
+    }
+    if data_source not in data_getter_classes:
         raise ValueError(f"Data source '{data_source}' not supported.")
-    if data_source == "isimip":
+    if data_source.startswith("isimip"):
         kwargs.update(
             subset_check_interval=subset_check_interval,
             max_subset_wait_time=max_subset_wait_time,
+            subset_method=subset_method,
         )
-    return getter(*args, **kwargs)
+    elif subset_method != "remote":
+        raise ValueError("subset_method is only available for ISIMIP data sources.")
+    return data_getter_classes[data_source](*args, **kwargs)

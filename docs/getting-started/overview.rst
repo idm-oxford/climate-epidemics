@@ -66,23 +66,27 @@ Functionality
 Climate data subpackage
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``climdata`` subpackage contains methods for retrieving climate projection data.
-It provides a single interface for obtaining projections of key climate variables
-used in climate-VBD models (currently, temperature and precipitation) from various
-sources. Currently supported data sources are:
+The ``climdata`` subpackage contains methods for retrieving climate projections and
+historical reanalysis. It provides a single interface for obtaining key climate
+variables used in climate-VBD models (currently, temperature and precipitation) from
+various sources. Currently supported data sources are:
 
 - `LENS2 <https://www.cesm.ucar.edu/community-projects/lens2>`_ (Community Earth System
   Model version 2 Large Ensemble), which provides 100 ensemble members for analyzing
   internal climate variability.
 - `ISIMIP <https://www.isimip.org/>`_ (Inter-Sectoral Impact Model Intercomparison
-  Project Phase 3b), which provides downscaled and bias-adjusted data from multiple
-  `CMIP6 <https://wcrp-cmip.org/cmip-phases/cmip6/>`_ climate models and scenarios.
+  Project), which provides bias-adjusted CMIP6 and CMIP7 projections
+  (``isimip`` and ``isimip4b``), historical GSWP3-ERA5 forcing (``isimip4a``),
+  and paired observed and detrended GSWP3-W5E5 forcing for attribution
+  (``isimip3a``).
 - `ARISE-SAI <https://www.cesm.ucar.edu/community-projects/arise-sai/>`_ (Assessing
   Responses and Impacts of Solar intervention on the Earth system with Stratospheric
   Aerosol Injection), which supports analysis of the impacts of solar climate
   intervention.
 - `GLENS <https://www.cesm.ucar.edu/community-projects/glens>`_ (Geoengineering Large
   Ensemble), which also supports analysis of the impacts of solar climate intervention.
+- `ERA5 <https://doi.org/10.24381/cds.adbb2d47>`_ historical reanalysis on a global
+  0.25° grid, available without an account.
 
 For example, LENS2 data for London and Paris from 2030 to 2100 for the first two
 ensemble members can be retrieved as follows:
@@ -100,6 +104,31 @@ ensemble members can be retrieved as follows:
             "realizations": [0, 1],
         },
     )
+
+The same interface retrieves historical ERA5 data for named locations or gridded
+subsets from the `public Icechunk archive
+<https://registry.opendata.aws/earthmover-era5/>`_. ERA5 retrieval requires
+``icechunk`` and ``pcodec``, which are included in the Pixi environment.
+Providing coordinates skips geocoding.
+
+.. code-block:: python
+
+    ds_era5 = climdata.get_climate_data(
+        "era5",
+        frequency="monthly",
+        subset={
+            "years": [2020],
+            "locations": ["Oxford"],
+            "lons": [-1.26],
+            "lats": [51.75],
+        },
+    )
+
+ISIMIP subsets are prepared by the repository before download by default.
+Set ``subset_method="local"`` to skip the subsetting queue and download the
+original global files. This can be practical for large regions or when the
+queue is busy, but even a request for one year can transfer several GB per
+model and scenario. Both methods reuse previously processed data.
 
 See the documentation for
 :py:meth:`climdata.get_climate_data() <climepi.climdata.get_climate_data()>` for details
