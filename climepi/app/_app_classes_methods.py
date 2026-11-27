@@ -17,7 +17,7 @@ import xarray as xr
 from climepi import climdata, epimod
 from climepi._core import ClimEpiDatasetAccessor  # noqa
 from climepi._xcdat import _infer_freq
-from climepi.app._climate_download import ClimateDownload
+from climepi.app._climate_download import ClimateDownload, write_netcdf
 from climepi.app._app_ui import (
     CONTROL_HELP,
     StatusMessage,
@@ -169,7 +169,7 @@ def _compute_to_file_reopen(
     ds_in: xr.Dataset, save_path: str | os.PathLike
 ) -> xr.Dataset:
     chunks = dict(ds_in.chunksizes)
-    ds_in.to_netcdf(save_path, engine="h5netcdf", compute=False).compute()
+    write_netcdf(ds_in, save_path, compute=False).compute()
     return xr.open_dataset(save_path, engine="h5netcdf", chunks=chunks)
 
 
@@ -830,15 +830,12 @@ class Controller(param.Parameterized):
         )
 
     def _set_climate_dataset(self, ds_clim: xr.Dataset, *, name: str = "") -> None:
-        if ds_clim is not self._ds_clim or not self.clim_data_loaded:
-            self.clim_plot_controller.initialize(ds_clim)
-            self.epi_plot_controller.initialize()
-            self._clear_epi_output()
-        old_climate = self._ds_clim
-        self._ds_clim = ds_clim
-        if old_climate is not None and old_climate is not ds_clim:
-            if old_climate is not self._downloaded_climate:
-                old_climate.close()
+        # Initializing the plot controls validates the dataset before it is adopted.
+        self.clim_plot_controller.initialize(ds_clim)
+        self.epi_plot_controller.initialize()
+        self._clear_epi_output()
+        previous, self._ds_clim = self._ds_clim, ds_clim
+        self._close_if_unused(previous)
         plot_scope = self.clim_plot_controller._scope_dict_base
         if (
             plot_scope is not None
@@ -857,13 +854,9 @@ class Controller(param.Parameterized):
         if self._task.busy:
             raise ValueError("Wait for the current operation to finish and try again.")
         self._set_climate_dataset(dataset, name=name)
-        if (
-            self._downloaded_climate is not None
-            and self._downloaded_climate is not dataset
-        ):
-            self._downloaded_climate.close()
-        self._downloaded_climate = dataset
+        previous, self._downloaded_climate = self._downloaded_climate, dataset
         self._downloaded_climate_name = name
+        self._close_if_unused(previous)
         selector = self.param.clim_data_option
         if _DOWNLOADED_DATA not in selector.objects:
             available = (
@@ -871,9 +864,17 @@ class Controller(param.Parameterized):
             )
             selector.objects = [*available, _DOWNLOADED_DATA]
             selector.precedence = 1
+        # Switching the option reverts the load status, so restore it afterwards.
         self.clim_data_option = _DOWNLOADED_DATA
         self.clim_data_status = f"Data loaded: {name}"
         self.clim_data_loaded = True
+
+    def _close_if_unused(self, dataset: xr.Dataset | None) -> None:
+        # The downloaded subset stays open so it can be selected again.
+        if dataset is not None and all(
+            dataset is not kept for kept in (self._ds_clim, self._downloaded_climate)
+        ):
+            dataset.close()
 
     @param.depends(
         "epi_model_option", "epi_example_name", "epi_temperature_range", watch=True
@@ -1068,12 +1069,9 @@ class Controller(param.Parameterized):
     def _cleanup_datasets(self) -> None:
         try:
             self._clear_epi_output()
-            if (
-                self._ds_clim is not None
-                and self._ds_clim is not self._downloaded_climate
-            ):
-                self._ds_clim.close()
-            if self._downloaded_climate is not None:
-                self._downloaded_climate.close()
+            # Closing an xarray dataset twice is harmless if both refer to one.
+            for dataset in (self._ds_clim, self._downloaded_climate):
+                if dataset is not None:
+                    dataset.close()
         finally:
             self._temp_dir.cleanup()

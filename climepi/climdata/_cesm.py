@@ -243,10 +243,11 @@ class ARISEDataGetter(CESMDataGetter):
 
     Available years that can be specified in the `subset` argument of the class
     constructor range from 2035 to 2069 for feedback simulations (scenario "sai15"),
-    and 2000 to 2100 for reference simulations without climate intervention (scenario
-    "ssp245"). 10 realizations (here labeled as 0 to 9) are available for each
-    scenario. The remotely stored data can be lazily opened as an xarray dataset and
-    processed without downloading (`download=False` option in the `get_data` method).
+    and 2015 to 2100 for reference simulations without climate intervention (scenario
+    "ssp245"; realizations 5 to 9 end in 2069). 10 realizations (here labeled as 0 to
+    9) are available for each scenario. The remotely stored data can be lazily opened
+    as an xarray dataset and processed without downloading (`download=False` option in
+    the `get_data` method).
 
     See the base class (`climepi.climdata._data_getter_class.ClimateDataGetter`) for
     further details.
@@ -267,7 +268,7 @@ class ARISEDataGetter(CESMDataGetter):
         """Return the common years for the selected ARISE runs."""
         if not scenarios or "sai15" in scenarios:
             return super().year_limits(scenarios, realizations)
-        return 2015, 2069 if any(member >= 5 for member in realizations) else 2100
+        return 2015, (2069 if any(member >= 5 for member in realizations) else 2100)
 
     def _find_remote_data(self) -> None:
         # Running to_datset_dict() on the catalog subset doesn't seem to work for
@@ -379,7 +380,8 @@ class GLENSDataGetter(CESMDataGetter):
         """Return the common years for the selected GLENS runs."""
         first = 2020 if "sai" in scenarios else min(cls.available_years)
         if "rcp85" in scenarios:
-            return first, 2030 if any(member >= 3 for member in realizations) else 2097
+            last = 2030 if any(member >= 3 for member in realizations) else 2097
+            return first, last
         return first, max(cls.available_years)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:

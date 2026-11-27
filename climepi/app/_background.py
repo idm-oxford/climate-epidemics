@@ -97,6 +97,9 @@ class SessionTask(param.Parameterized):
                 cleanup()
             else:
                 self._cleanup = cleanup
+                # A cancelled or still-running future finishes through its done
+                # callback. A finished one may be waiting for a document tick that
+                # never comes once the session is gone, so finish it here.
                 if self._future.cancel():
                     return
                 if self._finish_pending is not None and self._future.done():

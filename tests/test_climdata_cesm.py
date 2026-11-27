@@ -711,7 +711,9 @@ class TestGLENSDataGetter:
         assert data_getter._ds is None
         assert sorted(data_getter._urls) == sorted(urls_expected)
 
-    @patch.object(siphon.catalog, "TDSCatalog", side_effect=requests.exceptions.HTTPError)
+    @patch.object(
+        siphon.catalog, "TDSCatalog", side_effect=requests.exceptions.HTTPError
+    )
     @patch.object(time, "sleep", autospec=True)
     def test_find_remote_data_stops_retrying(self, mock_sleep, mock_catalog):
         """Return control to the caller when the GLENS catalog stays unavailable."""

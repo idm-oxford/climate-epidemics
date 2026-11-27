@@ -5,6 +5,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import xarray as xr
 
@@ -53,7 +54,7 @@ def test_source_selection_and_year_constraints(dialog):
 
 def test_climate_geometry_validation(dialog):
     """Check required coordinates and preserve the requested bounding box."""
-    with pytest.raises(ValueError, match="longitude"):
+    with pytest.raises(ValueError, match="latitude"):
         dialog._request()
     dialog._longitude.value = -1.25
     dialog._latitude.value = 51.75
@@ -133,6 +134,7 @@ def test_retrieve_named_subset_and_keep_adopted_file(dialog, monkeypatch):
         assert float(dataset.temperature.compute().item()) == 15.2
     finally:
         dataset.close()
+        dataset.close()  # a repeated close must not release the file twice
     assert not path.parent.exists()
 
 
@@ -193,3 +195,57 @@ def test_editing_selection_invalidates_previous_download(dialog, monkeypatch):
     assert "Climate retrieval failed" in dialog._status.value
     assert dialog._download.file is None
     assert not dialog._actions.visible
+
+
+def test_write_netcdf_keeps_names_longer_than_encoded_width(tmp_path):
+    """A stale fixed string width from a multi-file dataset does not truncate."""
+    dataset = xr.Dataset(
+        {"temperature": ("model", [1.0, 2.0])},
+        coords={"model": ["gfdl-esm4", "canesm5"]},
+    )
+    dataset.model.encoding["dtype"] = np.dtype("<U7")
+    download.write_netcdf(dataset, tmp_path / "out.nc")
+    with xr.open_dataset(tmp_path / "out.nc") as reopened:
+        assert reopened.model.values.tolist() == ["gfdl-esm4", "canesm5"]
+    assert dataset.model.encoding["dtype"] == np.dtype("<U7")
+
+
+def test_oversized_subset_is_refused(dialog, monkeypatch):
+    """A request above the size limit reports the size instead of writing it."""
+    monkeypatch.setattr(download, "_MAX_SUBSET_BYTES", 8)
+    monkeypatch.setattr(
+        download._base.LENS2DataGetter,
+        "get_data",
+        lambda self, *, download: xr.Dataset({"temperature": ("time", [1.0, 2.0])}),
+    )
+    dialog._longitude.value = 1
+    dialog._latitude.value = 52
+    _run_async(dialog._retrieve())
+    assert "above the 0 GB limit" in dialog._status.value
+    assert dialog._download.file is None
+    assert not dialog._actions.visible
+
+
+def test_use_result_explains_rejected_subset(dialog, monkeypatch):
+    """The app's reason for rejecting a subset is shown to the user."""
+    monkeypatch.setattr(
+        download._base.LENS2DataGetter,
+        "get_data",
+        lambda self, *, download: xr.Dataset({"temperature": ("time", [10.0])}),
+    )
+    dialog._longitude.value = 1
+    dialog._latitude.value = 52
+    _run_async(dialog._retrieve())
+    path = dialog._download.file
+
+    def busy(dataset, label):
+        raise ValueError("Wait for the current operation to finish and try again.")
+
+    dialog._on_loaded = busy
+    dialog._use_result()
+    assert dialog._status.value == (
+        "Could not use this subset in the app: "
+        "Wait for the current operation to finish and try again."
+    )
+    dialog.close()
+    assert not path.parent.exists()

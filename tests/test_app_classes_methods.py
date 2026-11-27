@@ -248,6 +248,18 @@ def test_compute_to_file_reopen():
         ds_out.close()
 
 
+def test_compute_to_file_reopen_keeps_long_names(tmp_path):
+    """Model names are not cut to a stale encoded width (e.g. 'gfdl-es')."""
+    ds_in = generate_dataset(data_var="temperature", frequency="monthly").expand_dims(
+        model=["gfdl-esm4", "canesm5"]
+    )
+    ds_in.model.encoding["dtype"] = np.dtype("<U7")
+    with app_classes_methods._compute_to_file_reopen(
+        ds_in, tmp_path / "test.nc"
+    ) as ds_out:
+        assert ds_out.model.values.tolist() == ["gfdl-esm4", "canesm5"]
+
+
 class TestPlotter:
     """Unit tests for the _Plotter class."""
 
@@ -845,7 +857,9 @@ class TestPlotController:
                     "model": "not used",
                     "scenario": "not used",
                 },
-            ).select(pn.pane.HoloViews)[0].object,
+            )
+            .select(pn.pane.HoloViews)[0]
+            .object,
         )
         assert plot_controller.plot_generated
         assert plot_controller.plot_status == "Plot generated"
@@ -1401,6 +1415,41 @@ class TestController:
 
         # Run cleanup on temp file
         controller.cleanup_temp_file()
+
+    def test_downloaded_dataset_ownership(self):
+        """Replaced subsets close, the kept subset survives example loads."""
+        closed = []
+
+        def tracked(label):
+            dataset = generate_dataset(data_var="temperature", frequency="monthly")
+            dataset.set_close(lambda: closed.append(label))
+            return dataset
+
+        controller = app_classes_methods.Controller(enable_climate_download=True)
+        try:
+            with pytest.raises(ValueError, match="nonempty time"):
+                controller._use_downloaded_climate(
+                    tracked("invalid").isel(time=[]), "empty"
+                )
+            assert controller._downloaded_climate is None
+            assert controller.clim_data_option == "Example dataset"
+
+            first, second = tracked("first"), tracked("second")
+            controller._use_downloaded_climate(first, "first")
+            controller._use_downloaded_climate(second, "second")
+            assert closed == ["first"]
+            assert controller._ds_clim is second
+
+            controller.clim_data_option = "Example dataset"
+            controller._set_climate_dataset(tracked("example"))
+            assert closed == ["first"]  # the downloaded subset stays available
+            controller.clim_data_option = "Downloaded dataset"
+            controller.param.trigger("clim_data_load_initiator")
+            assert controller._ds_clim is second
+            assert closed == ["first", "example"]
+        finally:
+            controller.cleanup_temp_file()
+        assert closed == ["first", "example", "second"]
 
     @patch("climepi.app._app_classes_methods.epimod.get_example_model", autospec=True)
     def test_use_yearly_download(self, mock_get_example_model):

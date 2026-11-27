@@ -2,15 +2,18 @@
 
 import asyncio
 import logging
+import os
 import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from inspect import getdoc
 from math import isfinite
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Callable, Literal
+from threading import Lock
+from typing import Any, Callable, Literal
 
+import numpy as np
 import panel as pn
 import xarray as xr
 
@@ -20,6 +23,9 @@ from climepi.climdata import _base
 from climepi.climdata._data_getter_class import ClimateDataGetter, SubsetPartial
 
 _LOG = logging.getLogger(__name__)
+# Refuse subsets larger than this before writing them, so an over-broad request
+# cannot fill the disk or stall the session.
+_MAX_SUBSET_BYTES = 2 * 1024**3
 _FREQUENCIES = {"Daily": "daily", "Monthly": "monthly", "Yearly": "yearly"}
 _GEOMETRIES = {
     "Point by coordinates": "point",
@@ -54,6 +60,19 @@ _STATUS_COLORS = {
     "warning": "#fff2cf",
     "danger": "#fde8e5",
 }
+
+
+def write_netcdf(dataset: xr.Dataset, path: str | os.PathLike, **kwargs: Any) -> Any:
+    """Write a dataset without cutting strings to a stale fixed width."""
+    # Multi-file datasets keep the string width encoded in their first file, so
+    # longer names from other files (e.g. "gfdl-esm4" after "canesm5") would
+    # otherwise be truncated on write.
+    dataset = dataset.copy(deep=False)
+    for variable in dataset.variables.values():
+        encoded = variable.encoding.get("dtype")
+        if encoded is not None and np.dtype(encoded).kind == "U":
+            del variable.encoding["dtype"]
+    return dataset.to_netcdf(path, engine="h5netcdf", **kwargs)
 
 
 def _source_information(source: type[ClimateDataGetter]) -> str:
@@ -125,11 +144,15 @@ class _SubsetUnavailable(ValueError):
 
 @dataclass
 class _Download:
+    """A retrieved file, removed once it is retired and no dataset uses it."""
+
     directory: TemporaryDirectory[str]
     path: Path
     name: str
     _users: int = 0
     _retired: bool = False
+    # Session cleanup may close datasets on a worker thread.
+    _lock: Lock = field(default_factory=Lock, repr=False)
 
     def open_dataset(self) -> xr.Dataset:
         source = xr.open_dataset(self.path, chunks={})
@@ -140,25 +163,27 @@ class _Download:
         except BaseException:
             source.close()
             raise
-        self._users += 1
+        self._update(users=1)
 
         def close() -> None:
             try:
                 source.close()
             finally:
-                self._users -= 1
-                self._cleanup()
+                self._update(users=-1)
 
+        # xarray runs this at most once per dataset.
         dataset.set_close(close)
         return dataset
 
     def retire(self) -> None:
-        self._retired = True
-        self._cleanup()
+        self._update(retire=True)
 
-    def _cleanup(self) -> None:
-        if self._retired and not self._users:
-            self.directory.cleanup()
+    def _update(self, *, users: int = 0, retire: bool = False) -> None:
+        with self._lock:
+            self._users += users
+            self._retired = self._retired or retire
+            if self._retired and not self._users:
+                self.directory.cleanup()
 
 
 def _prepare_download(request: _SubsetRequest) -> _Download:
@@ -191,10 +216,16 @@ def _prepare_download(request: _SubsetRequest) -> _Download:
         with getter.get_data(download=not getter.remote_open_possible) as data:
             if any(data.sizes.get(axis, 1) == 0 for axis in ("time", "lat", "lon")):
                 raise _SubsetUnavailable("The selected years or area contain no data.")
+            if data.nbytes > _MAX_SUBSET_BYTES:
+                raise _SubsetUnavailable(
+                    f"This selection is about {data.nbytes / 1024**3:.1f} GB, above "
+                    f"the {_MAX_SUBSET_BYTES / 1024**3:.0f} GB limit. Choose fewer "
+                    "years or ensemble members, or a smaller area."
+                )
             if request.place:
                 data = data.assign_coords(location=[request.place])
             # Materialize a single NetCDF even when a provider returns several files.
-            data.to_netcdf(path, engine="h5netcdf")
+            write_netcdf(data, path)
         if source_dir.exists():
             shutil.rmtree(source_dir)
     except BaseException:
@@ -446,8 +477,9 @@ class ClimateDownload:
         else:
             subset["locations"] = ["Point"]
             if self._geometry.value == "point":
-                subset["lons"] = [self._coordinate_value(self._longitude)]
+                # Validate in the order the fields are shown.
                 subset["lats"] = [self._coordinate_value(self._latitude)]
+                subset["lons"] = [self._coordinate_value(self._longitude)]
             else:
                 place = (self._place.value or "").strip()
                 if not place:
@@ -527,15 +559,16 @@ class ClimateDownload:
         try:
             dataset = self._result.open_dataset()
             self._on_loaded(dataset, self._result.name)
+        except ValueError as exc:
+            # A busy session, or data the app cannot plot; the message says which.
+            if dataset is not None:
+                dataset.close()
+            self._set_status(f"Could not use this subset in the app: {exc}", "warning")
         except Exception:
             if dataset is not None:
                 dataset.close()
             _LOG.exception("Could not load the climate subset into the app")
-            self._set_status(
-                "Could not load this subset into the app. If another app task is running, "
-                "wait for it to finish and try again.",
-                "danger",
-            )
+            self._set_status("Could not load this subset into the app.", "danger")
         else:
             self.modal.hide()
 
