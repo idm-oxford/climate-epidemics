@@ -10,7 +10,7 @@ locally is contained in the ``app`` subpackage:
 
     from climepi import app
 
-    app.run_app()
+    app.run_app(enable_climate_download=True)
 
 The example datasets include ``era5_london_2020_daily`` for daily ERA5 temperature
 and precipitation at one grid point in London in 2020.
@@ -22,6 +22,15 @@ application can also be run from the command line:
 .. code-block:: console
 
     (<ENV_NAME>) $ python -m climepi.app
+
+In the local app, select **Choose climate subset** to request data from any source
+supported by :func:`~climepi.climdata.get_climate_data`. Choose the frequency, years,
+and a point, place name, or bounding box. You can also select scenarios, models, and
+realizations where applicable. Use **Download NetCDF** to save the subset, or **Use
+dataset in app** to plot it and run a model. When a place name is searched for, the
+app shows the address found so that you can check it is the intended place.
+Some requests can take several minutes and GLENS may need to download full source
+files before subsetting. The hosted app offers the example datasets.
 
 The application uses `Dask <https://docs.dask.org/en/latest/>`_ to lazily operate on
 climate data and parallelize computations. By default, the application will use the

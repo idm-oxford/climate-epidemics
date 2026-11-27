@@ -113,7 +113,9 @@ def test_era5_cache(era5_archive, tmp_path, frequency, count):
     assert len(names) == 1
     with climdata.get_climate_data("era5", frequency, subset, tmp_path) as ds:
         assert ds.sizes["time"] == count
-        assert ds.lon.values.tolist() == [0, 0.25, 359.75]
+        # Longitudes increase across Greenwich, starting from the western bound.
+        assert ds.lon.values.tolist() == [-0.25, 0, 0.25]
+        assert ds.lon_bnds.values[0].tolist() == [-0.375, -0.125]
         assert ds.lat.values.tolist() == [51.5, 51.75, 90]
         assert ds.lat_bnds.max().compute().item() == 90
         assert ds.time.attrs["bounds"] == "time_bnds"

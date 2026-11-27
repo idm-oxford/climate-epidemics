@@ -362,7 +362,10 @@ def test_open_local_data():
         ]
         # Note data_vars="minimal" ensures correct bounds handling
         assert kwargs["data_vars"] == "minimal"
-        return xr.combine_by_coords(_ds_list, data_vars="minimal")
+        ds = xr.combine_by_coords(_ds_list, data_vars="minimal")
+        # Files opened together take the string width of the first file.
+        ds["model"].encoding["dtype"] = np.dtype("<U6")
+        return ds
 
     data_getter = ClimateDataGetter(
         subset={
@@ -380,6 +383,7 @@ def test_open_local_data():
 
     ds_out = data_getter._ds
     xrt.assert_identical(ds_out, ds_in)
+    assert "dtype" not in ds_out["model"].encoding
 
     # Check time bounds have been loaded into memory, but not other variables (the time
     # bounds are loaded to avoid encoding issues)
@@ -688,3 +692,54 @@ def test_subset_grid(
     result = data_getter._subset_grid(ds)
     npt.assert_equal(result.lon.values, lons_expected)
     npt.assert_equal(result.lat.values, lats_expected)
+
+
+@pytest.mark.parametrize("with_bounds", [True, False])
+def test_process_data_wrapped_lon_range(with_bounds):
+    """
+    Test the _process_data method of the ClimateDataGetter class for a wrapped range.
+
+    A range crossing the edge of the native longitudes is selected in two pieces, and
+    should be returned with longitudes increasing from the western bound.
+    """
+    lon = np.arange(0, 360, 1.25)
+    ds = xr.Dataset(
+        {"temperature": (("lat", "lon"), np.tile(lon, (2, 1)))},
+        coords={"lat": [50.0, 51.0], "lon": lon},
+    )
+    if with_bounds:
+        ds["lon_bnds"] = xr.DataArray(
+            np.stack([lon - 0.625, lon + 0.625], axis=1), dims=("lon", "bnds")
+        )
+    data_getter = ClimateDataGetter(subset={"lon_range": (-3, 1)})
+    data_getter.lon_res = 1.25
+    data_getter._ds = data_getter._subset_grid(ds)
+    data_getter._process_data()
+    ds_out = data_getter._ds
+    npt.assert_allclose(ds_out.lon.values, [-2.5, -1.25, 0])
+    npt.assert_allclose(ds_out.temperature.values[0], [357.5, 358.75, 0])
+    npt.assert_allclose(ds_out.lon_bnds.values[0], [-3.125, -1.875])
+
+
+@pytest.mark.parametrize(
+    "subset",
+    [
+        {"lon_range": (10, 20)},
+        {"lon_range": None},
+        {"locations": ["gabba"], "lons": [153], "lats": [-27], "lon_range": (-3, 1)},
+    ],
+)
+def test_process_data_lon_unchanged(subset):
+    """Test that _process_data leaves longitudes alone unless a range wraps."""
+    ds = xr.Dataset(coords={"lat": [50.0], "lon": [0.0, 15.0, 358.75]})
+    data_getter = ClimateDataGetter(subset=subset)
+    assert data_getter._make_lon_contiguous(ds) is ds
+
+
+def test_year_limits():
+    """Test the year_limits method of the ClimateDataGetter class."""
+
+    class _DataGetter(ClimateDataGetter):
+        available_years = [2001, 2003, 2002]
+
+    assert _DataGetter.year_limits(["any"], [0]) == (2001, 2003)

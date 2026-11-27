@@ -103,7 +103,9 @@ class ClimEpiDatasetAccessor:
         :class:`~geopy.geocoders.Nominatim` geocoder (uses OpenStreetMap data
         https://openstreetmap.org/copyright). Returns a dataset with a new "location"
         coordinate, which is used as a dimension coordinate in place of the lon and lat
-        coordinates if multiple locations are provided.
+        coordinates if multiple locations are provided. When a single location is
+        geocoded, the full address found is stored in the ``geocoded_address``
+        attribute of the ``location`` coordinate, so that the match can be checked.
 
         Parameters
         ----------
@@ -153,11 +155,15 @@ class ClimEpiDatasetAccessor:
                 data_vars=concat_vars,
                 coords=["lat", "lon", "location"],
             ).swap_dims(location_dim="location")
+            # Concatenation keeps the first location's attributes, so drop its address.
+            ds_new["location"].attrs.pop("geocoded_address", None)
             return ds_new
+        address = None
         if lon is None and lat is None:
             location_geopy = geocode(location, **kwargs)
             lat = location_geopy.latitude
             lon = location_geopy.longitude  # in the range [-180, 180]
+            address = location_geopy.address
         elif lon is None or lat is None:
             raise ValueError(
                 "If 'lon' or 'lat' is provided, both 'lon' and 'lat' must be provided.",
@@ -174,6 +180,8 @@ class ClimEpiDatasetAccessor:
             lon = lon + 360
         ds_new = self._obj.sel(lat=lat, lon=lon, method="nearest")
         ds_new = ds_new.assign_coords(location=location)
+        if address is not None:
+            ds_new["location"].attrs["geocoded_address"] = address
         return ds_new
 
     def temporal_group_average(
@@ -229,6 +237,12 @@ class ClimEpiDatasetAccessor:
         # Add time bounds if necessary and ensure these are loaded into memory (can
         # play weirdly with Dask otherwise)
         ds_in = self._obj.bounds.add_missing_bounds(axes="T")
+        if "calendar" not in ds_in.time.encoding:
+            # xcdat reads the calendar from the encoding, which is only set for data
+            # read from files (not, e.g., for lazily opened ERA5 data).
+            time = ds_in.time.copy()
+            time.encoding["calendar"] = time.dt.calendar
+            ds_in = ds_in.assign_coords(time=time)
         ds_in["time_bnds"] = ds_in["time_bnds"].compute()
         # Compute the group average
         ds_m = ds_in.temporal.group_average(data_var, freq=xcdat_freq, **kwargs)
@@ -740,7 +754,8 @@ class ClimEpiDatasetAccessor:
         """
         Generate a time series plot of a data variable.
 
-        Wraps :meth:`hvplot.hvPlot.line`.
+        Wraps :meth:`hvplot.hvPlot.line`, or :meth:`hvplot.hvPlot.scatter` when
+        there is a single timestamp.
 
         Parameters
         ----------
@@ -748,7 +763,7 @@ class ClimEpiDatasetAccessor:
             Name of the data variable to plot. If not provided, the function
             will attempt to automatically select a suitable variable.
         **kwargs : dict
-            Additional keyword arguments to pass to :meth:`hvplot.hvPlot.line`.
+            Additional keyword arguments to pass to the plotting method.
 
         Returns
         -------
@@ -758,10 +773,15 @@ class ClimEpiDatasetAccessor:
         import hvplot.xarray  # noqa  (registers DataArray.hvplot accessor)
 
         data_var = self._process_data_var_argument(data_var)
-        da_plot = self._obj[data_var].squeeze()
+        da_plot = self._obj[data_var]
+        singleton_dims = [
+            dim for dim, size in da_plot.sizes.items() if dim != "time" and size == 1
+        ]
+        da_plot = da_plot.squeeze(dim=singleton_dims)
         kwargs_hvplot = {"x": "time", **kwargs}
-        plot_obj = da_plot.hvplot.line(**kwargs_hvplot)
-        return plot_obj
+        if da_plot.sizes.get("time") == 1:
+            return da_plot.hvplot.scatter(**kwargs_hvplot)
+        return da_plot.hvplot.line(**kwargs_hvplot)
 
     def plot_map(
         self,
