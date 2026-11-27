@@ -630,7 +630,7 @@ class TestPlotController:
         else:
             plot_controller = app_classes_methods._PlotController()
         for attr, value in [
-            ("plot_type", "time series" if ds_provided else None),
+            ("plot_type", "map" if ds_provided else None),
             ("data_var", "temperature" if ds_provided else None),
             ("location_string", ""),
             ("location_selection", None),
@@ -765,7 +765,7 @@ class TestPlotController:
         plot_controller._initialize_params()
 
         for attr, value in [
-            ("plot_type", "time series"),
+            ("plot_type", "map" if spatial_scope_base == "grid" else "time series"),
             ("data_var", "precipitation"),
             ("location_string", ""),
             ("location_selection", "all" if spatial_scope_base == "list" else None),
@@ -788,7 +788,12 @@ class TestPlotController:
             assert set(ds_in.time.dt.year.values) == {2000, 2001}
             assert plot_controller.year_range == (2000, 2001)
             assert plot_controller.param.year_range.step == 1
-            assert plot_controller.param.temporal_scope.objects == ["yearly", "monthly"]
+            # The map default for this gridded case adds a between-years option.
+            assert plot_controller.param.temporal_scope.objects == [
+                "yearly",
+                "monthly",
+                "difference between years",
+            ]
         elif temporal_scope_base == "daily":
             assert set(ds_in.time.dt.year.values) == {2000}
             assert plot_controller.year_range == (2000, 2000)
@@ -812,12 +817,14 @@ class TestPlotController:
             assert plot_controller.param.location_string.precedence == -1
         elif spatial_scope_base == "grid":
             assert plot_controller.param.location_selection.precedence == -1
-            assert plot_controller.param.location_string.precedence == 1
+            assert plot_controller.param.location_string.precedence == -1
         else:
             raise ValueError(
                 f"Unexpected spatial_scope_base: {spatial_scope_base} provided."
             )
-        assert plot_controller.param.ensemble_stat.precedence == -1
+        assert plot_controller.param.ensemble_stat.precedence == (
+            1 if spatial_scope_base == "grid" else -1
+        )
 
     def test_one_year_monthly_dataset_defaults_to_monthly(self):
         """Keep native resolution as the default for a single year of monthly data."""
@@ -837,9 +844,14 @@ class TestPlotController:
         ).climepi.sel_geo("SCG")
         plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
         plot_controller.view.append("some_view")
+        generating = []
+        plot_controller.param.watch(
+            lambda event: generating.append(event.new), "plot_generating"
+        )
 
         plot_controller.param.trigger("plot_initiator")
 
+        assert generating == [True, False]
         assert len(plot_controller.view) == 1
         hvt.assert_element_equal(
             plot_controller.view.select(pn.pane.HoloViews)[0].object,
@@ -889,10 +901,11 @@ class TestPlotController:
         """
         ds_in = generate_dataset(data_var="temperature", frequency="monthly")
         plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
+        assert plot_controller.plot_type == "map"  # default for gridded data
+        plot_controller.plot_type = "time series"
 
         assert plot_controller.param.temporal_scope.objects == ["yearly", "monthly"]
         assert plot_controller.temporal_scope == "yearly"
-        assert plot_controller.plot_type == "time series"
 
         plot_controller.plot_type = "map"  # triggers _update_variable_param_choices
         assert plot_controller.param.temporal_scope.objects == [
@@ -914,8 +927,8 @@ class TestPlotController:
         """
         ds_in = generate_dataset(data_var="temperature", frequency="monthly")
         plot_controller = app_classes_methods._PlotController(ds_in=ds_in)
+        plot_controller.plot_type = "time series"
 
-        assert plot_controller.plot_type == "time series"
         assert plot_controller.param.location_string.precedence == 1
         assert plot_controller.param.location_selection.precedence == -1
         assert plot_controller.param.ensemble_stat.precedence == -1
@@ -1048,6 +1061,7 @@ class TestController:
         # Create a panel object as would be done in the app
         view_panel = pn.panel(controller.epi_model_plot_view)
         hvt.assert_element_equal(view_panel._pane[0].object, model1.plot_suitability())
+        assert view_panel._pane[0].object.opts.get("plot").kwargs["title"] == "model1"
         # Updating epi_model_name should update the view panel by triggering
         # _get_epi_model
         controller.epi_example_name = "model2"
@@ -1059,6 +1073,11 @@ class TestController:
             view_panel._pane[0].object
             == "Error generating plot: 'str' object has no attribute "
             "'plot_suitability'"
+        )
+        controller.epi_model_option = "Custom temperature-dependent suitability model"
+        assert (
+            view_panel._pane[0].object.opts.get("plot").kwargs["title"]
+            == "Custom model: suitable from 15 to 30 °C"
         )
 
     @patch(
@@ -1116,7 +1135,7 @@ class TestController:
         controller.param.trigger("clim_data_load_initiator")
 
         assert controller.clim_data_loaded
-        assert controller.clim_data_status == "Data loaded"
+        assert controller.clim_data_status == "Data loaded: data1"
         xrt.assert_identical(controller._ds_clim, ds1)
         xrt.assert_identical(controller.clim_plot_controller._ds_base, ds1)
         assert controller.clim_plot_controller.plot_status == "Plot not yet generated"
@@ -1139,7 +1158,7 @@ class TestController:
         ):
             controller.param.trigger("clim_data_load_initiator")
         assert controller.clim_data_loaded
-        assert controller.clim_data_status == "Data loaded"
+        assert controller.clim_data_status == "Data loaded: data1"
         xrt.assert_identical(controller._ds_clim, ds1)
 
         # Test loading a different dataset
@@ -1151,7 +1170,7 @@ class TestController:
         controller.param.trigger("clim_data_load_initiator")
 
         assert controller.clim_data_loaded
-        assert controller.clim_data_status == "Data loaded"
+        assert controller.clim_data_status == "Data loaded: data2"
         xrt.assert_identical(controller._ds_clim, ds2)
         xrt.assert_identical(controller.clim_plot_controller._ds_base, ds2)
         assert controller.epi_plot_controller._ds_base is None

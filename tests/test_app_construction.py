@@ -228,7 +228,7 @@ def test_run_app(mock_get_example_dataset, mock_get_example_model, capsys, port,
             expect(page.get_by_text("Loading data...", exact=True)).to_be_visible()
             expect(page.get_by_role("button", name="Run model")).to_be_disabled()
             controls["load"].set()
-            expect(page.get_by_text("Data loaded", exact=True)).to_be_visible()
+            expect(page.get_by_text("Data loaded: data", exact=True)).to_be_visible()
 
             page.get_by_text("Suitability model", exact=True).last.click()
             page.get_by_role("button", name="Run model").click()

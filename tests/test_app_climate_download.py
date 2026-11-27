@@ -222,6 +222,7 @@ def test_oversized_subset_is_refused(dialog, monkeypatch):
     dialog._latitude.value = 52
     _run_async(dialog._retrieve())
     assert "above the 0 GB limit" in dialog._status.value
+    assert dialog._status.tone == "warning"
     assert dialog._download.file is None
     assert not dialog._actions.visible
 

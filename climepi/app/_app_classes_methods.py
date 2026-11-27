@@ -6,7 +6,7 @@ import tempfile
 from datetime import timedelta
 from functools import partial
 from threading import Lock
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 import numpy as np
@@ -20,8 +20,10 @@ from climepi._xcdat import _infer_freq
 from climepi.app._climate_download import ClimateDownload, write_netcdf
 from climepi.app._app_ui import (
     CONTROL_HELP,
+    LINK_CSS,
     StatusMessage,
     control_section,
+    linkify,
     parameter_controls,
     source_divider,
 )
@@ -173,6 +175,26 @@ def _compute_to_file_reopen(
     return xr.open_dataset(save_path, engine="h5netcdf", chunks=chunks)
 
 
+_CAPITALIZED_LABEL_CSS = """
+    label { display: inline-block; }
+    label::first-letter { text-transform: uppercase; }
+"""
+
+
+def _style_plot_widgets(widget_box: pn.Row) -> None:
+    # Show the chart's dimension selectors as a wrapping row of compact controls.
+    widget_box.param.update(
+        margin=(12, 0, 0, 0),
+        stylesheets=[":host { flex-wrap: wrap; gap: 4px 16px; }"],
+    )
+    for widget in widget_box:
+        # The pane matches widgets to dimensions by label, so capitalize the
+        # dimension name (e.g. "example model") for display only.
+        widget.stylesheets = [*widget.stylesheets, _CAPITALIZED_LABEL_CSS]
+        if isinstance(widget, pn.widgets.Select):
+            widget.width = 200
+
+
 # Classes
 
 
@@ -253,14 +275,16 @@ class _Plotter:
                 fraction=True, xticks=4, **chart_size
             )
             plot = (p1 + p2).cols(1).opts(shared_axes=False)
-        view = pn.panel(
+        pane = pn.pane.HoloViews(
             plot,
             center=True,
             widget_location="bottom",
+            widget_layout=pn.Row,
             linked_axes=False,
             sizing_mode="stretch_width",
         )
-        self.view = view
+        _style_plot_widgets(pane.widget_box)
+        self.view = cast(pn.viewable.Viewable, pane.layout)
 
     def _get_ds_plot(self) -> None:
         self._ds_plot = self._ds_base
@@ -380,6 +404,7 @@ class _PlotController(param.Parameterized):
     ensemble_stat = param.ObjectSelector(precedence=1)
     plot_initiator = param.Event(precedence=1)
     plot_generated = param.Boolean(default=False, precedence=-1)
+    plot_generating = param.Boolean(default=False, precedence=-1)
     plot_status = param.String(default="Plot not yet generated", precedence=1)
 
     def __init__(
@@ -459,7 +484,8 @@ class _PlotController(param.Parameterized):
         assert scope_dict_base is not None
         # Plot type choices
         if scope_dict_base["spatial"] == "grid":
-            plot_type_choices = ["time series", "map", "variance decomposition"]
+            # A map needs no location, so it works as soon as a grid is loaded.
+            plot_type_choices = ["map", "time series", "variance decomposition"]
         elif scope_dict_base["spatial"] in ["single", "list"]:
             plot_type_choices = ["time series", "variance decomposition"]
         else:
@@ -562,8 +588,10 @@ class _PlotController(param.Parameterized):
         self.view.clear()  # figure sizing issue if not done before generating new plot
         revision = self._plot_revision
         self.plot_status = "Generating plot..."
+        self.plot_generating = True
 
         def apply(view) -> None:
+            self.plot_generating = False
             if self._plot_revision != revision:
                 return
             self.view.append(view)
@@ -571,6 +599,7 @@ class _PlotController(param.Parameterized):
             self.plot_generated = True
 
         def fail(exc: Exception) -> None:
+            self.plot_generating = False
             if self._plot_revision == revision:
                 self.plot_status = f"Plot generation failed: {exc}"
 
@@ -729,6 +758,7 @@ class Controller(param.Parameterized):
             "widget_type": pn.widgets.StaticText,
             "label": "",
             "styles": CONTROL_HELP,
+            "stylesheets": [LINK_CSS],
         }
         clim_widgets = {
             "clim_data_option": {"label": "Climate data option"},
@@ -781,8 +811,13 @@ class Controller(param.Parameterized):
             return pn.Row(
                 "Select a valid epidemiological model to see its suitability curve."
             )
+        if self.epi_model_option == "Example model":
+            title = self.epi_example_name
+        else:
+            low, high = self.epi_temperature_range
+            title = f"Custom model: suitable from {low:g} to {high:g} °C"
         try:
-            plot = epi_model.plot_suitability(responsive=True, height=340)
+            plot = epi_model.plot_suitability(responsive=True, height=340, title=title)
             view = pn.Row(plot, sizing_mode="stretch_width")
         except Exception as exc:
             view = pn.Row(f"Error generating plot: {exc}")
@@ -800,6 +835,9 @@ class Controller(param.Parameterized):
             return
 
         revision = self._clim_revision
+        name = (
+            self.clim_example_name if self.clim_data_option == "Example dataset" else ""
+        )
         self.clim_data_status = "Loading data..."
 
         def apply(ds_clim: xr.Dataset) -> None:
@@ -807,7 +845,7 @@ class Controller(param.Parameterized):
                 ds_clim.close()
                 return
             try:
-                self._set_climate_dataset(ds_clim)
+                self._set_climate_dataset(ds_clim, name=name)
             except Exception:
                 ds_clim.close()
                 raise
@@ -994,8 +1032,8 @@ class Controller(param.Parameterized):
         # Name and details of the climate dataset.
         if self.clim_data_option == "Example dataset":
             self.param.clim_example_name.precedence = 1
-            self.clim_example_doc = climdata.EXAMPLES[self.clim_example_name].get(
-                "doc", ""
+            self.clim_example_doc = linkify(
+                str(climdata.EXAMPLES[self.clim_example_name].get("doc", ""))
             )
             self.param.clim_example_doc.precedence = 1
         elif self.clim_data_option in ("Custom dataset", _DOWNLOADED_DATA):
@@ -1010,7 +1048,9 @@ class Controller(param.Parameterized):
     def _update_epi_example_doc(self) -> None:
         # Details of the epidemiological model.
         if self.epi_model_option == "Example model":
-            self.epi_example_doc = epimod.EXAMPLES[self.epi_example_name].get("doc", "")
+            self.epi_example_doc = linkify(
+                epimod.EXAMPLES[self.epi_example_name].get("doc", "")
+            )
             self.param.epi_example_doc.precedence = 1
         else:
             self.param.epi_example_doc.precedence = -1

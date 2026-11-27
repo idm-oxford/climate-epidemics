@@ -54,11 +54,17 @@ _MEMBER_CHOICES_CSS = """
 }
 .bk-input-group.bk-inline > *:not(:first-child) { margin-left: 0; }
 """
-_STATUS_COLORS = {
-    "info": "#f1f6fe",
-    "success": "#deedff",
-    "warning": "#fff2cf",
-    "danger": "#fde8e5",
+# Fields share a row on wide dialogs and stack on narrow ones.
+_FIELD = {"flex": "1 1 14rem", "min-width": "0"}
+_FOOTER = {
+    # Keep the action and its outcome in view however far the form scrolls.
+    "position": "sticky",
+    "bottom": "0",
+    "z-index": "1",
+    "background": "#fff",
+    "border-top": "1px solid var(--climepi-line, #cadcf4)",
+    "padding": "0.5rem 0",
+    "margin-top": "0.5rem",
 }
 
 
@@ -85,9 +91,17 @@ def _source_information(source: type[ClimateDataGetter]) -> str:
     return summary
 
 
-def _choice_group(widget: pn.widgets.CheckBoxGroup, noun: str) -> pn.Column:
+def _row(*items: Any) -> pn.FlexBox:
+    for item in items:
+        item.param.update(sizing_mode="stretch_width", styles={**item.styles, **_FIELD})
+    return pn.FlexBox(*items, gap="0 0.75rem", sizing_mode="stretch_width")
+
+
+def _choice_group(
+    widget: pn.widgets.CheckBoxGroup, noun: str, *, wide: bool = False
+) -> pn.Column:
     toggle = pn.widgets.Button(
-        variant="outline", color="primary", margin=(0, 0, 0, 6), height=28, width=134
+        variant="outline", color="primary", margin=0, height=28, width=134
     )
 
     def update_toggle(*_events) -> None:
@@ -105,21 +119,31 @@ def _choice_group(widget: pn.widgets.CheckBoxGroup, noun: str) -> pn.Column:
     widget.param.watch(update_toggle, ["options", "value", "disabled"])
     toggle.on_click(toggle_selection)
     return pn.Column(
-        pn.pane.Markdown(f"**{widget.label}**", margin=(0, 0, 4, 6)),
-        toggle,
-        pn.Column(
-            widget,
-            max_height=132,
-            scroll="y-auto",
-            margin=0,
+        pn.Row(
+            pn.pane.Markdown(
+                f"**{widget.label}**", margin=(0, 6), stylesheets=["p { margin: 0; }"]
+            ),
+            pn.HSpacer(),
+            toggle,
+            margin=(0, 0, 4, 0),
+            align="center",
             sizing_mode="stretch_width",
         ),
-        width=260,
-        margin=0,
+        pn.Column(
+            widget,
+            margin=0,
+            sizing_mode="stretch_width",
+            # Panel's max_height resolves against an auto-height parent and is
+            # ignored, so set the scroll limit directly.
+            styles={"max-height": "8.5rem", "overflow-y": "auto"},
+        ),
+        margin=(6, 0),
+        sizing_mode="stretch_width",
         styles={
             "border": "1px solid var(--climepi-line)",
             "border-radius": "8px",
             "padding": "8px",
+            **({"flex": "1 1 100%"} if wide else _FIELD),
         },
     )
 
@@ -248,19 +272,20 @@ class ClimateDownload:
             options={
                 getter.display_name(): key for key, getter in self._sources.items()
             },
-            width=260,
         )
         self._frequency = pn.widgets.Select(
-            label="Time resolution", options=_FREQUENCIES, value="monthly", width=260
+            label="Time resolution", options=_FREQUENCIES, value="monthly"
         )
         self._scenarios = pn.widgets.CheckBoxGroup(label="Scenarios")
         self._models = pn.widgets.CheckBoxGroup(label="Climate models")
         self._realizations = pn.widgets.CheckBoxGroup(
             label="Ensemble members", inline=True, stylesheets=[_MEMBER_CHOICES_CSS]
         )
-        self._start = pn.widgets.IntInput(label="First year", width=125)
-        self._end = pn.widgets.IntInput(label="Last year", width=125)
-        self._geometry = pn.widgets.Select(label="Area", options=_GEOMETRIES)
+        self._start = pn.widgets.IntInput(label="First year")
+        self._end = pn.widgets.IntInput(label="Last year")
+        self._geometry = pn.widgets.Select(
+            label="Area", options=_GEOMETRIES, sizing_mode="stretch_width"
+        )
         self._longitude = self._coordinate("Longitude (°)", 180)
         self._latitude = self._coordinate("Latitude (°)", 90)
         self._place = pn.widgets.TextInput(
@@ -272,7 +297,8 @@ class ClimateDownload:
         self._east = self._coordinate("East longitude (°)", 180)
         self._south = self._coordinate("South latitude (°)", 90)
         self._north = self._coordinate("North latitude (°)", 90)
-        self._point_fields = pn.FlexBox(self._latitude, self._longitude, gap="0.75rem")
+        self._point_fields = _row(self._latitude, self._longitude)
+        self._place.sizing_mode = "stretch_width"
         self._place_fields = pn.Column(
             self._place,
             pn.pane.Markdown(
@@ -281,8 +307,11 @@ class ClimateDownload:
             ),
             sizing_mode="stretch_width",
         )
-        self._box_fields = pn.FlexBox(
-            self._south, self._north, self._west, self._east, gap="0.75rem"
+        self._box_fields = pn.Column(
+            _row(self._south, self._north),
+            _row(self._west, self._east),
+            margin=0,
+            sizing_mode="stretch_width",
         )
         self._inputs = (
             self._source,
@@ -310,8 +339,10 @@ class ClimateDownload:
         self._source_info = pn.pane.Markdown(
             margin=(0, 5), styles=CONTROL_HELP, sizing_mode="stretch_width"
         )
-        self._status = StatusMessage(sizing_mode="stretch_width")
-        self._filename = pn.pane.Str("", margin=(5, 5, 0, 5))
+        self._status = StatusMessage(
+            tone="neutral", margin=(6, 5, 0, 5), sizing_mode="stretch_width"
+        )
+        self._filename = pn.pane.Markdown("", margin=(5, 5, 0, 5), styles=CONTROL_HELP)
         self._prepare = pn.widgets.Button(
             label="Retrieve subset",
             color="primary",
@@ -339,28 +370,30 @@ class ClimateDownload:
         content = pn.Column(
             pn.pane.Markdown("## Choose climate data"),
             pn.pane.Markdown("Select a period and an area to retrieve a NetCDF file."),
-            pn.FlexBox(self._source, self._frequency, gap="0.75rem"),
+            _row(self._source, self._frequency),
             self._source_info,
             self._source_note,
             pn.FlexBox(
                 _choice_group(self._scenarios, "scenarios"),
                 _choice_group(self._models, "models"),
-                gap="0.75rem",
+                _choice_group(self._realizations, "members", wide=True),
+                gap="0 0.75rem",
+                sizing_mode="stretch_width",
             ),
-            pn.FlexBox(
-                _choice_group(self._realizations, "members"),
-                pn.Row(self._start, self._end, margin=0),
-                gap="0.75rem",
-            ),
+            _row(self._start, self._end),
             self._geometry,
             self._point_fields,
             self._place_fields,
             self._box_fields,
-            self._prepare,
-            self._status,
-            self._actions,
+            pn.Column(
+                self._prepare,
+                self._status,
+                self._actions,
+                margin=0,
+                sizing_mode="stretch_width",
+                styles=_FOOTER,
+            ),
             sizing_mode="stretch_width",
-            max_width=650,
         )
         self.modal = pn.Modal(
             content, background_close=False, stylesheets=[_MODAL_STYLE]
@@ -371,6 +404,7 @@ class ClimateDownload:
             color="primary",
             variant="outline",
             icon="adjustments",
+            margin=(6, 0),
             sizing_mode="stretch_width",
         )
         self._update_source()
@@ -487,14 +521,7 @@ class ClimateDownload:
         return _SubsetRequest(source, self._frequency.value, subset, place)
 
     def _set_status(self, message: str, kind: str) -> None:
-        self._status.param.update(
-            value=message,
-            styles={
-                "background": _STATUS_COLORS[kind],
-                "border-radius": "8px",
-                "padding": "8px 12px",
-            },
-        )
+        self._status.param.update(value=message, tone=kind)
 
     def _set_working(self, working: bool) -> None:
         self._working = working
@@ -508,7 +535,7 @@ class ClimateDownload:
             self._result = None
             self._download.param.update(file=None, data=None)
             self._actions.visible = False
-            self._status.param.update(value="", styles={})
+            self._status.param.update(value="", tone="neutral")
 
     async def _retrieve(self, _event=None) -> None:
         if self._working or self._closed:

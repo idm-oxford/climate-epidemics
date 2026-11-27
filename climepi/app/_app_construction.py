@@ -224,8 +224,7 @@ def _layout(
             (
                 "Climate data",
                 plot_workspace(
-                    controller.clim_plot_controller.controls,
-                    controller.clim_plot_controller.view,
+                    controller.clim_plot_controller,
                     "Load an example dataset or use a climate subset."
                     if enable_climate_download
                     else "Choose a climate dataset and select **Load data**.",
@@ -238,8 +237,7 @@ def _layout(
             (
                 "Projections",
                 plot_workspace(
-                    controller.epi_plot_controller.controls,
-                    controller.epi_plot_controller.view,
+                    controller.epi_plot_controller,
                     "Load climate data and select **Run model**.",
                 ),
             ),
